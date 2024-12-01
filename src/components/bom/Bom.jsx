@@ -66,7 +66,7 @@ const Bom = () => {
     }, [location]);
 
     const handlePageChange = (page) => {
-        bomList(page, sortBy, sortDir, searchQuery);
+        fetchBomList(page, sortBy, sortDir, searchQuery);
     };
     const deleteBom = async (id) => {
         try {
