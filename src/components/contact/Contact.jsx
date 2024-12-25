@@ -1,0 +1,165 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import ContactList from './ContactList';
+import { Button } from 'react-bootstrap';
+import apiService from '../../services/apiService';
+import AddUpdateContact from "./AddUpdateContact";
+import InventoryForm from "../inventory/InventoryForm";
+
+const Inventory = () => {
+    const [loading, setLoading] = useState(false);
+    const [contactList, setContactList] = useState([]);
+    const [error, setError] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [sortBy, setSortBy] = useState('id');
+    const [sortDir, setSortDir] = useState('asc');
+    const [filters, setFilters] = useState({
+        itemCode: '',
+        name: '',
+        hsnCode: '',
+        itemType: '',
+        uom: '',
+    });
+
+    const itemsPerPage = 5;
+    const navigate = useNavigate();
+    const location = useLocation();
+    const debounceTimeout = useRef(null);
+
+    // Handle filter changes
+    const handleFilterChange = (key, value) => {
+        const newFilters = { ...filters, [key]: value };
+        setFilters(newFilters);
+
+        if (debounceTimeout.current) {
+            clearTimeout(debounceTimeout.current);
+        }
+        debounceTimeout.current = setTimeout(() => {
+            fetchContactList(currentPage, sortBy, sortDir, newFilters);
+        }, 1500);
+    };
+
+    const handleSort = (column) => {
+        const newSortDir = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
+        setSortBy(column);
+        setSortDir(newSortDir);
+        fetchContactList(currentPage, column, newSortDir, filters);
+    };
+
+    const handleAdd = () => {
+        navigate('add');
+    };
+
+    const handleSave = async (data) => {
+        console.log(data)
+        try {
+            if (data.id) {
+                await apiService.put(`/contact/${data.id}`, data); // Update
+            } else {
+                await apiService.post('/contact', data); // Create
+            }
+            navigate(-1);
+        } catch (err) {
+            console.error('Save failed', err);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        console.log(id)
+        await apiService.delete(`/contact/${id}`);
+        fetchContactList()
+    };
+    const fetchContactList = useCallback(
+        async (page = currentPage, sort = sortBy, dir = sortDir, filters) => {
+            setLoading(true);
+            setError(null); // Reset error state
+            try {
+                const params = {
+                    page: page - 1, // API expects zero-based page index
+                    size: itemsPerPage,
+                    sortBy: sort,
+                    sortDir: dir,
+                    ...filters, // Pass filters in API request
+                };
+
+                const data = await apiService.get('/contact', params);
+                setContactList(data.content || []);
+                setTotalPages(data.totalPages || 1);
+                setCurrentPage(page);
+            } catch (err) {
+                setError('Failed to fetch inventory list');
+            } finally {
+                setLoading(false);
+            }
+        },
+        [currentPage, sortBy, sortDir]
+    );
+
+    const handlePageChange = (event, page) => {
+        setCurrentPage(page);
+        fetchContactList(page, sortBy, sortDir, filters);
+    };
+
+    useEffect(() => {
+        if (location.pathname === '/contact') {
+            fetchContactList(currentPage, sortBy, sortDir, filters);
+        }
+    }, [location]);
+
+    if (loading) {
+        return (
+            <div className="text-center">
+                <div className="spinner-border" role="status">
+                    <span className="sr-only">Loading...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return <div className="alert alert-danger">Error: {error}</div>;
+    }
+
+    return (
+        <div>
+            <>
+            <Routes>
+                <Route
+                    path="/"
+                    element={
+                        <ContactList
+                            contacts={contactList}
+                            filters={filters}
+                            handleSort={handleSort}
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            handlePageChange={handlePageChange}
+                            handleFilterChange={handleFilterChange}
+                            handleDelete={handleDelete}
+                        />
+                    }
+                />
+                <Route path="/add"
+                       element={
+                    <AddUpdateContact
+                    onSave={handleSave}
+                    />
+                       } />
+
+                <Route
+                    path="/edit/:contactId"
+                    element={
+                        <AddUpdateContact
+                            onSave={handleSave}
+                        />
+                    }
+                />
+            </Routes>
+            </>
+
+        </div>
+    );
+};
+
+export default Inventory;

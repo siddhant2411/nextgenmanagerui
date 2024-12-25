@@ -41,7 +41,6 @@ const BomList = ({bomList,
 
     const handleChange = (event) => {
         const query = event.target.value;
-        console.log(event.target)
         setSearchQuery(query);
 
         // Clear the previous timeout
