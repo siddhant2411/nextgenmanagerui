@@ -8,7 +8,7 @@ import {
     Map,
     Language,
     FormatListBulleted,
-    ListAltOutlined, Inventory2,
+    ListAltOutlined, Inventory2, InfoOutlined,
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import {Contact} from "lucide-react";
@@ -24,6 +24,7 @@ const Sidebar = () => {
         { text: "Bill Of Material", icon: <FormatListBulleted />, path: "/bom" },
         { text: "Company", icon: <Contact />, path: "/contact" },
         { text: "Inventory", icon: <Inventory2 />, path: "/inventory" },
+        { text: "Enquiry", icon: <InfoOutlined />, path: "/enquiry" },
         { text: "Notifications", icon: <Notifications />, path: "/notifications" },
         { text: "RTL Support", icon: <Language />, path: "/rtl-support" },
         { text: "SuperAdmin", icon: <Person />, path: "/superadmin" },

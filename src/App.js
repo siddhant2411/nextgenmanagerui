@@ -7,6 +7,7 @@ import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
 import Sidebar from "./components/sidebar/Sidebar";
 import Contact from "./components/contact/Contact";
+import EnquiryPage from "./pages/EnquiryPage";
 
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
                         <Route path="/bom/*" element={<BomPage/>}/>
                         <Route path="/inventory/*" element={<InventoryPage/>}/>
                         <Route path="/contact/*" element={<Contact />}/>
+                        <Route path={"/enquiry/*"} element={<EnquiryPage/>}/>
                     </Routes>
                 </main>
             </div>
