@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Ensure the base URL includes the protocol
-const API_BASE_URL = 'http://localhost:8080/api'; // Add 'http://' or 'https://'
+const API_BASE_URL = 'http://http://ec2-43-204-238-70.ap-south-1.compute.amazonaws.com:8080/api'; // Add 'http://' or 'https://'
 
 // Create a reusable Axios instance
 const apiClient = axios.create({
