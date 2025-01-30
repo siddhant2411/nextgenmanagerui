@@ -8,6 +8,7 @@ import InventoryPage from "./pages/InventoryPage";
 import Sidebar from "./components/sidebar/Sidebar";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
+import QuotationPage from "./pages/QuotationPage";
 
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
                         <Route path="/inventory/*" element={<InventoryPage/>}/>
                         <Route path="/contact/*" element={<Contact />}/>
                         <Route path={"/enquiry/*"} element={<EnquiryPage/>}/>
+                        <Route path={"/quotation/*"} element={<QuotationPage/>}/>
                     </Routes>
                 </main>
             </div>

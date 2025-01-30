@@ -37,7 +37,6 @@ const EnquiryLIst = ({ enquiryList, filters, handleSort, currentPage, totalPages
     return (
         <div>
             <Box>
-                {console.log(filters)}
                 <Typography variant="h4" gutterBottom>Enquiry List</Typography>
                 <Button
                     variant="contained"
