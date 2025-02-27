@@ -147,3 +147,23 @@
     }
 }
 
+.attachment-box{
+    border: 5px solid #d1d1d1;
+
+    width: 50%;
+    height: 40px;
+}
+
+
+.file-link{
+    font-family: "Times New Roman", Times, serif;
+    color: darkblue;
+
+}
+
+.file-link:hover{
+    font-family: "Times New Roman", Times, serif;
+    color: rgba(0, 170, 255, 0.5);
+    cursor: pointer;
+
+}

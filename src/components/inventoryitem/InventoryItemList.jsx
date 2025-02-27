@@ -32,7 +32,7 @@ const InventoryItemList = ({
         basicMaterial: 'Basic Material',
     };
     const debounceTimeout = useRef(null);
-    const excludedColumns = ['creationDate', 'updatedDate', 'deletedDate', 'inventoryItemId'];
+    const excludedColumns = ['creationDate', 'updatedDate', 'deletedDate', 'inventoryItemId','inventoryItemAttachmentList'];
     const columns = Object.keys(inventoryItems[0] || {}).filter(
         (column) => !excludedColumns.includes(column)
     );

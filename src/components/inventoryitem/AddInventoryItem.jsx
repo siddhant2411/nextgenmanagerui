@@ -3,6 +3,9 @@ import { Button, Form } from 'react-bootstrap';
 import { useNavigate, useParams} from 'react-router-dom';
 import apiService from '../../services/apiService';
 import './style/InventoryItem.css';
+import {DeleteOutline, PictureAsPdf, UploadFile} from "@mui/icons-material";
+import {FileSpreadsheet} from "lucide-react";
+import apiFile from "../../services/apiService";
 
 const AddInventoryItem = () => {
     const { id } = useParams(); // Fetch item ID from URL params for edit
@@ -19,8 +22,10 @@ const AddInventoryItem = () => {
         revision: 1,
         remarks: '',
         basicMaterial: '',
+        inventoryItemAttachmentList:[],
     });
     const [isEditMode, setIsEditMode] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);
     useEffect(() => {
         if (id) {
             // If editing, fetch the item details
@@ -67,6 +72,32 @@ const AddInventoryItem = () => {
         }
     };
 
+    const downloadFile = async (index,filename)=>{
+        await apiService.download(`/inventory_item/download/${index}`,'',filename);
+        // alert('Item updated successfully!');
+    }
+
+    const deleteFile = async (index,filename)=>{
+        await apiService.delete(`/inventory_item/delete/${index}`,'',filename);
+        // alert('Item updated successfully!');
+        navigate(0)
+    }
+
+    const uploadFile = async ()=>{
+        if (!selectedFile) {
+            alert("Please select a file first!");
+            return;
+        }
+        await apiService.upload(`/inventory_item/${itemData.inventoryItemId}/upload`,selectedFile)
+        navigate(0)
+    }
+
+
+
+    const handleFileChange = (event) => {
+        setSelectedFile(event.target.files[0]); // Store file in state
+    };
+
     return (
         <Form onSubmit={handleSubmit} className="form-container">
             <h3>{isEditMode ? 'Edit Inventory Item' : 'Add Inventory Item'}</h3>
@@ -90,7 +121,7 @@ const AddInventoryItem = () => {
             {/* Item Name */}
 
             <div className={"basic-item-details"}>
-                <h6 className={"section-heading" }>Basic Info</h6>
+                <h6 className={"section-heading"}>Basic Info</h6>
 
                 <div className={"basic-info-input"}>
                     <div className={"basic-info-input-1"}>
@@ -151,111 +182,137 @@ const AddInventoryItem = () => {
                             <label className={"input-label"}>Type</label>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {/* Revision */}
+            <div className={"basic-item-details"}>
+
+                <h6 className={"section-heading"}>Specifications</h6>
+                <div className={"basic-info-input"}>
+                    <div className={"basic-info-input-1"}>
+                        <div className="item-dimension-input ">
+
+                            <input
+                                type="text"
+                                name="dimension"
+                                value={itemData.dimension}
+                                onChange={handleInputChange}
+                                placeholder={""}
+                                className={"item-input"}
+                            />
+                            <label className={"input-label"}>Dimensions</label>
+                        </div>
+
+
+                        <div className="item-dimension-input right-input">
+                            <input
+                                type="text"
+                                name="size1"
+                                value={itemData.size1}
+                                onChange={handleInputChange}
+                                placeholder={""}
+                                className={"item-input"}
+                            />
+                            <label className={"input-label"}>Size 1</label>
+                        </div>
+                    </div>
+
+                    <div className={"basic-info-input-2"}>
+                        <div className="item-dimension-input ">
+                            <input
+                                type="text"
+                                name="size2"
+                                value={itemData.size2}
+                                onChange={handleInputChange}
+                                placeholder={""}
+                                className={"item-input"}
+                            />
+                            <label className={"input-label"}>Size 2</label>
+                        </div>
+                        <div className={"item-dimension-input right-input"}>
+                            <input
+                                type="text"
+                                name="basicMaterial"
+                                value={itemData.basicMaterial}
+                                onChange={handleInputChange}
+                                placeholder={""}
+                                className={"item-input"}
+                            />
+                            <label className={"input-label"}>Basic Material</label>
+                        </div>
+
+
                     </div>
                 </div>
+            </div>
 
-                {/* Revision */}
-                <div className={"basic-item-details"}>
-
-                <h6 className={"section-heading" }>Specifications</h6>
-                    <div className={"basic-info-input"}>
-                        <div className={"basic-info-input-1"}>
-                            <div className="item-dimension-input ">
-
-                                <input
-                                    type="text"
-                                    name="dimension"
-                                    value={itemData.dimension}
-                                    onChange={handleInputChange}
-                                    placeholder={""}
-                                    className={"item-input"}
-                                />
-                                <label className={"input-label"}>Dimensions</label>
-                            </div>
-
-
-                            <div className="item-dimension-input right-input">
-                                <input
-                                    type="text"
-                                    name="size1"
-                                    value={itemData.size1}
-                                    onChange={handleInputChange}
-                                    placeholder={""}
-                                    className={"item-input"}
-                                />
-                                <label className={"input-label"}>Size 1</label>
-                            </div>
-                        </div>
-
-                        <div className={"basic-info-input-2"}>
-                            <div className="item-dimension-input ">
-                                <input
-                                    type="text"
-                                    name="size2"
-                                    value={itemData.size2}
-                                    onChange={handleInputChange}
-                                    placeholder={""}
-                                    className={"item-input"}
-                                />
-                                <label className={"input-label"}>Size 2</label>
-                            </div>
-                            <div className={"item-dimension-input right-input"}>
-                                <input
-                                    type="text"
-                                    name="basicMaterial"
-                                    value={itemData.basicMaterial}
-                                    onChange={handleInputChange}
-                                    placeholder={""}
-                                    className={"item-input"}
-                                />
-                                <label className={"input-label"}>Basic Material</label>
-                            </div>
-
-
-                        </div>
-                    </div>
-                    </div>
 
             <div className={"basic-item-details"}>
 
                 <h6 className={"section-heading"}>Specifications</h6>
-              <div className={"basic-info-input"}>
-                  <div className={"basic-info-input-1"}>
-                      <div className={"item-dimension-input "}>
-                          <input
-                            type="text"
-                            name="revision"
-                            value={itemData.revision}
-                            onChange={handleInputChange}
-                            className={"item-input"}
-                        />
-                          <label className={"input-label"}>Revision</label>
-                      </div>
+                <div className={"basic-info-input"}>
+                    <div className={"basic-info-input-1"}>
+                        <div className={"item-dimension-input "}>
+                            <input
+                                type="text"
+                                name="revision"
+                                value={itemData.revision}
+                                onChange={handleInputChange}
+                                className={"item-input"}
+                            />
+                            <label className={"input-label"}>Revision</label>
+                        </div>
 
-                      {/* Remarks */}
-                      <div className="item-dimension-input right-input">
+                        {/* Remarks */}
+                        <div className="item-dimension-input right-input">
 
-                          <input
-                              type="text"
-                              name="remarks"
-                              value={itemData.remarks}
-                              onChange={handleInputChange}
-                              className={"item-input"}
-                              placeholder={""}
-                          />
-                          <label  className={"input-label"}>Remarks</label>
-                      </div>
-                  </div>
-              </div>
+                            <input
+                                type="text"
+                                name="remarks"
+                                value={itemData.remarks}
+                                onChange={handleInputChange}
+                                className={"item-input"}
+                                placeholder={""}
+                            />
+                            <label className={"input-label"}>Remarks</label>
+                        </div>
+                    </div>
+                </div>
 
 
             </div>
 
+            {isEditMode&&
+            <div className={"basic-item-details"}>
+                <h6 className={"section-heading"}>Attachments</h6>
+                <div className={"basic-info-input"}>
+                    {itemData.inventoryItemAttachmentList.map((item, index) => (
+                        <div key={index} className={"attachment-box"}>
+                            <span className={"file-link"} onClick={() => {
+                                downloadFile(item.id, item.fileName)
+                            }}>{item.fileName}</span>
+                            <DeleteOutline style={{"float": "right"}} onClick={() => {
+                                deleteFile(item.id, item.fileName)
+                            }}/>
+                        </div>
+
+                    ))}
 
 
+                    <div className="attachment-container"
+                         style={{display: "flex", alignItems: "center"}}>
+                        <div className="attachment-box" style={{marginRight: "10px"}}>
+                            <input type="file" className="file-input" onChange={handleFileChange}/>
+                        </div>
+                        <Button className="upload-button" style={{cursor: "pointer"}} onClick={()=>uploadFile()}>Upload</Button>
+                    </div>
 
 
-            <Button variant="primary" type="submit" className="submit-btn" >
+                </div>
+            </div>
+            }
+            <Button variant="primary" type="submit" className="submit-btn">
                 {isEditMode ? 'Update Item' : 'Add Item'}
             </Button>
         </Form>

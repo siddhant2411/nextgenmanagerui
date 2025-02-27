@@ -3,6 +3,7 @@ import { Dropdown, Form, Spinner, Alert, Button } from "react-bootstrap";
 import apiService from "../../services/apiService";
 import BomPositionTable from "./BomPositionTable";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import {DeleteOutline} from "@mui/icons-material";
 
 const AddBom = () => {
     const [items, setItems] = useState([]);
@@ -17,7 +18,8 @@ const AddBom = () => {
     const navigate = useNavigate();
     const { bomId } = useParams(); // Get BOM ID from URL
     const location = useLocation();
-
+    const [bomAttachments, setBomAttachments] = useState([]);
+    const [selectedFile, setSelectedFile] = useState(null);
     // Fetch inventory items
     const fetchInventoryItems = useCallback(
         async (search = "") => {
@@ -62,6 +64,7 @@ const AddBom = () => {
                     position: child.position || (index + 1) * 10,
                 }))
             );
+            setBomAttachments(data.bomAttachmentList)
         } catch (err) {
             setError("Failed to fetch BOM details");
         } finally {
@@ -69,6 +72,18 @@ const AddBom = () => {
         }
     }, [bomId]);
 
+    const uploadFile = async ()=>{
+        if (!selectedFile) {
+            alert("Please select a file first!");
+            return;
+        }
+        await apiService.upload(`/bom/${bomId}/upload`,selectedFile)
+        navigate(0)
+    }
+
+    const handleFileChange = (event) => {
+        setSelectedFile(event.target.files[0]); // Store file in state
+    };
     // Handle form submission
     const handleSubmit = async (childInventoryItems) => {
         if (!bomName.trim() || !selectedParentItem) {
@@ -140,6 +155,16 @@ const AddBom = () => {
     }, [fetchBomDetails, location]);
 
 
+    const downloadFile = async (index,filename)=>{
+        await apiService.download(`/bom/download/${index}`,'',filename);
+        // alert('Item updated successfully!');
+    }
+
+    const deleteFile = async (index,filename)=>{
+        await apiService.delete(`/bom/delete/${index}`,'',filename);
+        // alert('Item updated successfully!');
+        navigate(0)
+    }
     return (
         <div className={"add-bom"}>
             <div className="my-4 input-section">
@@ -199,12 +224,44 @@ const AddBom = () => {
                 </div>
             </div>
 
+
+
             <div className="bom-position-table-wrapper">
                 <BomPositionTable
                     onSubmit={handleSubmit}
                     initialData={rowData} // Pass initial data to BomPositionTable
                 />
             </div>
+
+            {bomId&&
+                <div className={"basic-item-details"}>
+                    <h6 className={"section-heading"}>Attachments</h6>
+                    <div className={"basic-info-input"}>
+                        {bomAttachments.map((item, index) => (
+                            <div key={index} className={"attachment-box"}>
+                            <span className={"file-link"} onClick={() => {
+                                downloadFile(item.id, item.fileName)
+                            }}>{item.fileName}</span>
+                                <DeleteOutline style={{"float": "right"}} onClick={() => {
+                                    deleteFile(item.id, item.fileName)
+                                }}/>
+                            </div>
+
+                        ))}
+
+
+                        <div className="attachment-container"
+                             style={{display: "flex", alignItems: "center"}}>
+                            <div className="attachment-box" style={{marginRight: "10px"}}>
+                                <input type="file" className="file-input" onChange={handleFileChange}/>
+                            </div>
+                            <Button className="upload-button" style={{cursor: "pointer"}} onClick={()=>uploadFile()}>Upload</Button>
+                        </div>
+
+
+                    </div>
+                </div>
+            }
         </div>
     );
 };
