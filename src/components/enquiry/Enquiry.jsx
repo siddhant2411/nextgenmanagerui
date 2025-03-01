@@ -31,7 +31,6 @@ const Enquiry = () => {
     const debounceTimeout = useRef(null);
 
     const handleFilterChange = (key, value) => {
-        console.log("Handle change", key, value);
         const newFilters = { ...filters, [key]: value };
 
         setFilters(newFilters);

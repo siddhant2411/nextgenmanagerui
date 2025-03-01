@@ -237,7 +237,7 @@ const AddBom = () => {
                 <div className={"basic-item-details"}>
                     <h6 className={"section-heading"}>Attachments</h6>
                     <div className={"basic-info-input"}>
-                        {bomAttachments.map((item, index) => (
+                        {bomAttachments?.map((item, index) => (
                             <div key={index} className={"attachment-box"}>
                             <span className={"file-link"} onClick={() => {
                                 downloadFile(item.id, item.fileName)
