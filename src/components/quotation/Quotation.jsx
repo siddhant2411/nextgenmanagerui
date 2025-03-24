@@ -1,8 +1,10 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {useLocation, useNavigate} from "react-router-dom";
+import {Routes, useLocation, useNavigate,Route} from "react-router-dom";
 import apiService from "../../services/apiService";
 import {CircularProgress} from "@mui/material";
 import QuotationList from "./QuotationList";
+import AddUpdateEnquiry from "../enquiry/AddUpdateEnquiry";
+import AddUpdateQuotation from "./AddUpdateQuotation";
 
 const Quotation = () => {
 
@@ -130,15 +132,38 @@ const Quotation = () => {
 
     return (
         <div>
-            <QuotationList
-                handleSort={handleSort}
-                filters={filters}
-                handleFilterChange={handleFilterChange}
-                quotationList={quotationList}
-                handleDelete={handleDelete}
-                totalPages={totalPages}
-                currentPage={currentPage}
-                handlePageChange={handlePageChange}/>
+            <Routes>
+                <Route
+                    path="/"
+                    element={
+                <QuotationList
+                    handleSort={handleSort}
+                    filters={filters}
+                    handleFilterChange={handleFilterChange}
+                    quotationList={quotationList}
+                    handleDelete={handleDelete}
+                    totalPages={totalPages}
+                    currentPage={currentPage}
+                    handlePageChange={handlePageChange}/>
+                    }
+                />
+
+                <Route path="/add"
+                       element={
+                           <AddUpdateQuotation
+                               onSave={handleSave}
+                           />
+                       } />
+
+                <Route
+                    path="/edit/:quotationId"
+                    element={
+                        <AddUpdateQuotation
+                            onSave={handleSave}
+                        />
+                    }
+                />
+            </Routes>
         </div>
     );
 };

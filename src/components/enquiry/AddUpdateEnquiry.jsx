@@ -130,18 +130,15 @@ const AddUpdateEnquiry = ({onSave}) => {
 
         onSubmit: (values) => {
             const updatedValues = { ...values };
-            if (values.id === 0) {
+
+            if (Number(values.id) === 0) {  // Ensure `id` is treated as a number
                 console.log("INSIDE");
-
-
                 delete updatedValues.enqNo;
                 delete updatedValues.id;
-                console.log(updatedValues);
-
+                console.log("Updated Values:", updatedValues);
             }
-              onSave(updatedValues);
 
-
+            onSave(updatedValues);  // Proceed with saving after modifications
         },
     });
 
@@ -163,8 +160,7 @@ const AddUpdateEnquiry = ({onSave}) => {
 
     const debounceTimeout = useRef(null);
     const handleSearchChangeProduct = async (event, value,index) => {
-        console.log(formik.values.enquiredProducts);
-        if(value==='undefined'){
+        if(event?.target?.value==='undefined'){
             // setSearchQuery('')
             return
         }
@@ -172,8 +168,9 @@ const AddUpdateEnquiry = ({onSave}) => {
         // formik.setFieldValue(`enquiredProducts[${index}].searchQuery`, value);
 
         setLoading(true)
+        // console.log("query",value)
         debounceTimeout.current = setTimeout(async () => {
-            const data = await inventoryItemSearch(value);
+            const data = await inventoryItemSearch(event?.target?.value);
             setProductList(data);
             setLoading(false)
         },1500)
@@ -462,9 +459,9 @@ const AddUpdateEnquiry = ({onSave}) => {
                                                     }}
 
                                                     value={formik.values.enquiredProducts[index]?.inventoryItem || null} // Controlled value for selected option
-                                                    onInputChange={() =>
+                                                    onInputChange={(event) =>
 
-                                                        handleSearchChangeProduct()
+                                                        handleSearchChangeProduct(event)
                                                     }
 
                                                     options={productList} // List of available options

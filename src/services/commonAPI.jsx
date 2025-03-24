@@ -1,4 +1,5 @@
 import apiClient from "./apiService";
+import apiService from "./apiService";
 
 export const searchContacts = async (search='') => {
     try {
@@ -32,6 +33,23 @@ export const inventoryItemSearch = async (search='') => {
         return response.content;
     } catch (error) {
         console.error('Error fetching contacts:', error);
+        throw error;
+    }
+};
+
+export const searchEnquiry = async (search='') => {
+    try {
+        const params = {
+            page:0,
+            size: 10,
+            sortBy: 'enqNo',
+            sortDir: 'asc',
+            enqNo:search
+        };
+        const response = await apiService.get('/enquiry', params);
+        return response.content;
+    } catch (error) {
+        console.error('Error fetching Enquiry:', error);
         throw error;
     }
 };
