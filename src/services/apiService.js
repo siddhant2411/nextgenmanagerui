@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Ensure the base URL includes the protocol
-const API_BASE_URL = 'http://localhost:8080/api'; // Add 'http://' or 'https://'
+const API_BASE_URL =process.env.REACT_APP_API_URL; // Add 'http://' or 'https://'
 
 // Create a reusable Axios instance
 const apiClient = axios.create({
