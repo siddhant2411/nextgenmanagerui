@@ -8,7 +8,7 @@ import {
     Map,
     Language,
     FormatListBulleted,
-    ListAltOutlined, Inventory2, InfoOutlined, FormatQuote,
+    ListAltOutlined, Inventory2, InfoOutlined, FormatQuote, ProductionQuantityLimits, Create, FactoryOutlined,
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
 import {Contact} from "lucide-react";
@@ -26,6 +26,7 @@ const Sidebar = () => {
         { text: "Inventory", icon: <Inventory2 />, path: "/inventory" },
         { text: "Enquiry", icon: <InfoOutlined />, path: "/enquiry" },
         { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
+        { text: "Production", icon: <FactoryOutlined />, path: "/production" },
         { text: "Notifications", icon: <Notifications />, path: "/notifications" },
         { text: "RTL Support", icon: <Language />, path: "/rtl-support" },
         { text: "SuperAdmin", icon: <Person />, path: "/superadmin" },
@@ -54,7 +55,7 @@ const Sidebar = () => {
             </Box>
             <List>
                 {menuItems.map((item, index) => (
-                    <ListItem disablePadding key={index}>
+                    <ListItem disablePadding key={index} sx={{ borderBottom: '1px solid rgba(44, 73, 110, 0.5)' }}>
                         <ListItemButton
                             onClick={() => navigate(item.path)} // Navigate to the path
                             sx={{
