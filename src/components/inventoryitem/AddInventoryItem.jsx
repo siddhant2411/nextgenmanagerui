@@ -1,322 +1,162 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Form } from 'react-bootstrap';
-import { useNavigate, useParams} from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import {
+  Box, Button, Grid, TextField, Typography, Select, MenuItem,
+  FormControl, InputLabel, Snackbar, Alert, Divider, Paper, IconButton
+} from '@mui/material';
+import { Delete as DeleteIcon, UploadFile as UploadFileIcon } from '@mui/icons-material';
+import { useNavigate, useParams } from 'react-router-dom';
 import apiService from '../../services/apiService';
-import './style/InventoryItem.css';
-import {DeleteOutline, PictureAsPdf, UploadFile} from "@mui/icons-material";
-import {FileSpreadsheet} from "lucide-react";
-import apiFile from "../../services/apiService";
+import './style/InventoryItem.css'
+export default function AddInventoryItem() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [itemData, setItemData] = useState({
+    itemCode: '', name: '', hsnCode: '', uom: 'NOS', itemType: 'RAW_MATERIAL',
+    dimension: '', size1: '', size2: '', revision: 1, remarks: '', basicMaterial: '',
+    inventoryItemAttachmentList: []
+  });
 
-const AddInventoryItem = () => {
-    const { id } = useParams(); // Fetch item ID from URL params for edit
-    const navigate = useNavigate();
-    const [itemData, setItemData] = useState({
-        itemCode: '',
-        name: '',
-        hsnCode: '',
-        uom: 'NOS',
-        itemType: 'RAW_MATERIAL',
-        dimension: '',
-        size1: '',
-        size2: '',
-        revision: 1,
-        remarks: '',
-        basicMaterial: '',
-        inventoryItemAttachmentList:[],
-    });
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [selectedFile, setSelectedFile] = useState(null);
-    useEffect(() => {
-        if (id) {
-            // If editing, fetch the item details
-            const fetchItem = async () => {
-                try {
-                    const data = await apiService.get(`/inventory_item/${id}`);
-                    setItemData(data);
-                    setIsEditMode(true);
-                } catch (error) {
-                    console.error('Failed to fetch item details:', error);
-                }
-            };
-            fetchItem();
-        }
-    }, [id]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const showSnackbar = (message, severity = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setItemData({
-            ...itemData,
-            [name]: value,
-        });
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            if (isEditMode) {
-                await apiService.put(`/inventory_item/${id}`, itemData);
-                alert('Item updated successfully!');
-
-            } else {
-                await apiService.post('/inventory_item/add', itemData);
-                alert('Item added successfully!');
-            }
-
-
-
-            navigate(-1);
-
-        } catch (error) {
-            console.error('Error saving inventory item:', error);
-            alert('Failed to save item. Please try again.');
-        }
-    };
-
-    const downloadFile = async (index,filename)=>{
-        await apiService.download(`/inventory_item/download/${index}`,'',filename);
-        // alert('Item updated successfully!');
+  const fetchItem = useCallback(async () => {
+    try {
+      const data = await apiService.get(`/inventory_item/${id}`);
+      setItemData(data);
+      setIsEditMode(true);
+    } catch (error) {
+      showSnackbar('Failed to fetch item', 'error');
     }
+  }, [id]);
 
-    const deleteFile = async (index,filename)=>{
-        await apiService.delete(`/inventory_item/delete/${index}`,'',filename);
-        // alert('Item updated successfully!');
-        navigate(0)
+  useEffect(() => { if (id) fetchItem(); }, [id, fetchItem]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setItemData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (isEditMode) {
+        await apiService.put(`/inventory_item/${id}`, itemData);
+        showSnackbar('Item updated successfully');
+      } else {
+        await apiService.post('/inventory_item/add', itemData);
+        showSnackbar('Item added successfully');
+      }
+      setTimeout(() => navigate('/inventory-item'), 1200);
+    } catch (error) {
+      showSnackbar('Error saving item', 'error');
     }
+  };
 
-    const uploadFile = async ()=>{
-        if (!selectedFile) {
-            alert("Please select a file first!");
-            return;
-        }
-        await apiService.upload(`/inventory_item/${itemData.inventoryItemId}/upload`,selectedFile)
-        navigate(0)
+  const handleFileUpload = async () => {
+    if (!selectedFile) return showSnackbar('Select file first', 'warning');
+    try {
+      await apiService.upload(`/inventory_item/${itemData.inventoryItemId}/upload`, selectedFile);
+      showSnackbar('File uploaded');
+      fetchItem();
+    } catch (e) {
+      showSnackbar('File upload failed', 'error');
     }
+  };
 
+  const handleFileDelete = async (fileId) => {
+    try {
+      await apiService.delete(`/inventory_item/delete/${fileId}`);
+      showSnackbar('File deleted');
+      fetchItem();
+    } catch (e) {
+      showSnackbar('Delete failed', 'error');
+    }
+  };
 
+  return (
+    <Box component="form" onSubmit={handleSubmit} sx={{ p: 3, backgroundColor: '#fff', borderRadius: 2 }}>
+      <Typography variant="h5" mb={2}>{isEditMode ? 'Edit' : 'Add'} Inventory Item</Typography>
+      <Grid container spacing={2}>
+        <Grid item xs={12} sm={6}>
+          <TextField label="Item Code" fullWidth name="itemCode" value={itemData.itemCode} onChange={handleChange} required size='small'/>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <Button variant="outlined" sx={{ height: '100%' }}>Assign New</Button>
+        </Grid>
 
-    const handleFileChange = (event) => {
-        setSelectedFile(event.target.files[0]); // Store file in state
-    };
+        <Grid item xs={12} sm={6}>
+          <TextField label="Item Name" fullWidth name="name" value={itemData.name} onChange={handleChange} required size='small'/>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField label="HSN Code" fullWidth name="hsnCode" value={itemData.hsnCode} onChange={handleChange} size='small'/>
+        </Grid>
 
-    return (
-        <Form onSubmit={handleSubmit} className="form-container">
-            <h3>{isEditMode ? 'Edit Inventory Item' : 'Add Inventory Item'}</h3>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>UOM</InputLabel>
+            <Select label="UOM" name="uom" value={itemData.uom} onChange={handleChange} size='small'>
+              <MenuItem value="NOS">Nos.</MenuItem>
+              <MenuItem value="KG">Kg</MenuItem>
+              <MenuItem value="METER">Meter</MenuItem>
+              <MenuItem value="INCH">Inch</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>Type</InputLabel>
+            <Select label="Type" name="itemType" value={itemData.itemType} onChange={handleChange} size='small'>
+              <MenuItem value="RAW_MATERIAL">Raw Material</MenuItem>
+              <MenuItem value="ASSEMBLY">Assembly</MenuItem>
+              <MenuItem value="FINISHED_GOOD">Finished Good</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
 
-            <div className={"item-code"}>
-                <div className="form-group-pair">
-                    {/*<Form.Label>Item Code:</Form.Label>*/}
-                    <h5>Item Code</h5>
-                    <Form.Control
-                        type="text"
-                        name="itemCode"
-                        value={itemData.itemCode}
-                        onChange={handleInputChange}
-                        placeholder={"Item Code"}
-                        required
-                        className={"item-code-input "}
-                    />
-                    <Button className="assign-button">Assign New</Button>
-                </div>
-            </div>
-            {/* Item Name */}
+        <Grid item xs={12} sm={6}><TextField label="Dimension" fullWidth name="dimension" value={itemData.dimension} onChange={handleChange} size='small'/></Grid>
+        <Grid item xs={12} sm={6}><TextField label="Size 1" fullWidth name="size1" value={itemData.size1} onChange={handleChange} size='small'/></Grid>
+        <Grid item xs={12} sm={6}><TextField label="Size 2" fullWidth name="size2" value={itemData.size2} onChange={handleChange} size='small'/></Grid>
+        <Grid item xs={12} sm={6}><TextField label="Basic Material" fullWidth name="basicMaterial" value={itemData.basicMaterial} onChange={handleChange}size='small' /></Grid>
 
-            <div className={"basic-item-details"}>
-                <h6 className={"section-heading"}>Basic Info</h6>
+        <Grid item xs={12} sm={6}><TextField label="Revision" fullWidth name="revision" value={itemData.revision} onChange={handleChange} size='small'/></Grid>
+        <Grid item xs={12} sm={6}><TextField label="Remarks" fullWidth name="remarks" value={itemData.remarks} onChange={handleChange} size='small'/></Grid>
 
-                <div className={"basic-info-input"}>
-                    <div className={"basic-info-input-1"}>
-                        <div className="item-dimension-input">
-                            <input
-                                type="text"
-                                name="name"
-                                value={itemData.name}
-                                onChange={handleInputChange}
-                                required
-                                placeholder=""
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Item Name</label>
-                        </div>
+        {isEditMode && (
+          <Grid item xs={12}>
+            <Divider sx={{ mb: 2 }}>Attachments</Divider>
+            {itemData.inventoryItemAttachmentList.map((file) => (
+              <Paper key={file.id} sx={{ p: 1, display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Typography onClick={() => apiService.download(`/inventory_item/download/${file.id}`, '', file.fileName)} sx={{ cursor: 'pointer' }}>{file.fileName}</Typography>
+                <IconButton onClick={() => handleFileDelete(file.id)}><DeleteIcon /></IconButton>
+              </Paper>
+            ))}
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={8}>
+                <input type="file" onChange={(e) => setSelectedFile(e.target.files[0])} />
+              </Grid>
+              <Grid item xs={4}>
+                <Button onClick={handleFileUpload} variant="outlined" startIcon={<UploadFileIcon />}>Upload</Button>
+              </Grid>
+            </Grid>
+          </Grid>
+        )}
+      </Grid>
+      <Button variant="contained" type="submit" sx={{ mt: 3 }}>{isEditMode ? 'Update Item' : 'Add Item'}</Button>
 
-                        <div className={"item-dimension-input right-input"}>
-                            <input
-                                type="text"
-                                name="hsnCode"
-                                value={itemData.hsnCode}
-                                onChange={handleInputChange}
-                                placeholder={""}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>HSN Code</label>
-                        </div>
-                    </div>
-                    <div className={"basic-info-input-2"}>
-                        <div className="item-dimension-input">
-                            <select
-                                // type="select"
-                                name="uom"
-                                value={itemData.uom || 'NOS'}
-                                onChange={handleInputChange}
-                                className={"item-input"}
-                                // placeholder={"UOM"}
-                            >
-                                <option value="NOS">Nos.</option>
-                                <option value="KG">Kg</option>
-                                <option value="METER">Meter</option>
-                                <option value="INCH">Inch</option>
-                            </select>
-                            <label className={"input-label"}>UOM</label>
-                        </div>
-                        <div className={"item-dimension-input right-input"}>
-                            <select
-
-                                name="itemType"
-                                value={itemData.itemType || 'RAW_MATERIAL'}
-                                onChange={handleInputChange}
-                                className={"item-input "}
-                            >
-                                <option value="RAW_MATERIAL">Raw Material</option>
-                                <option value="ASSEMBLY">Assembly</option>
-                                <option value="FINISHED_GOOD">Finished Good</option>
-                            </select>
-                            <label className={"input-label"}>Type</label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Revision */}
-            <div className={"basic-item-details"}>
-
-                <h6 className={"section-heading"}>Specifications</h6>
-                <div className={"basic-info-input"}>
-                    <div className={"basic-info-input-1"}>
-                        <div className="item-dimension-input ">
-
-                            <input
-                                type="text"
-                                name="dimension"
-                                value={itemData.dimension}
-                                onChange={handleInputChange}
-                                placeholder={""}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Dimensions</label>
-                        </div>
-
-
-                        <div className="item-dimension-input right-input">
-                            <input
-                                type="text"
-                                name="size1"
-                                value={itemData.size1}
-                                onChange={handleInputChange}
-                                placeholder={""}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Size 1</label>
-                        </div>
-                    </div>
-
-                    <div className={"basic-info-input-2"}>
-                        <div className="item-dimension-input ">
-                            <input
-                                type="text"
-                                name="size2"
-                                value={itemData.size2}
-                                onChange={handleInputChange}
-                                placeholder={""}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Size 2</label>
-                        </div>
-                        <div className={"item-dimension-input right-input"}>
-                            <input
-                                type="text"
-                                name="basicMaterial"
-                                value={itemData.basicMaterial}
-                                onChange={handleInputChange}
-                                placeholder={""}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Basic Material</label>
-                        </div>
-
-
-                    </div>
-                </div>
-            </div>
-
-
-            <div className={"basic-item-details"}>
-
-                <h6 className={"section-heading"}>Specifications</h6>
-                <div className={"basic-info-input"}>
-                    <div className={"basic-info-input-1"}>
-                        <div className={"item-dimension-input "}>
-                            <input
-                                type="text"
-                                name="revision"
-                                value={itemData.revision}
-                                onChange={handleInputChange}
-                                className={"item-input"}
-                            />
-                            <label className={"input-label"}>Revision</label>
-                        </div>
-
-                        {/* Remarks */}
-                        <div className="item-dimension-input right-input">
-
-                            <input
-                                type="text"
-                                name="remarks"
-                                value={itemData.remarks}
-                                onChange={handleInputChange}
-                                className={"item-input"}
-                                placeholder={""}
-                            />
-                            <label className={"input-label"}>Remarks</label>
-                        </div>
-                    </div>
-                </div>
-
-
-            </div>
-
-            {isEditMode&&
-            <div className={"basic-item-details"}>
-                <h6 className={"section-heading"}>Attachments</h6>
-                <div className={"basic-info-input"}>
-                    {itemData.inventoryItemAttachmentList.map((item, index) => (
-                        <div key={index} className={"attachment-box"}>
-                            <span className={"file-link"} onClick={() => {
-                                downloadFile(item.id, item.fileName)
-                            }}>{item.fileName}</span>
-                            <DeleteOutline style={{"float": "right"}} onClick={() => {
-                                deleteFile(item.id, item.fileName)
-                            }}/>
-                        </div>
-
-                    ))}
-
-
-                    <div className="attachment-container"
-                         style={{display: "flex", alignItems: "center"}}>
-                        <div className="attachment-box" style={{marginRight: "10px"}}>
-                            <input type="file" className="file-input" onChange={handleFileChange}/>
-                        </div>
-                        <Button className="upload-button" style={{cursor: "pointer"}} onClick={()=>uploadFile()}>Upload</Button>
-                    </div>
-
-
-                </div>
-            </div>
-            }
-            <Button variant="primary" type="submit" className="submit-btn">
-                {isEditMode ? 'Update Item' : 'Add Item'}
-            </Button>
-        </Form>
-    );
-};
-
-export default AddInventoryItem;
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}

@@ -1,38 +1,92 @@
-import React from "react";
-import { Box, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
+import React, { useState } from "react";
+import {
+    Box,
+    Drawer,
+    List,
+    ListItem,
+    ListItemButton,
+    ListItemIcon,
+    ListItemText,
+    Typography,
+    Collapse,
+} from "@mui/material";
 import {
     Dashboard,
     Person,
-    TableChart,
-    Notifications,
-    Map,
-    Language,
     FormatListBulleted,
-    ListAltOutlined, Inventory2, InfoOutlined, FormatQuote, ProductionQuantityLimits, Create, FactoryOutlined,
+    ListAltOutlined,
+    Inventory2,
+    InfoOutlined,
+    FormatQuote,
+    FactoryOutlined,
+    Notifications,
+    Language,
+    ExpandLess,
+    ExpandMore,
 } from "@mui/icons-material";
+import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import {Contact} from "lucide-react";
 
 const Sidebar = () => {
-    const location = useLocation(); // Get the current location
-    const navigate = useNavigate(); // For navigation
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [openProduction, setOpenProduction] = useState(false);
+
+    const [openSubMenus, setOpenSubMenus] = useState({});
+
+    const toggleSubMenu = (text) => {
+        setOpenSubMenus((prev) => ({ ...prev, [text]: !prev[text] }));
+    };
+
 
     const menuItems = [
-
-        { text: "Dashboard", icon: <Dashboard />, path: "/dashboard" },
-        { text: "Products", icon: <ListAltOutlined />, path: "/inventory-item" },
-        { text: "Bill Of Material", icon: <FormatListBulleted />, path: "/bom" },
-        { text: "Company", icon: <Contact />, path: "/contact" },
-        { text: "Inventory", icon: <Inventory2 />, path: "/inventory" },
-        { text: "Enquiry", icon: <InfoOutlined />, path: "/enquiry" },
-        { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
-        { text: "Production", icon: <FactoryOutlined />, path: "/production" },
-        { text: "Notifications", icon: <Notifications />, path: "/notifications" },
-        { text: "RTL Support", icon: <Language />, path: "/rtl-support" },
-        { text: "SuperAdmin", icon: <Person />, path: "/superadmin" },
-
-        { text: "User Profile", icon: <Person />, path: "/user-profile" },
+        {
+            text: "Dashboard",
+            icon: <Dashboard />,
+            path: "/dashboard",
+        },
+        {
+            text: "Products",
+            icon: <ListAltOutlined />,
+            children: [
+                { text: "Master" , path: "/inventory-item"},
+                {text: "Bill Of Material",path:"/bom"},
+            ]
+        },
+        {
+            text: "Production",
+            icon: <FactoryOutlined />,
+            children: [
+                { text: "Work Orders", path: "/production/work-order" },
+                { text: "Manage Batches", path: "/production/manage-batches" },
+                { text: "Production Report", path: "/production/reports" },
+            ],
+        },
+        {
+            text: "Company",
+            icon: <Contact />,
+            path: "/contact",
+        },
+        {
+            text: "Inventory",
+            icon: <Inventory2 />,
+            path: "/inventory",
+        },
+        {
+            text: "Quotation",
+            icon: <FormatQuote />,
+            path: "/quotation",
+        },
+        {
+            text: "SuperAdmin",
+            icon: <Person />,
+            children: [
+                { text: "User List", path: "/superadmin/users" },
+                { text: "Permissions", path: "/superadmin/permissions" },
+            ],
+        },
     ];
+
 
     return (
         <Drawer
@@ -43,7 +97,7 @@ const Sidebar = () => {
                 "& .MuiDrawer-paper": {
                     width: 240,
                     boxSizing: "border-box",
-                    background: "#2c3e50", // Sidebar background color
+                    background: "#2c3e50",
                     color: "#fff",
                 },
             }}
@@ -54,21 +108,48 @@ const Sidebar = () => {
                 </Typography>
             </Box>
             <List>
-                {menuItems.map((item, index) => (
-                    <ListItem disablePadding key={index} sx={{ borderBottom: '1px solid rgba(44, 73, 110, 0.5)' }}>
-                        <ListItemButton
-                            onClick={() => navigate(item.path)} // Navigate to the path
-                            sx={{
-                                backgroundColor: location.pathname === item.path ? "#00acc1" : "transparent", // Highlight active item
-                                "&:hover": { backgroundColor: "#00acc1" },
-                            }}
-                        >
-                            <ListItemIcon sx={{ color: "#fff" }}>{item.icon}</ListItemIcon>
-                            <ListItemText primary={item.text} />
-                        </ListItemButton>
-                    </ListItem>
-                ))}
+                {menuItems.map((item, index) => {
+                    const isActive = location.pathname === item.path || (item.children && item.children.some(child => location.pathname === child.path));
+                    return (
+                        <React.Fragment key={index}>
+                            <ListItem disablePadding sx={{ borderBottom: "1px solid rgba(44, 73, 110, 0.5)" }}>
+                                <ListItemButton
+                                    onClick={() => item.children ? toggleSubMenu(item.text) : navigate(item.path)}
+                                    sx={{
+                                        backgroundColor: isActive ? "#00acc1" : "transparent",
+                                        "&:hover": { backgroundColor: "#00acc1" },
+                                    }}
+                                >
+                                    <ListItemIcon sx={{ color: "#fff" }}>{item.icon}</ListItemIcon>
+                                    <ListItemText primary={item.text} />
+                                    {item.children && (openSubMenus[item.text] ? <ExpandLess /> : <ExpandMore />)}
+                                </ListItemButton>
+                            </ListItem>
+
+                            {item.children && (
+                                <Collapse in={openSubMenus[item.text]} timeout="auto" unmountOnExit>
+                                    <List component="div" disablePadding>
+                                        {item.children.map((child, childIndex) => (
+                                            <ListItemButton
+                                                key={childIndex}
+                                                onClick={() => navigate(child.path)}
+                                                sx={{
+                                                    pl: 4,
+                                                    backgroundColor: location.pathname === child.path ? "#00acc1" : "transparent",
+                                                    "&:hover": { backgroundColor: "#00acc1" },
+                                                }}
+                                            >
+                                                <ListItemText primary={child.text} sx={{ color: "#fff" }} />
+                                            </ListItemButton>
+                                        ))}
+                                    </List>
+                                </Collapse>
+                            )}
+                        </React.Fragment>
+                    );
+                })}
             </List>
+
         </Drawer>
     );
 };

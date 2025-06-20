@@ -1,0 +1,82 @@
+.work-order-container {
+  background-color: #ffffff; /* Ensure white background */
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+/* Filter bar */
+.filter-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.filter-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+/* Section for the data table */
+.work-order-table {
+  background-color: #ffffff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.MuiTableCell-head {
+  background-color: #f3f4f6;
+  font-weight: bold;
+}
+
+.MuiTableRow-root:hover {
+  background-color: #f9f9f9;
+}
+
+/* Table icons */
+.status-icon {
+  font-size: 18px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* Form spacing */
+.form-grid {
+  margin-top: 20px;
+}
+
+.section-divider {
+  margin: 24px 0;
+}
+
+/* Form buttons */
+.button-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+
+.add-work-order-form {
+  background-color: #ffffff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.06);
+  margin-top: 16px;
+}
+
+/* Divider spacing between form and table */
+.section-divider {
+  margin: 32px 0;
+}

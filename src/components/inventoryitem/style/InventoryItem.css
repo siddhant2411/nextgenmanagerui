@@ -1,169 +1,154 @@
-.add-item-btn {
-    display: block;
-    margin-left: auto;
-    margin-right: 1vw; /* Relative unit for responsiveness */
-    margin-bottom: 3vh; /* Relative unit for responsiveness */
-    float: right;
-}
-
 .inventory-item {
-    padding: 1rem; /* Using rem for relative spacing */
+  padding: 2rem;
+  background-color: #ffffff; /* <-- Ensure white background */
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
 }
 
-.item-code-input{
-    width: 20vw;
-    float: left;
-}
-.form-container input,
-.form-container select{
 
-    height: 2rem;
-    border-radius: 3px;
-}
-.search-bar-section{
-    float: left;
-    width: 60vh;
+/* --- Buttons --- */
+.add-item-btn,
+.assign-button,
+.submit-btn {
+  height: 36px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  padding: 0 16px;
+  border-radius: 6px;
+  text-transform: none;
 }
 
+.add-item-btn {
+  float: right;
+  margin: 0 1vw 3vh auto;
+}
 
 .assign-button {
-    margin-left: 0.625rem;
-    height: 2rem;
-    line-height: 0px;
+  margin-left: 10px;
+  background-color: #1976d2;
+  color: white;
+  border: none;
 }
 
-
-.basic-item-details,.item-specs{
-    border: rgba(89, 89, 89, 0.2) 1px solid;
-    margin-top: 2rem;
-    padding-top: 0;
-}
-.basic-item-details input,.basic-item-details select{
-    width: 20vw;
-}
-.section-heading{
-    background-color: rgba(0, 170, 255, 0.5);
-    padding: 10px;
-}
-
-.item-name-input{
-    float: left;
-    margin-left: 0.625rem;
-}
-.hsn-code-input{
-   margin-left: 50vw;
+/* --- Forms and Inputs --- */
+.form-container input,
+.form-container select,
+.item-input {
+  height: 2.5rem;
+  border: 1px solid #d1d1d1;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  width: 100%;
 }
 
-.basic-info-input{
-    margin: 30px 30px 15px;
+.input-label {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #888;
+  transition: all 0.2s ease;
+  background: #fff;
+  pointer-events: none;
+  padding: 0 4px;
 }
 
-.uom-input{
-    float: left;
-    margin-left: 0.625rem;
-    width: 20vw;
-
-}
-
-.item-type-input{
-    width: 20vw;
-    margin-left: 50vw;
-}
-.item-specs input{
-    height: 2rem;
-    width: 20vw;
-}
-.basic-info-input-1{
-    margin-bottom: 20px;
-    height: 6vh;
-}
-.basic-info-input-2{
-    clear: both;
-    height: 5vh;
-}
-
-.item-secs-1{
-    margin-top: 5vh;
-}
-
-.item-dimension-input{
-    position: relative;
-    float: left;
-
-}
-.right-input{
-    /*margin-left: 20vw;*/
-}
-
-.input-label{
-    position: absolute;
-    top: 50%;
-    left: 10px;
-    transform: translateY(-50%);
-    font-size: 16px;
-    color: #aaa;
-    transition: all 0.2s ease;
-    pointer-events: none;
-    background: white;
-}
-
-.item-input{
-    width: 100%;
-    /*padding: 10px 5px;*/
-    font-size: 16px;
-    border: 1px solid #d1d1d1;
-    border-radius: 8px;
-    outline: none;
-    box-sizing: border-box;
-
-
-}
 .item-input:focus + .input-label,
-.item-input:not(:placeholder-shown) ~.input-label{
-    top: -8px;
-    left: 10px;
-    font-size: 12px;
-    color: #666;
+.item-input:not(:placeholder-shown) ~ .input-label {
+  top: -10px;
+  left: 10px;
+  font-size: 12px;
+  color: #333;
 }
 
-.submit-btn{
-    margin-top: 3vh;
+/* --- Section Styling --- */
+.section-heading {
+  background-color: rgba(25, 118, 210, 0.1);
+  padding: 10px 15px;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 10px;
+  border-left: 4px solid #1976d2;
 }
 
+/* Also update basic-item-details background */
+.basic-item-details {
+  background-color: #ffffff; /* <-- White background */
+  border: 1px solid #e0e0e0;
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 2rem;
+}
 
+/* --- Layout Helpers --- */
+.basic-info-input {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
+.basic-info-input-1,
+.basic-info-input-2 {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.item-dimension-input {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+}
+
+/* --- Attachment Section --- */
+.attachment-box {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f9f9f9;
+}
+
+.file-link {
+  color: #1976d2;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.file-link:hover {
+  color: #125ea5;
+  text-decoration: underline;
+}
+
+/* --- Search Bar --- */
+.search-bar-section {
+  width: 60%;
+  margin-bottom: 20px;
+}
 
 .inventory-item-table-cell {
-    width: 10vw; /* Relative width for responsiveness */
-    min-width: 100px; /* Ensures usability on smaller screens */
+  width: 10vw;
+  min-width: 100px;
 }
 
-/* Responsive adjustments using media queries */
+/* --- Responsive Table Adjustments --- */
 @media (max-width: 768px) {
+  .inventory-item-table-cell {
+    width: 100%;
+  }
 
+  .basic-info-input-1,
+  .basic-info-input-2 {
+    flex-direction: column;
+  }
 
-    .inventory-item-table-cell {
-        width: 100%; /* Expand table cells to fit available space */
-    }
-}
-
-.attachment-box{
-    border: 5px solid #d1d1d1;
-
-    width: 50%;
-    height: 40px;
-}
-
-
-.file-link{
-    font-family: "Times New Roman", Times, serif;
-    color: darkblue;
-
-}
-
-.file-link:hover{
-    font-family: "Times New Roman", Times, serif;
-    color: rgba(0, 170, 255, 0.5);
-    cursor: pointer;
-
+  .search-bar-section {
+    width: 100%;
+  }
 }
