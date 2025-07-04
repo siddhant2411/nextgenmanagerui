@@ -1,5 +1,5 @@
-import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {useFormik} from "formik";
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFormik } from "formik";
 import * as Yup from "yup";
 import {
     Autocomplete, Box, Button,
@@ -10,26 +10,27 @@ import {
     Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow,
     TextField,
-    Typography
+    Typography,
+    MenuItem
 } from "@mui/material";
-import {inventoryItemSearch, searchContacts, searchEnquiry} from "../../services/commonAPI";
-import {useLocation, useNavigate, useParams} from "react-router-dom";
+import { inventoryItemSearch, searchContacts, searchEnquiry } from "../../services/commonAPI";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Remove, RemoveCircle} from "@mui/icons-material";
+import { Remove, RemoveCircle } from "@mui/icons-material";
 import enquiry from "../enquiry/Enquiry";
 
-const AddUpdateQuotation = ({onSave}) => {
+const AddUpdateQuotation = ({ onSave }) => {
 
-    const [initialData,setInitialData] = useState([]);
+    const [initialData, setInitialData] = useState([]);
 
     const location = useLocation();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const [selectedItem,setSelectedItem] = useState('');
+    const [selectedItem, setSelectedItem] = useState('');
     const [error, setError] = useState(null);
-    const [enquiryList, setEnquiryList]=useState([]);
-    const [productList,setProductList]=useState([]);
-    const {quotationId} =useParams();
+    const [enquiryList, setEnquiryList] = useState([]);
+    const [productList, setProductList] = useState([]);
+    const { quotationId } = useParams();
 
     const formik = useFormik({
         enableReinitialize: true,
@@ -50,36 +51,44 @@ const AddUpdateQuotation = ({onSave}) => {
                     personDetails: initialData.enquiry?.contact?.personDetails || [],
                 },
             },
-            quotationProducts: initialData.quotationProducts? initialData.quotationProducts: initialData.enquiry?.enquiredProducts || [],
-            netAmount:initialData.netAmount? initialData.netAmount :0,
-            gstPercentage:initialData.gstPercentage? initialData.gstPercentage :0,
-            gstAmount:initialData.gstAmount? initialData.gstAmount :0,
-            discountPercentage:initialData.discountPercentage? initialData.discountPercentage :0,
-            discountAmount:initialData.discountAmount? initialData.discountAmount :0,
-            roundOff:initialData.roundOff? initialData.roundOff :0,
-            totalAmount:initialData.totalAmount? initialData.totalAmount :0,
-            pandfcharges:initialData.pandfcharges? initialData.pandfcharges :0,
-            taxableAmount:initialData.discountAmount? initialData.pandfcharges+initialData.netAmount-initialData.discountAmount:0,
+            quotationProducts: initialData.quotationProducts ? initialData.quotationProducts : initialData.enquiry?.enquiredProducts || [],
+            netAmount: initialData.netAmount ? initialData.netAmount : 0,
+            gstPercentage: initialData.gstPercentage ? initialData.gstPercentage : 0,
+            gstAmount: initialData.gstAmount ? initialData.gstAmount : 0,
+            discountPercentage: initialData.discountPercentage ? initialData.discountPercentage : 0,
+            discountAmount: initialData.discountAmount ? initialData.discountAmount : 0,
+            roundOff: initialData.roundOff ? initialData.roundOff : 0,
+            totalAmount: initialData.totalAmount ? initialData.totalAmount : 0,
+            pandfchargesPercentage: initialData.pandfchargesPercentage ? initialData.pandfchargesPercentage : 0,
+            pandfcharges: initialData.pandfcharges ? initialData.pandfcharges : 0,
+            taxableAmount: initialData.discountAmount ? initialData.pandfcharges + initialData.netAmount - initialData.discountAmount : 0,
+            validTill: initialData.validTill || '',
+            paymentTerms: initialData.paymentTerms || '',
+            deliveryTerms: initialData.deliveryTerms || '',
+            inspectionTerms: initialData.inspectionTerms || '',
+            pricesTerms: initialData.pricesTerms || '',
+            notes: initialData.notes || '',
+            quotationStatus: initialData.quotationStatus || 'DRAFT',
 
 
 
         },
         validationSchema: Yup.object({
+            discountPercentage: Yup.number().min(0, "Cannot be negative").max(100, "Cannot exceed 100"),
+            gstPercentage: Yup.number().min(0, "Cannot be negative").max(100, "Cannot exceed 100"),
+            pandfchargesPercentage: Yup.number().min(0, "Cannot be negative"),
             quotationProducts: Yup.array().of(
                 Yup.object().shape({
-                    pricePerUnit: Yup.number()
-                        .typeError("Price must be a number")
-                        .min(0, "Price cannot be negative") // Allows 0 but prevents negative values
-                        .required("Price is required"),
-
+                    qty: Yup.number().required("Qty is required").min(0.01, "Qty must be greater than 0"),
+                    pricePerUnit: Yup.number().required("Price is required").min(0, "Price cannot be negative"),
                 })
             ),
         }),
         onSubmit: (values) => {
             const updatedValues = { ...values };
+            console.log("INSIDE");
 
             if (values.id === 0) {
-                console.log("INSIDE");
 
 
                 delete updatedValues.enqNo;
@@ -89,26 +98,65 @@ const AddUpdateQuotation = ({onSave}) => {
             }
 
 
+            console.log(updatedValues)
 
             onSave(updatedValues)
         },
     });
 
-    const fetchQuotationDetails =useCallback(async () => {
-        console.log("Enquiry"+quotationId)
+    const { pandfchargesPercentage, discountAmount } = formik.values;
+
+    useEffect(() => {
+        const pct = parseFloat(formik.values.pandfchargesPercentage) || 0;
+        const disc = parseFloat(formik.values.discountAmount) || 0;
+        // say P&F charges = pct% of discountAmount
+        const pandf = +(disc * pct / 100).toFixed(2);
+
+        formik.setFieldValue('pandfcharges', pandf);
+    }, [
+        pandfchargesPercentage,
+        discountAmount
+    ]);
+
+    const parseFloatOrZero = (value) => isNaN(parseFloat(value)) ? 0 : parseFloat(value);
+
+
+
+    useEffect(() => {
+        const net = parseFloatOrZero(formik.values.netAmount);
+        const discount = parseFloatOrZero(formik.values.discountPercentage);
+        const pandf = parseFloatOrZero(formik.values.pandfcharges);
+        const discountAmount = ((discount / 100) * net).toFixed(2);
+        const taxable = (net - discountAmount + pandf).toFixed(2);
+        formik.setFieldValue('discountAmount', discountAmount);
+        formik.setFieldValue('taxableAmount', taxable);
+    }, [formik.values.discountPercentage, formik.values.netAmount, formik.values.pandfcharges]);
+
+    useEffect(() => {
+        const taxable = parseFloatOrZero(formik.values.taxableAmount);
+        const gst = parseFloatOrZero(formik.values.gstPercentage);
+        const gstAmount = ((gst / 100) * taxable).toFixed(2);
+        const total = (taxable + parseFloatOrZero(gstAmount)).toFixed(2);
+        const roundOff = (Math.round(total) - total).toFixed(2);
+        formik.setFieldValue('gstAmount', gstAmount);
+        formik.setFieldValue('totalAmount', Math.round(total));
+        formik.setFieldValue('roundOff', roundOff);
+    }, [formik.values.gstPercentage, formik.values.taxableAmount]);
+
+    const fetchQuotationDetails = useCallback(async () => {
+        console.log("Enquiry" + quotationId)
         if (!quotationId) return;
 
         try {
             setLoading(true);
             const data = await apiService.get(`/quotation/${quotationId}`);
             setInitialData(data)
-            console.log(data)
         } catch (err) {
             setError("Failed to fetch Enquiry Details");
         } finally {
             setLoading(false);
         }
-    },[quotationId])
+    }, [quotationId])
 
     useEffect(() => {
         if (location.pathname.includes('/quotation/edit')) {
@@ -116,21 +164,22 @@ const AddUpdateQuotation = ({onSave}) => {
         }
     }, [location]);
 
-    const handleEnquiryChange = async (enquiry)=>{
+    const handleEnquiryChange = async (enquiry) => {
 
-        const response = await apiService.get('/enquiry/'+enquiry.id);
-        formik.setFieldValue("enquiry",response);
+        const response = await apiService.get('/enquiry/' + enquiry.id);
+        formik.setFieldValue("enquiry", response);
+
     }
 
     const [searchQuery, setSearchQuery] = useState(formik.values.enquiry?.enqNo || '');
     const handleSearchChange = async (event, value) => {
-        if(value==='undefined'){
+        if (value === 'undefined') {
             // setSearchQuery('')
             return
         }
         setSearchQuery(value);
         setLoading(true)
-        const data =await searchEnquiry(value);
+        const data = await searchEnquiry(value);
         // console.log(data)
         setEnquiryList(data);
         setLoading(false)
@@ -144,7 +193,7 @@ const AddUpdateQuotation = ({onSave}) => {
         borderBottom: '2px solid #ccc',
     }
 
-    const cellTextInputStyle ={
+    const cellTextInputStyle = {
         width: "60px",
         backgroundColor: "transparent",
         "& .MuiInputBase-input": {
@@ -157,14 +206,14 @@ const AddUpdateQuotation = ({onSave}) => {
     }
 
     useEffect(() => {
-        formik.setFieldValue("quotationProducts",formik.values.enquiry?.enquiredProducts);
+        formik.setFieldValue("quotationProducts", formik.values.enquiry?.enquiredProducts);
     }, [formik.values.enquiry]);
 
 
 
     const debounceTimeout = useRef(null);
-    const handleSearchChangeProduct = async (event, value,index) => {
-        if(event?.target?.value==='undefined'){
+    const handleSearchChangeProduct = async (event, value, index) => {
+        if (event?.target?.value === 'undefined') {
             // setSearchQuery('')
             return
         }
@@ -177,7 +226,7 @@ const AddUpdateQuotation = ({onSave}) => {
             const data = await inventoryItemSearch(event?.target?.value);
             setProductList(data);
             setLoading(false)
-        },1500)
+        }, 1500)
         // console.log(data)
 
     };
@@ -194,46 +243,80 @@ const AddUpdateQuotation = ({onSave}) => {
 
     // const [netAmount,setNetAmount] = useState(0);
 
-    useEffect(()=>{
-        let amount_total = 0;
+    // useEffect(() => {
+    //     let amount_total = 0;
+    //     console.log(formik.values.netAmount)
 
-        // Ensure quotationProducts is an array before using forEach
-        const products = formik.values.quotationProducts || [];
+    //     console.log("USe EFfect")
+    //     const products = formik.values.quotationProducts || [];
 
-        products.forEach((product) => {
-            const amount = parseFloat(
-                (product.qty * (
-                    ((product?.pricePerUnit || 0)) -
-                    ((product?.discountPercentage || 0) * (product?.pricePerUnit || 0) / 100)
-                )).toFixed(2)
-            );
+    //     products.forEach((product) => {
+    //         const amount = parseFloat(
+    //             (product.qty * (
+    //                 (product.pricePerUnit || 0) -
+    //                 ((product?.discountPercentage || 0) * (product?.pricePerUnit || 0) / 100)
+    //             )).toFixed(2)
+    //         );
 
-            amount_total += amount;
-        });
+    //         amount_total += amount;
+    //     });
 
-       formik.setFieldValue("netAmount",amount_total);
+    //     console.log(formik.values.netAmount)
+    //     formik.setFieldValue("netAmount", amount_total);
 
 
-    },[formik.values.quotationProducts,])
+    // }, [formik.values.quotationProducts, initialData, formik.values.enquiry])
 
+
+    // Helper
+    const parseNum = v => {
+        const n = parseFloat(v);
+        return isNaN(n) ? 0 : n;
+    };
 
     useEffect(() => {
-        const discountPercentage = Number(formik.values.discountPercentage || 0);
-        const netAmount = Number(formik.values.netAmount || 0);
-        const pandfcharges = Number(formik.values.pandfcharges || 0); // Ensure it's a number
+        const prods = formik.values.quotationProducts || [];
 
-        const discountAmount = (discountPercentage * netAmount * 0.01).toFixed(2);
-        const taxableAmount = (netAmount - discountAmount + pandfcharges).toFixed(2);
-
-        formik.setValues({
-            ...formik.values,
-            discountAmount,
-            taxableAmount
+        // 1) Net
+        let net = 0;
+        prods.forEach(p => {
+            const qty = parseNum(p.qty);
+            const price = parseNum(p.pricePerUnit);
+            const dp = parseNum(p.discountPercentage);
+            net += qty * price * (1 - dp / 100);
         });
 
-        console.log("HELLO");
-    }, [formik.values.netAmount, formik.values.discountPercentage, formik.values.pandfcharges]);
+        // 2) Discount & taxable
+        const globalDp = parseNum(formik.values.discountPercentage);
+        const pafPct = parseNum(formik.values.pandfchargesPercentage);
+        const discountAmount = +(net * globalDp / 100).toFixed(2);
+        const taxableAmount = +(net - discountAmount).toFixed(2);
 
+        // 3) P&F charges (pct of the discount)
+        const pandfcharges = +(((net - discountAmount) * pafPct / 100)).toFixed(2);
+
+        // 4) GST, total & roundOff
+        const gp = parseNum(formik.values.gstPercentage);
+        const gstAmount = +(taxableAmount * gp / 100).toFixed(2);
+        const rawTotal = taxableAmount + gstAmount + pandfcharges;
+        const total = Math.round(rawTotal);
+        const roundOff = +(total - rawTotal).toFixed(2);
+
+        // 5) Write back _all_ computed fields
+        formik.setFieldValue('netAmount', net.toFixed(2));
+        formik.setFieldValue('discountAmount', discountAmount);
+        formik.setFieldValue('taxableAmount', taxableAmount);
+        formik.setFieldValue('pandfcharges', pandfcharges);
+        formik.setFieldValue('gstAmount', gstAmount);
+        formik.setFieldValue('totalAmount', total);
+        formik.setFieldValue('roundOff', roundOff);
+
+    }, [
+        formik.values.quotationProducts,
+        formik.values.discountPercentage,
+        formik.values.pandfchargesPercentage,
+        formik.values.gstPercentage
+    ]);
 
     useEffect(() => {
         const taxableAmount = Number(formik.values.taxableAmount || 0);
@@ -256,13 +339,13 @@ const AddUpdateQuotation = ({onSave}) => {
         formik.setValues({ ...formik.values, quotationProducts: updatedProducts });
     };
 
-    const printDocument = async ()=>{
+    const printDocument = async () => {
         await apiService.download(`/quotation/pdf/${quotationId}`)
     }
 
     return (
         <div>
-            <form  onSubmit={formik.handleSubmit}>
+            <form onSubmit={formik.handleSubmit}>
                 <Card>
                     <CardHeader
                         title={
@@ -271,15 +354,29 @@ const AddUpdateQuotation = ({onSave}) => {
                             </Typography>
                         }
                         action={
-                            quotationId && (
-                                <Button
-                                    variant="contained"
-                                    color="info"
-                                    onClick={printDocument}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <TextField
+                                    select
+                                    label="Quotation Status"
+                                    name="quotationStatus"
+                                    value={formik.values.quotationStatus}
+                                    onChange={formik.handleChange}
+                                    size="small"
+                                    sx={{ minWidth: 120 }}
                                 >
-                                    Print
-                                </Button>
-                            )
+                                    {['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED'].map((status) => (
+                                        <MenuItem key={status} value={status}>
+                                            {status.charAt(0) + status.slice(1).toLowerCase()}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+
+                                {quotationId && (
+                                    <Button variant="contained" color="info" onClick={printDocument}>
+                                        Print
+                                    </Button>
+                                )}
+                            </Box>
                         }
                     />
 
@@ -299,7 +396,7 @@ const AddUpdateQuotation = ({onSave}) => {
                                         onChange={formik.handleChange}
                                         // error={formik.touched.enqNo && Boolean(formik.errors.enqNo)}
                                         // helperText={formik.touched.enqNo && formik.errors.enqNo}
-                                        inputProps={{readOnly: true}}
+                                        inputProps={{ readOnly: true }}
                                         size="small"
                                     />
 
@@ -326,11 +423,11 @@ const AddUpdateQuotation = ({onSave}) => {
                             </Grid>
                         </Grid>
 
-                        <Card sx={{maxWidth: 'inherit', mx: 'auto', mt: '10px', mb: '10px'}}>
+                        <Card sx={{ maxWidth: 'inherit', mx: 'auto', mt: '10px', mb: '10px' }}>
                             <CardHeader title={
-                                <Typography variant="h6" gutterBottom sx={{mb: 0, mt: 1}}>
+                                <Typography variant="h6" gutterBottom sx={{ mb: 0, mt: 1 }}>
                                     Enquiry Details
-                                </Typography>}/>
+                                </Typography>} />
                             <Grid container spacing={6}>
                                 <Grid item xs={6}>
                                     <Autocomplete
@@ -347,7 +444,7 @@ const AddUpdateQuotation = ({onSave}) => {
                                         }}
                                         options={enquiryList}
                                         getOptionLabel={(option) =>
-                                             option?.enqNo || ''}
+                                            option?.enqNo || ''}
                                         isOptionEqualToValue={(option, value) =>
                                             !!option?.enqNo && !!value?.enqNo && option.enqNo === value.enqNo
                                         }
@@ -363,7 +460,7 @@ const AddUpdateQuotation = ({onSave}) => {
                                             />
 
                                         )}
-                                        sx={{ml: 2, mt: 2}}
+                                        sx={{ ml: 2, mt: 2 }}
                                     />
 
                                 </Grid>
@@ -391,7 +488,7 @@ const AddUpdateQuotation = ({onSave}) => {
                                         name="companyName"
                                         value={formik.values.enquiry?.contact?.companyName ? String(formik.values.enquiry.contact.companyName) : ''}
                                         size="small"
-                                        sx={{ml: 2, mt: 2 }}
+                                        sx={{ ml: 2, mt: 2 }}
                                     />
                                 </Grid>
 
@@ -420,7 +517,7 @@ const AddUpdateQuotation = ({onSave}) => {
                                         name="person"
                                         value={formik.values.enquiry?.contact?.personDetails[0]?.personName ? String(formik.values.enquiry.contact.personDetails[0]?.personName) : ''}
                                         size="small"
-                                        sx={{ml: 2, mt: 2 }}
+                                        sx={{ ml: 2, mt: 2 }}
                                     />
                                 </Grid>
 
@@ -442,12 +539,13 @@ const AddUpdateQuotation = ({onSave}) => {
                                                 : ''
                                         }
                                         size="small"
-                                        sx={{ mt: 2, ml: -2,
+                                        sx={{
+                                            mt: 2, ml: -2,
                                             '& .MuiInputBase-input': { fontSize: '14px' }, // Adjust font size for input text
                                             // '& .MuiInputLabel-root': { fontSize: '12px' } // Adjust font size for the label
 
 
-                                    }}
+                                        }}
                                     />
                                 </Grid>
 
@@ -455,10 +553,10 @@ const AddUpdateQuotation = ({onSave}) => {
 
                         </Card>
 
-                        <Card sx={{maxWidth: 'inherit', mx: 'auto', mt: '10px', mb: '20px'}}>
+                        <Card sx={{ maxWidth: 'inherit', mx: 'auto', mt: '10px', mb: '20px' }}>
                             <CardHeader title={
-                                <Typography variant="h6" gutterBottom sx={{mb: 0, mt: 1}}>
-                                  Products
+                                <Typography variant="h6" gutterBottom sx={{ mb: 0, mt: 1 }}>
+                                    Products
                                 </Typography>}
                             />
 
@@ -470,15 +568,15 @@ const AddUpdateQuotation = ({onSave}) => {
                                         <TableHead>
                                             <TableRow>
 
-                                                    <TableCell align={"center"} sx={headerStyle}>No</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Product Name</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Description</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Qty</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Price</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Per</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Discount</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Amount</TableCell>
-                                                    <TableCell align={"center"} sx={headerStyle}>Action</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>No</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Product Name</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Description</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Qty</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Price</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Per</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Discount</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Amount</TableCell>
+                                                <TableCell align={"center"} sx={headerStyle}>Action</TableCell>
 
                                             </TableRow>
                                         </TableHead>
@@ -486,46 +584,44 @@ const AddUpdateQuotation = ({onSave}) => {
 
                                             {formik.values.quotationProducts?.map((product, index) => (
                                                 <TableRow>
-                                                    <TableCell align={"center"}>{index+1}</TableCell>
+                                                    <TableCell align={"center"}>{index + 1}</TableCell>
                                                     <TableCell align={"center"}>
                                                         <TextField
                                                             size="small"
                                                             variant="standard"
-                                                            style={{"width":"100%","font": '5px'}}
+                                                            fullWidth
                                                             sx={cellTextInputStyle}
-                                                            name={`quotationProducts[${index}].productNameRequired`} // Correct Formik field name
-                                                            value={formik.values.quotationProducts[index]?.productNameRequired || ""} // Ensure controlled input
-                                                            onChange={(event) => {
-
-                                                                formik.handleChange(event);
-
-                                                            }}
-                                                            onBlur={formik.handleBlur}
-                                                            error={
-                                                                formik.touched.quotationProducts?.[index]?.productNameRequired &&
-                                                                Boolean(formik.errors.quotationProducts?.[index]?.productNameRequired)
+                                                            name={`quotationProducts[${index}].productNameRequired`}
+                                                            value={
+                                                                formik.values.quotationProducts[index]?.inventoryItem?.name
+                                                                || formik.values.quotationProducts[index]?.productNameRequired
+                                                                || ''
                                                             }
+                                                            onChange={formik.handleChange}
+                                                            onBlur={formik.handleBlur}
+                                                            error={Boolean(
+                                                                formik.touched.quotationProducts?.[index]?.productNameRequired &&
+                                                                formik.errors.quotationProducts?.[index]?.productNameRequired
+                                                            )}
                                                             helperText={
                                                                 formik.touched.quotationProducts?.[index]?.productNameRequired &&
                                                                 formik.errors.quotationProducts?.[index]?.productNameRequired
                                                             }
-                                                            inputProps={{
-                                                                inputMode: "search", // Helps mobile users enter numbers easily
-
-                                                            }}
+                                                            inputProps={{ inputMode: 'search' }}
                                                         />
+
                                                     </TableCell>
                                                     <TableCell align={"center"}>
                                                         <TextField
                                                             size="small"
                                                             variant="standard"
-                                                            style={{"width":"100%","font": '5px'}}
+                                                            style={{ "width": "100%", "font": '5px' }}
                                                             sx={cellTextInputStyle}
                                                             name={`quotationProducts[${index}].specialInstruction`} // Correct Formik field name
                                                             value={formik.values.quotationProducts[index]?.specialInstruction || ""} // Ensure controlled input
                                                             onChange={(event) => {
 
-                                                                    formik.handleChange(event);
+                                                                formik.handleChange(event);
 
                                                             }}
                                                             onBlur={formik.handleBlur}
@@ -573,17 +669,26 @@ const AddUpdateQuotation = ({onSave}) => {
                                                             }}
                                                         />
                                                     </TableCell>
-                                                    <TableCell align={"center"}>
+                                                    <TableCell align="center">
                                                         <TextField
                                                             size="small"
                                                             variant="standard"
                                                             sx={cellTextInputStyle}
-                                                            name={`quotationProducts[${index}].pricePerUnit`} // Correct Formik field name
-                                                            value={formik.values.quotationProducts[index]?.pricePerUnit || 0} // Ensure controlled input
+                                                            name={`quotationProducts[${index}].pricePerUnit`}
+                                                            value={
+                                                                // 1) if the user has typed in pricePerUnit (even if 0), use it
+                                                                formik.values.quotationProducts[index]?.pricePerUnit
+                                                                // 2) otherwise, fall back to sellingPrice (which might be null/undefined)
+                                                                ?? formik.values.quotationProducts[index]?.inventoryItem?.sellingPrice
+                                                                // 3) finally, default to empty string
+                                                                ?? ''
+                                                            }
                                                             onChange={(event) => {
                                                                 const { value } = event.target;
-                                                                if (/^\d*\.?\d*$/.test(value)) { // Allow only numbers and decimals
+                                                                console.log(value)
+                                                                if (/^\d*\.?\d*$/.test(value)) {
                                                                     formik.handleChange(event);
+
                                                                 }
                                                             }}
                                                             onBlur={formik.handleBlur}
@@ -596,13 +701,12 @@ const AddUpdateQuotation = ({onSave}) => {
                                                                 formik.errors.quotationProducts?.[index]?.pricePerUnit
                                                             }
                                                             inputProps={{
-                                                                inputMode: "decimal", // Helps mobile users enter numbers easily
-                                                                pattern: "[0-9]*\\.?[0-9]*", // Ensures numeric input
+                                                                inputMode: 'decimal',
+                                                                pattern: '[0-9]*\\.?[0-9]*',
                                                             }}
                                                         />
-
-
                                                     </TableCell>
+
 
                                                     <TableCell align={"center"}>{"Each"}</TableCell>
                                                     <TableCell align={"center"}>
@@ -610,11 +714,17 @@ const AddUpdateQuotation = ({onSave}) => {
                                                             size="small"
                                                             variant="standard"
                                                             sx={cellTextInputStyle}
-                                                            name={`quotationProducts[${index}].discountPercentage`} // Correct Formik field name
-                                                            value={formik.values.quotationProducts[index]?.discountPercentage || 0} // Ensure controlled input
+                                                            name={`quotationProducts[${index}].discountPercentage`}
+                                                            value={
+                                                                // if inventoryItem has a default discountPercentage, use it;
+                                                                // otherwise use the Formik value (or empty string)
+                                                                formik.values.quotationProducts[index]?.inventoryItem?.discountPercentage != null
+                                                                    ? formik.values.quotationProducts[index].inventoryItem.discountPercentage
+                                                                    : formik.values.quotationProducts[index]?.discountPercentage || ''
+                                                            }
                                                             onChange={(event) => {
                                                                 const { value } = event.target;
-                                                                if (/^\d*\.?\d*$/.test(value)) { // Allow only numbers and decimals
+                                                                if (/^\d*\.?\d*$/.test(value)) {
                                                                     formik.handleChange(event);
                                                                 }
                                                             }}
@@ -628,26 +738,25 @@ const AddUpdateQuotation = ({onSave}) => {
                                                                 formik.errors.quotationProducts?.[index]?.discountPercentage
                                                             }
                                                             inputProps={{
-                                                                inputMode: "decimal", // Helps mobile users enter numbers easily
-                                                                pattern: "[0-9]*\\.?[0-9]*", // Ensures numeric input
+                                                                inputMode: 'decimal',
+                                                                pattern: '[0-9]*\\.?[0-9]*',
                                                             }}
                                                         />
-
-
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        {
-                                                            Number(
-                                                                (product.qty * (
-                                                                    ((formik.values.quotationProducts[index]?.pricePerUnit || 0)) -
-                                                                    ((formik.values.quotationProducts[index]?.discountPercentage || 0) *
-                                                                        (formik.values.quotationProducts[index]?.pricePerUnit || 0) / 100)
-                                                                ))
-                                                                    .toFixed(2)
-                                                            )
-                                                        }
+                                                        {(() => {
+
+                                                            console.log(formik.values.quotationProducts[index])
+                                                            const prod = formik.values.quotationProducts[index];
+                                                            const qty = prod.qty || 0;
+                                                            // fallback price: inventoryItem.sellingPrice or pricePerUnit
+                                                            const unitPrice = prod.pricePerUnit ? prod.pricePerUnit : 0;
+                                                            const discountPct = prod.discountPercentage ?? 0;
+                                                            const netUnit = unitPrice * (1 - discountPct / 100);
+                                                            return (qty * netUnit).toFixed(2);
+                                                        })()}
                                                     </TableCell>
-                                                    <TableCell  style={{"cursor":"pointer"}} align={"center"}><RemoveCircle color={"error"} onClick={()=>removeProduct(index)}/></TableCell>
+                                                    <TableCell style={{ "cursor": "pointer" }} align={"center"}><RemoveCircle color={"error"} onClick={() => removeProduct(index)} /></TableCell>
 
                                                 </TableRow>
 
@@ -655,16 +764,6 @@ const AddUpdateQuotation = ({onSave}) => {
                                         </TableBody>
                                     </Table>
 
-                                    {/*TODO: Add this button latter if required*/}
-                                    {/*<Button  variant="contained"*/}
-                                    {/*         color="primary"*/}
-                                    {/*         style={{ float: "right", margin:"15px" }}*/}
-                                    {/*         onClick={() => addProduct()}*/}
-
-                                    {/*>*/}
-
-                                    {/*    Add Product*/}
-                                    {/*</Button>*/}
                                 </TableContainer>
 
 
@@ -673,143 +772,236 @@ const AddUpdateQuotation = ({onSave}) => {
 
                         </Card>
 
-                        <Card>
+                        <Card sx={{ p: 2, mt: 3 }}>
+                            <CardHeader
+                                title="Financial Details"
+                                titleTypographyProps={{ variant: 'h6', gutterBottom: true }}
+                                sx={{ pb: 0 }}
+                            />
+                            <CardContent sx={{ pt: 1 }}>
+                                <Grid container spacing={2}>
+                                    {/* Net Amount */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Net Amount"
+                                            name="netAmount"
+                                            value={formik.values.netAmount}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
 
+                                    {/* Discount Percentage */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Discount %"
+                                            name="discountPercentage"
+                                            value={formik.values.discountPercentage}
+                                            onChange={formik.handleChange}
+                                            size="small"
+                                        />
+                                    </Grid>
 
-                            <Grid >
+                                    {/* Discount Value */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Discount Value"
+                                            name="discountAmount"
+                                            value={formik.values.discountAmount}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
 
-                                    <TextField
-                                        fullWidth
-                                        label="Net Amount"
-                                        margin="normal"
-                                        readOnly
-                                        name="netAmount"
-                                        value={formik.values.netAmount}
-                                        size="small"
-                                        sx={{ml: 2, mt: 2, width:"250px" }}
-                                    />
+                                    {/* P & F Charges */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="P & F Charges %"
+                                            name="pandfchargesPercentage"
+                                            value={formik.values.pandfchargesPercentage}
+                                            onChange={formik.handleChange}
+                                            size="small"
+                                        />
+                                    </Grid>
+                                    {/* P & F Charges */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="P & F Charges"
+                                            name="pandfcharges"
+                                            value={formik.values.pandfcharges}
+                                            onChange={formik.handleChange}
+                                            size="small"
+                                        />
+                                    </Grid>
 
-                                    <TextField
-                                        fullWidth
-                                        label="Discount Percentage"
-                                        margin="normal"
-                                        // readOnly
-                                        onChange={formik.handleChange}
-                                        name="discountPercentage"
-                                        value={formik.values.discountPercentage}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 3,width:"250px" }}
-                                    />
+                                    {/* Taxable Amount */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Taxable Amount"
+                                            name="taxableAmount"
+                                            value={formik.values.taxableAmount}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
 
-                                    <TextField
-                                        fullWidth
-                                        label="Discount Value "
-                                        margin="normal"
-                                        readOnly
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            select
+                                            label="GST %"
+                                            name="gstPercentage"
+                                            value={formik.values.gstPercentage}
+                                            onChange={formik.handleChange}
+                                            size="small"
+                                        >
+                                            {[0, 5, 12, 18, 28].map((pct) => (
+                                                <MenuItem key={pct} value={pct}>
+                                                    {pct}%
+                                                </MenuItem>
+                                            ))}
+                                        </TextField>
+                                    </Grid>
 
-                                        name="discountAmount"
-                                        value={formik.values.discountAmount}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 3,width:"250px" }}
-                                    />
+                                    {/* GST Amount */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="GST Amount"
+                                            name="gstAmount"
+                                            value={formik.values.gstAmount}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
 
+                                    {/* Round Off */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Round Off"
+                                            name="roundOff"
+                                            value={formik.values.roundOff}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
 
-                                    <TextField
-                                        fullWidth
-                                        label="P & F charges"
-                                        margin="normal"
-                                        // readOnly
-                                        onChange={formik.handleChange}
-                                        name="pandfcharges"
-                                        value={formik.values.pandfcharges}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 3,width:"250px" }}
-                                    />
-
-                                    <TextField
-                                        fullWidth
-                                        label="Texable Amount"
-                                        margin="normal"
-                                        // readOnly
-                                        onChange={formik.handleChange}
-                                        name="texableAmount"
-                                        value={formik.values.taxableAmount}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 3,width:"250px" }}
-                                    />
-
-
-
-
-                            </Grid>
-
-                            <Grid>
-
-                                    <TextField
-                                        fullWidth
-                                        label="GST Pecentage"
-                                        margin="normal"
-                                        // readOnly
-                                        onChange={formik.handleChange}
-                                        name="gstPercentage"
-                                        value={formik.values.gstPercentage}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 3,width:"250px" }}
-                                    />
-
-                                    <TextField
-                                        fullWidth
-                                        label="GST Amount"
-                                        margin="normal"
-                                        // readOnly
-                                        onChange={formik.handleChange}
-                                        name="gstAmount"
-                                        value={formik.values.gstAmount}
-                                        size="small"
-                                        sx={{ mt: 2,ml: 2,width:"250px" }}
-                                    />
-
-
-
-
-                                <TextField
-                                    fullWidth
-                                    label="Round Off"
-                                    margin="normal"
-                                    // readOnly
-                                    onChange={formik.handleChange}
-                                    name="totalAmount"
-                                    value={
-                                        (Math.round(formik.values.totalAmount) - formik.values.totalAmount)
-                                            .toFixed(2)
-                                            .replace(/^(-)?/, (sign) => (sign === "-" ? "-" : "+"))
-                                    }
-                                    size="small"
-                                    sx={{ mt: 2,ml: 3,width:"250px" }}
-                                />
-
-                                <TextField
-                                    fullWidth
-                                    label="Total Amount"
-                                    margin="normal"
-                                    // readOnly
-                                    onChange={formik.handleChange}
-                                    name="totalAmount"
-                                    value={Math.round(formik.values.totalAmount)}
-                                    size="small"
-                                    sx={{ mt: 2,ml: 3,width:"250px" }}
-                                />
-                            </Grid>
-
+                                    {/* Total Amount */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Total Amount"
+                                            name="totalAmount"
+                                            value={formik.values.totalAmount}
+                                            InputProps={{ readOnly: true }}
+                                            size="small"
+                                        />
+                                    </Grid>
+                                </Grid>
+                            </CardContent>
                         </Card>
 
 
-                        <Box sx={{mt: 5, ml: 5, mb: 5}}>
-                            <Button type="submit" variant="contained" color="primary" >
+                        <Card sx={{ p: 2, mt: 3 }}>
+                            <CardHeader
+                                title="Quotation Terms"
+                                titleTypographyProps={{ variant: 'h6', gutterBottom: true }}
+                                sx={{ pb: 0 }}
+                            />
+                            <CardContent sx={{ pt: 1 }}>
+                                <Grid container spacing={2}>
+                                    {/* Valid Till (date) */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Valid Till"
+                                            name="validTill"
+                                            size="small"
+                                            InputLabelProps={{ shrink: true }}
+                                            value={formik.values.validTill}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+
+                                    {/* Payment Terms */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Payment Terms"
+                                            name="paymentTerms"
+                                            size="small"
+                                            value={formik.values.paymentTerms}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+
+                                    {/* Delivery Terms */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Delivery Terms"
+                                            name="deliveryTerms"
+                                            size="small"
+                                            value={formik.values.deliveryTerms}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+
+                                    {/* Inspection Terms */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Inspection Terms"
+                                            name="inspectionTerms"
+                                            size="small"
+                                            value={formik.values.inspectionTerms}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+
+                                    {/* Prices Terms */}
+                                    <Grid item xs={12} sm={6}>
+                                        <TextField
+                                            fullWidth
+                                            label="Prices Terms"
+                                            name="pricesTerms"
+                                            size="small"
+                                            value={formik.values.pricesTerms}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+
+                                    {/* Notes (multiline) */}
+                                    <Grid item xs={12}>
+                                        <TextField
+                                            fullWidth
+                                            label="Additional Notes"
+                                            name="notes"
+                                            size="small"
+                                            multiline
+                                            rows={3}
+                                            value={formik.values.notes}
+                                            onChange={formik.handleChange}
+                                        />
+                                    </Grid>
+                                </Grid>
+                            </CardContent>
+                        </Card>
+
+
+                        <Box sx={{ mt: 5, ml: 5, mb: 5 }}>
+                            <Button type="submit" disabled={!formik.isValid}>
                                 Save
                             </Button>
 
-                            <Button variant="outlined" color="secondary" onClick={() => navigate(-1)} sx={{ml: 2}}>
+                            <Button variant="outlined" color="secondary" onClick={() => navigate(-1)} sx={{ ml: 2 }}>
                                 Cancel
                             </Button>
 

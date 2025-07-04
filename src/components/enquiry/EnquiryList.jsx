@@ -13,151 +13,150 @@ import {
     Typography,
     Box,
     MenuItem,
-    Select, Pagination
+    Select,
+    Pagination,
+    IconButton,
+    Tooltip
 } from "@mui/material";
-import { DeleteForever, EditOutlined } from "@mui/icons-material";
+import { DeleteForever, EditOutlined, AddCircleOutline } from "@mui/icons-material";
 
-const EnquiryLIst = ({ enquiryList, filters, handleSort, currentPage, totalPages, handlePageChange, handleFilterChange, handleDelete }) => {
+const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages, handlePageChange, handleFilterChange, handleDelete }) => {
     const navigate = useNavigate();
 
-    const handleEdit = (id) => {
-        navigate(`/enquiry/edit/${id}`);
+    const handleEdit = (enquiryId) => {
+        console.log(enquiryId)
+        navigate(`/enquiry/edit/${enquiryId}`);
     };
 
     const columnHeader = [
-        { key: 'enqNo', value: "enquiry No" },
-        { key: "enqDate", value: "enquiry Date" },
+        { key: 'enqNo', value: "Enquiry No" },
+        { key: "enqDate", value: "Enquiry Date" },
         { key: "companyName", value: "Company Name" },
         { key: "lastContactedDate", value: "Last Contacted" },
-        { key: "daysForNextFollowup", value: "Next Followup (Days)" },
+        { key: "daysForNextFollowup", value: "Follow-up (Days)" },
         { key: "closedDate", value: "Status" },
-        { key: "action", value: "Action" }
+        { key: "action", value: "Actions" }
     ];
 
     return (
-        <div>
-            <Box>
-                <Typography variant="h4" gutterBottom>Enquiry List</Typography>
+        <Box p={3} sx={{backgroundColor:'#fff'}}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h4">Enquiry List</Typography>
                 <Button
                     variant="contained"
-                    color="primary"
-                    style={{ float: "right", marginBottom: "2rem" }}
+                    startIcon={<AddCircleOutline />}
                     onClick={() => navigate('add')}
                 >
                     New Enquiry
                 </Button>
-
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                {columnHeader.map((column, index) => (
-                                    <TableCell
-                                        key={index}
-                                        align="center"
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            backgroundColor: '#f5f5f5',
-                                            color: '#333',
-                                            fontSize: '1rem',
-                                            borderBottom: '2px solid #ccc',
-                                            cursor: ['enqNo', 'companyName', 'daysForNextFollowup'].includes(column.key) ? 'pointer' : 'default'
-                                        }}
-                                        onClick={() =>
-                                            ["enqNo", "companyName", "daysForNextFollowup"].includes(column.key) && handleSort(column.key)
-                                        }
-                                    >
-                                        {column.value}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableHead>
-                            <TableRow>
-                                {columnHeader.map((columnHead, index) => (
-                                    <TableCell key={index} align="center">
-                                        {['enqNo', 'companyName', 'daysForNextFollowup'].includes(columnHead.key) ? (
-                                            <TextField
-                                                variant="outlined"
-                                                size="small"
-                                                placeholder={`Filter by ${columnHead.value}`}
-                                                value={filters[columnHead.key]}
-                                                onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                sx={{ width: '80%' }}
-                                            />
-                                        ) : columnHead.key === 'closedDate' ? (
-                                            <Select
-                                                value={filters.closedDate || ""}
-                                                onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                displayEmpty
-                                                sx={{ width: '80%' }}
-                                            >
-                                                <MenuItem value="">All</MenuItem>
-                                                <MenuItem value={null}>Open</MenuItem>
-                                                <MenuItem value={"1900-01-01"}>Closed</MenuItem>
-                                            </Select>
-                                        ) : columnHead.key === 'enqDate' || columnHead.key === 'lastContactedDate' ? (
-                                            <Box display="flex" alignItems="center" justifyContent="center">
-                                                <Select
-                                                    value={filters[columnHead.key]?.operator || "="}
-                                                    onChange={(e) =>
-                                                        handleFilterChange(columnHead.key==="enqDate"?
-                                                            "enqDateComp":"lastContactedDateComp", e.target.value )}
-                                                    sx={{ marginRight: 1 }}
-                                                >
-                                                    <MenuItem value="=">=</MenuItem>
-                                                    <MenuItem value="<">&lt;</MenuItem>
-                                                    <MenuItem value=">">&gt;</MenuItem>
-                                                </Select>
-                                                {console.log(filters[columnHead.key==="enqDate"?"enqDate":"lastContactDate"])}
-                                                <TextField
-                                                    type="date"
-                                                    value={filters[columnHead.key==="enqDate"?"enqDate":"lastContactDate"] || ""}
-                                                    onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                    sx={{ width: '70%' }}
-                                                />
-                                            </Box>
-                                        ) : null}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {enquiryList.map((enquiry, rowIndex) => (
-                                <TableRow
-                                    key={enquiry.id}
-                                    sx={{
-                                        backgroundColor: rowIndex % 2 === 0 ? '#fafafa' : '#fff',
-                                        '&:hover': { backgroundColor: '#f1f1f1' }
-                                    }}
-                                >
-                                    <TableCell align="center">{enquiry.enqNo}</TableCell>
-                                    <TableCell align="center">{enquiry.enqDate}</TableCell>
-                                    <TableCell align="center">{enquiry.companyName || 'N/A'}</TableCell>
-                                    <TableCell align="center">{enquiry.lastContactDate || 'N/A'}</TableCell>
-                                    <TableCell align="center">{enquiry.daysForNextFollowup || 'N/A'}</TableCell>
-                                    <TableCell align="center">{!enquiry.closedDate ? "Open" : "Closed"}</TableCell>
-                                    <TableCell align="center">
-                                        <Button onClick={() => handleEdit(enquiry.id)}><EditOutlined /></Button>
-                                        <Button color="secondary" onClick={() => handleDelete(enquiry.id)}><DeleteForever /></Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-
-                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                    <Pagination
-                        count={totalPages}
-                        page={currentPage}
-                        onChange={handlePageChange}
-                        color="primary"
-                    />
-                </Box>
             </Box>
-        </div>
+
+            <TableContainer component={Paper} elevation={3}>
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            {columnHeader.map((column, index) => (
+                                <TableCell
+                                    key={index}
+                                    align="center"
+                                    sx={{
+                                        fontWeight: 'bold',
+                                        backgroundColor: '#f5f5f5',
+                                        color: '#333',
+                                        cursor: ['enqNo', 'companyName', 'daysForNextFollowup'].includes(column.key) ? 'pointer' : 'default'
+                                    }}
+                                    onClick={() => ['enqNo', 'companyName', 'daysForNextFollowup'].includes(column.key) && handleSort(column.key)}
+                                >
+                                    {column.value}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                        <TableRow>
+                            {columnHeader.map((column, index) => (
+                                <TableCell key={index} align="center">
+                                    {['enqNo', 'companyName', 'daysForNextFollowup'].includes(column.key) ? (
+                                        <TextField
+                                            variant="outlined"
+                                            size="small"
+                                            placeholder={`Search ${column.value}`}
+                                            value={filters[column.key] || ''}
+                                            onChange={(e) => handleFilterChange(column.key, e.target.value)}
+                                            sx={{ width: '90%' }}
+                                        />
+                                    ) : column.key === 'closedDate' ? (
+                                        <Select
+                                            value={filters.closedDate || ""}
+                                            onChange={(e) => handleFilterChange(column.key, e.target.value)}
+                                            displayEmpty
+                                            size="small"
+                                            sx={{ width: '90%' }}
+                                        >
+                                            <MenuItem value="">All</MenuItem>
+                                            <MenuItem value={null}>Open</MenuItem>
+                                            <MenuItem value="1900-01-01">Closed</MenuItem>
+                                        </Select>
+                                    ) : column.key === 'enqDate' || column.key === 'lastContactedDate' ? (
+                                        <Box display="flex" alignItems="center" justifyContent="center">
+                                            <Select
+                                                value={filters[column.key === "enqDate" ? "enqDateComp" : "lastContactedDateComp"] || "="}
+                                                onChange={(e) => handleFilterChange(column.key === "enqDate" ? "enqDateComp" : "lastContactedDateComp", e.target.value)}
+                                                size="small"
+                                                sx={{ marginRight: 1 }}
+                                            >
+                                                <MenuItem value="=">=</MenuItem>
+                                                <MenuItem value="<">&lt;</MenuItem>
+                                                <MenuItem value=">">&gt;</MenuItem>
+                                            </Select>
+                                            <TextField
+                                                type="date"
+                                                size="small"
+                                                value={filters[column.key] || ''}
+                                                onChange={(e) => handleFilterChange(column.key, e.target.value)}
+                                                sx={{ width: '70%' }}
+                                            />
+                                        </Box>
+                                    ) : null}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {enquiryList.map((enquiry, index) => (
+                            <TableRow key={enquiry.id} hover size='small'>
+                                <TableCell align="center" size='small'>{enquiry.enqNo}</TableCell>
+                                <TableCell align="center" size='small'>{enquiry.enqDate}</TableCell>
+                                <TableCell align="center" size='small'>{enquiry.companyName || 'N/A'}</TableCell>
+                                <TableCell align="center" size='small'>{enquiry.lastContactDate || 'N/A'}</TableCell>
+                                <TableCell align="center" size='small'>{enquiry.daysForNextFollowup || 'N/A'}</TableCell>
+                                <TableCell align="center" size='small'>{!enquiry.closedDate ? "Open" : "Closed"}</TableCell>
+                                <TableCell align="center" size='small'>
+                                    <Tooltip title="Edit">
+                                        <IconButton color="primary" onClick={() => handleEdit(enquiry.id)}>
+                                            <EditOutlined />
+                                        </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete">
+                                        <IconButton color="error" onClick={() => handleDelete(enquiry.id)}>
+                                            <DeleteForever />
+                                        </IconButton>
+                                    </Tooltip>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
+            <Box mt={3} display="flex" justifyContent="center">
+                <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={handlePageChange}
+                    color="primary"
+                />
+            </Box>
+        </Box>
     );
 };
 
-export default EnquiryLIst;
+export default EnquiryList;

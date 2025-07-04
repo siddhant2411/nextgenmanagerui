@@ -1,37 +1,44 @@
-import React, {useRef} from 'react';
-import {Button, Form, InputGroup, Pagination, Table} from "react-bootstrap";
-import {useNavigate} from "react-router-dom";
+// BomList.jsx - List all BOMs with view/edit/delete/export functionality
+import React, { useRef } from 'react';
+import {
+    Box, Typography, Table, TableHead, TableBody, TableRow, TableCell,
+    Button, TableContainer, Paper, IconButton, TextField, Pagination, InputAdornment,
+    Tooltip
+} from '@mui/material';
+import { Edit, Delete, Search, PictureAsPdf, FileDownload } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+import './style/bom.css';
 
-
-const BomList = ({bomList,
-                 sortBy,
-                 onSortChange,
-                 sortDir,
-                 searchQuery,
-                     onDeleteBom,
-                     currentPage,
-                     totalPages,
-                     onPageChange,
-                     setSearchQuery,
-                     onSearchSubmit,
-                     fetchBomList}) => {
-
+const BomList = ({
+    bomList = [],
+    sortBy,
+    onSortChange,
+    sortDir,
+    searchQuery,
+    onDeleteBom,
+    currentPage,
+    totalPages,
+    onPageChange,
+    setSearchQuery,
+    onSearchSubmit,
+    fetchBomList,
+    onExportExcel,
+    onExportPDF
+}) => {
     const navigate = useNavigate();
     const debounceTimeout = useRef(null);
 
-
-    const columnMapping ={
-        bomName:"BOM Name",
-        itemCode:"Item Code",
-        name:"Item Name"
-    }
-    const excludedColumns = ["id"]
+    const columnMapping = {
+        bomName: "BOM Name",
+        itemCode: "Item Code",
+        name: "Item Name"
+    };
+    const excludedColumns = ["id"];
     const columns = Object.keys(bomList[0] || {}).filter(
         (column) => !excludedColumns.includes(column)
     );
-    const handleEditClick = (id) => {
-        navigate(`/bom/edit/${id}`);
-    };
+
+    const handleEditClick = (id) => navigate(`/bom/edit/${id}`);
 
     const handleDeleteClick = (id) => {
         if (window.confirm('Are you sure you want to delete this item?')) {
@@ -42,110 +49,91 @@ const BomList = ({bomList,
     const handleChange = (event) => {
         const query = event.target.value;
         setSearchQuery(query);
-
-        // Clear the previous timeout
-        if (debounceTimeout.current) {
-            clearTimeout(debounceTimeout.current);
-        }
-
-        // Set a new timeout to call the API after 1 second
+        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
         debounceTimeout.current = setTimeout(() => {
-
             fetchBomList(1, sortBy, sortDir, query);
-
-        }, 1000); // 1-second delay
+        }, 500);
     };
 
-    const handleKeyPress = (event) => {
-        if (event.key === 'Enter') {
-            onSearchSubmit();
-        }
-    };
     return (
-        <div>
+        <Box className="bom-list" sx={{ p: 3, backgroundColor: '#fff', borderRadius: 2 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <TextField
+                    size="small"
+                    variant="outlined"
+                    placeholder="Search BOMs..."
+                    value={searchQuery}
+                    onChange={handleChange}
+                    InputProps={{
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <Search />
+                            </InputAdornment>
+                        )
+                    }}
+                />
 
-            <div className={"search-bar-section"}>
-                <InputGroup className="mb-3">
-                    <Form.Control
-                        type="text"
-                        placeholder="Search inventory items..."
-                        value={searchQuery}
-                        onChange={handleChange}
-                        onKeyPress={handleKeyPress}
-                    />
-                    <Button variant="outline-secondary" onClick={onSearchSubmit}>
-                        Search
+                <Box display="flex" gap={1}>
+                    <Tooltip title="Export to Excel">
+                        <IconButton color="primary" onClick={onExportExcel}>
+                            <FileDownload />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Export to PDF">
+                        <IconButton color="error" onClick={onExportPDF}>
+                            <PictureAsPdf />
+                        </IconButton>
+                    </Tooltip>
+                    <Button variant="contained" color="primary" onClick={() => navigate('/bom/add')}>
+                        Add BOM
                     </Button>
-                </InputGroup>
-            </div>
+                </Box>
+            </Box>
 
-            <Table striped bordered hover size="sm">
-                <thead>
-                <tr>
-                    {columns.map((column) => (
-                        <th
-                            key={column}
-                            onClick={() => onSortChange(column)}
-                            style={{cursor: 'pointer'}}
-                        >
-                            {columnMapping[column] || column}
-                            {sortBy === column && (sortDir === 'asc' ? ' ↑' : ' ↓')}
-                        </th>
-                    ))}
-                    <th>Actions</th>
-                </tr>
-                </thead>
-                <tbody>{bomList.map((item) => (
-                    <tr key={item.id}>
-                        {columns.map((column) => (
-                            <td key={column}>{item[column]}</td>
+            <TableContainer component={Paper}>
+                <Table size="small">
+                    <TableHead>
+                        <TableRow>
+                            {columns.map((column) => (
+                                <TableCell
+                                    key={column}
+                                    onClick={() => onSortChange(column)}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    {columnMapping[column] || column}
+                                    {sortBy === column && (sortDir === 'asc' ? ' ↑' : ' ↓')}
+                                </TableCell>
+                            ))}
+                            <TableCell>Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {bomList.map((item) => (
+                            <TableRow key={item.id}>
+                                {columns.map((column) => (
+                                    <TableCell key={column}>{item[column]}</TableCell>
+                                ))}
+                                <TableCell>
+                                    <IconButton onClick={() => handleEditClick(item.id)}><Edit /></IconButton>
+                                    <IconButton color="error" onClick={() => handleDeleteClick(item.id)}><Delete /></IconButton>
+                                    
+                                </TableCell>
+                            </TableRow>
                         ))}
-                        <td>
-                            <Button
-                                variant="info"
-                                size="sm"
-                                onClick={() => handleEditClick(item.id)}
-                            >
-                                Edit
-                            </Button>{' '}
-                            <Button
-                                variant="danger"
-                                size="sm"
-                                onClick={() => handleDeleteClick(item.id)}
-                            >
-                                Delete
-                            </Button>
-                        </td>
-                    </tr>
-                ))}</tbody>
-            </Table>
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-            {/* Pagination Controls */}
-            <Pagination className="justify-content-center">
-                <Pagination.First onClick={() => onPageChange(1)} disabled={currentPage === 1}/>
-                <Pagination.Prev
-                    onClick={() => onPageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
+            <Box display="flex" justifyContent="center" mt={2}>
+                <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={(e, page) => onPageChange(page)}
+                    variant="outlined"
+                    color="primary"
                 />
-                {[...Array(totalPages).keys()].map((page) => (
-                    <Pagination.Item
-                        key={page + 1}
-                        active={page + 1 === currentPage}
-                        onClick={() => onPageChange(page + 1)}
-                    >
-                        {page + 1}
-                    </Pagination.Item>
-                ))}
-                <Pagination.Next
-                    onClick={() => onPageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                />
-                <Pagination.Last
-                    onClick={() => onPageChange(totalPages)}
-                    disabled={currentPage === totalPages}
-                />
-            </Pagination>
-        </div>
+            </Box>
+        </Box>
     );
 };
 

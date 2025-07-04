@@ -8,9 +8,9 @@ import {
   TableCell, TableBody, TableContainer, TableFooter, TablePagination
 } from '@mui/material';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import apiService from '../../services/apiService';
+import apiService from '../../../services/apiService';
 import "./WorkOrder.css"
-export default function AddUpdateWorkOrder({showSuccess,showError}) {
+export default function AddUpdateWorkOrder({ showSuccess, showError }) {
   const { workOrderId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,7 +71,7 @@ export default function AddUpdateWorkOrder({showSuccess,showError}) {
   });
 
   // Reusable Alert component
- 
+
   const fetchWorkOrderDetails = useCallback(async () => {
     if (!workOrderId) return;
     try {
@@ -102,26 +102,38 @@ export default function AddUpdateWorkOrder({showSuccess,showError}) {
   const handleGetBom = async (itemId) => {
     try {
       const response = await apiService.get(`/bom/get-by-item/${itemId}`);
-      const data = response.map(bom => ({ id: bom.id, bomName: bom.bomName, childItems: bom.childInventoryItems }));
+      console.log(response)
+      const data = response.map(bomTemplate => ({ id: bomTemplate.bom.id, bomName: bomTemplate.bom.bomName, childItems: bomTemplate.bom.childInventoryItems }));
+      console.log(data)
       setBomList(data);
     } catch (err) {
       console.error('Error fetching BOMs', err);
     }
   };
 
-  const handleProductSearch = async (event, value) => {
+  const handleProductSearch = async (event, value = '') => {
     try {
-      const response = await apiService.get(`/inventory_item/search?query=${encodeURIComponent(value)}`);
-      const filteredData = response.content.map(item => ({
-        id: item.inventoryItemId,
-        name: item.name,
-        itemCode: item.itemCode,
-        hsnCode: item.hsnCode
-      }));
+      const params = {
+        size: 5,
+        sortBy: 'name',
+        sortDir: 'asc',
+        search: value,
+      };
+      const response = await apiService.get(`/inventory_item/all`, params);
+
+      const filteredData = response.content.map(item => (
+        {
+
+          id: item.inventoryItemId,
+          name: item.name,
+          itemCode: item.itemCode,
+          hsnCode: item.hsnCode
+        }));
+      console.log(filteredData)
       setSearchedItemList(filteredData);
     } catch (err) {
       console.error('Search error:', err);
-      
+
 
     }
   };
@@ -153,16 +165,15 @@ export default function AddUpdateWorkOrder({showSuccess,showError}) {
               options={searchedItemList}
               value={formik.values.selectedItem}
               inputValue={inputValue}
+              openOnFocus // TEMP to debug
               onChange={(e, newValue) => {
                 formik.setFieldValue('selectedItem', newValue);
                 setInputValue(newValue?.name || '');
                 if (newValue?.id) handleGetBom(newValue.id);
               }}
-              onInputChange={(e, newInputValue, reason) => {
-                if (reason === 'input') {
-                  setInputValue(newInputValue);
-                  handleProductSearch(e, newInputValue);
-                }
+              onInputChange={(e, newInputValue) => {
+                setInputValue(newInputValue);
+                handleProductSearch(e, newInputValue);
               }}
               getOptionLabel={(option) => option?.name || ''}
               isOptionEqualToValue={(option, value) => option.itemCode === value.itemCode}
@@ -274,7 +285,7 @@ export default function AddUpdateWorkOrder({showSuccess,showError}) {
         </TableContainer>
       </form>
 
-     
+
     </Box>
 
 

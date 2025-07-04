@@ -55,6 +55,7 @@ const Enquiry = () => {
     };
 
     const handleSave = async (data) => {
+
         console.log(data)
         try {
             if (data.id) {
@@ -159,6 +160,7 @@ const Enquiry = () => {
                     element={
                         <AddUpdateEnquiry
                             onSave={handleSave}
+
                         />
                     }
                 />

@@ -23,9 +23,13 @@ import {
     Language,
     ExpandLess,
     ExpandMore,
+    Settings,
+    RequestQuote,
+    SellOutlined,
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import Enquiry from "../enquiry/Enquiry";
 
 const Sidebar = () => {
     const location = useLocation();
@@ -49,8 +53,8 @@ const Sidebar = () => {
             text: "Products",
             icon: <ListAltOutlined />,
             children: [
-                { text: "Master" , path: "/inventory-item"},
-                {text: "Bill Of Material",path:"/bom"},
+                { text: "Master", path: "/inventory-item" },
+                { text: "Bill Of Material", path: "/bom" },
             ]
         },
         {
@@ -58,14 +62,28 @@ const Sidebar = () => {
             icon: <FactoryOutlined />,
             children: [
                 { text: "Work Orders", path: "/production/work-order" },
+                { text: "Production Job", path: "/production/production-job" },
                 { text: "Manage Batches", path: "/production/manage-batches" },
                 { text: "Production Report", path: "/production/reports" },
+            ],
+        },
+
+         {
+            text: "Sells",
+            icon: <SellOutlined />,
+            children: [
+                { text: "Sells Orders", path: "/sales/sales-order" }
             ],
         },
         {
             text: "Company",
             icon: <Contact />,
             path: "/contact",
+        },
+         {
+            text: "Enquiry",
+            icon: <RequestQuote />,
+            path: "/enquiry",
         },
         {
             text: "Inventory",
@@ -76,6 +94,13 @@ const Sidebar = () => {
             text: "Quotation",
             icon: <FormatQuote />,
             path: "/quotation",
+        },
+        {
+            text: "Configuration",
+            icon: <Settings />,
+            children: [
+                { text: "Item Code", path: "/config/item-code-mapping" },
+            ]
         },
         {
             text: "SuperAdmin",

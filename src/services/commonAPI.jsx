@@ -53,3 +53,39 @@ export const searchEnquiry = async (search='') => {
         throw error;
     }
 };
+
+
+export const searchQuotations = async (search='') => {
+    try {
+        const params = {
+            page: 0,
+            size: 10,
+            sortBy: "qtnNo",
+            sortDir: "asc",
+            qtnNo:search,
+        };
+        const response = await apiClient.get('/quotation',params);
+        return response.content;
+    } catch (error) {
+        console.error('Error fetching contacts:', error);
+        throw error;
+    }
+};
+
+
+export const searchJobs = async (search='') => {
+    try {
+        const params = {
+            page: 0,
+            size: 10,
+            sortBy: "jobName",
+            sortDir: "asc",
+            search:search,
+        };
+        const response = await apiClient.get('/production/production-job',params);
+        return response.content;
+    } catch (error) {
+        console.error('Error fetching contacts:', error);
+        throw error;
+    }
+};

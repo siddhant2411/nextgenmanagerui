@@ -10,6 +10,9 @@ import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
 import WorkOrderPage from './pages/WorkOrderPage';
+import ProductionJobPage from './pages/ProductionJobPage';
+import ItemCodeMappingPage from './pages/ItemCodeMappingPage';
+import SalesOrder from './components/sales/salesorder/SalesOrder';
 
 
 function App() {
@@ -29,6 +32,11 @@ function App() {
                             <Route path={"/enquiry/*"} element={<EnquiryPage />} />
                             <Route path={"/quotation/*"} element={<QuotationPage />} />
                             <Route path={"/production/work-order/*"} element={<WorkOrderPage />} />
+                            <Route path={"/production/production-job/*"} element={<ProductionJobPage />} />
+                            <Route path={"/sales/sales-order/*"} element={<SalesOrder />} />
+                            <Route path={"/config/item-code-mapping/*"} element={<ItemCodeMappingPage />} />
+                            
+                            
                         </Routes>
                     </main>
                 </div>

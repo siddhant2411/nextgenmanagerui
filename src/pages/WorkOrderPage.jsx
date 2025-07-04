@@ -1,5 +1,5 @@
 import React from 'react'
-import WorkOrder from '../components/workorder/WorkOrder'
+import WorkOrder from '../components/production/workorder/WorkOrder'
 
 export default function WorkOrderPage() {
   return (

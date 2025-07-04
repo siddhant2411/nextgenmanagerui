@@ -1,154 +1,139 @@
+// Enhanced and styled QuotationList.jsx matching InventoryItemList UI
 import React from 'react';
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from 'react-router-dom';
 import {
-    Box,
-    Button, MenuItem, Pagination,
-    Paper, Select,
-    Table, TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TextField,
-    Typography
-} from "@mui/material";
-import {DeleteForever, EditOutlined} from "@mui/icons-material";
+  Box, Button, MenuItem, Pagination, Paper, Select,
+  Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TextField, Typography, IconButton
+} from '@mui/material';
+import { DeleteForever, EditOutlined } from '@mui/icons-material';
 
-const QuotationList = ({handleSort,filters,handleFilterChange,quotationList,handleDelete,
-                           totalPages,currentPage,handlePageChange}) => {
+const QuotationList = ({
+  handleSort,
+  filters,
+  handleFilterChange,
+  quotationList,
+  handleDelete,
+  totalPages,
+  currentPage,
+  handlePageChange
+}) => {
+  const navigate = useNavigate();
 
-    const navigate = useNavigate();
+  const handleEdit = (id) => navigate(`/quotation/edit/${id}`);
 
-    const handleEdit = (id) => {
-        navigate(`/quotation/edit/${id}`);
-    };
+  const columnHeader = [
+    { key: 'qtnNo', value: 'Quotation No' },
+    { key: 'qtnDate', value: 'Quotation Date' },
+    { key: 'enqNo', value: 'Enquiry No' },
+    { key: 'enqDate', value: 'Enquiry Date' },
+    { key: 'companyName', value: 'Company Name' },
+    { key: 'netAmount', value: 'Net Amount' },
+    { key: 'totalAmount', value: 'Total Amount' },
+    { key: 'action', value: 'Action' }
+  ];
 
-    const columnHeader = [
-        { key: 'qtnNo', value: "Quotation No" },
-        { key: "qtnDate", value: "Quotation Date" },
-        { key: "enqNo", value: "Enquiry No" },
-        { key: "enqDate", value: "Enquiry Date" },
-        { key: "companyName", value: "Company Name" },
-        { key: "netAmount", value: "Net Amount" },
-        { key: "totalAmount", value: "Total Amount" },
-        { key: "action", value: "Action" }
+  return (
+    <Box sx={{ p: 3, backgroundColor: '#fff', borderRadius: 2 }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4">Quotation List</Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => navigate('add')}
+        >
+          New Quotation
+        </Button>
+      </Box>
 
-    ];
-    return (
-        <div>
-            <Box>
-                <Typography variant="h4" gutterBottom>Quotation</Typography>
-                <Button
-                    variant="contained"
-                    color="primary"
-                    style={{ float: "right", marginBottom: "2rem" }}
-                    onClick={() => navigate('add')}
+      <Paper elevation={3}>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                {columnHeader.map((col, idx) => (
+                  <TableCell
+                    key={idx}
+                    align="center"
+                    sx={{
+                      fontWeight: 'bold',
+                      backgroundColor: '#f5f5f5',
+                      color: '#333',
+                      cursor: ['qtnNo', 'enqNo', 'companyName'].includes(col.key) ? 'pointer' : 'default'
+                    }}
+                    onClick={() =>
+                      ['qtnNo', 'enqNo', 'companyName'].includes(col.key) && handleSort(col.key)
+                    }
+                  >
+                    {col.value}
+                  </TableCell>
+                ))}
+              </TableRow>
+              <TableRow>
+                {columnHeader.map((col, idx) => (
+                  <TableCell key={idx} align="center">
+                    {['qtnNo', 'enqNo', 'companyName', 'netAmount', 'totalAmount'].includes(col.key) ? (
+                      <TextField
+                        variant="outlined"
+                        size="small"
+                        placeholder={`Search ${col.value}`}
+                        value={filters[col.key] || ''}
+                        onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                        sx={{ width: '90%' }}
+                      />
+                    ) : ['enqDate', 'qtnDate'].includes(col.key) ? (
+                      <TextField
+                        type="date"
+                        size="small"
+                        value={filters[col.key] || ''}
+                        onChange={(e) => handleFilterChange(col.key, e.target.value)}
+                        sx={{ width: '90%' }}
+                      />
+                    ) : null}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+
+            <TableBody>
+              {quotationList.map((row, idx) => (
+                <TableRow
+                  key={row.id}
+                  hover
+                  sx={{ backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff' }}
                 >
-                    New Quotation
-                </Button>
+                  <TableCell align="center" size='small'>{row.qtnNo}</TableCell>
+                  <TableCell align="center" size='small'>{row.qtnDate}</TableCell>
+                  <TableCell align="center" size='small'>{row.enqNo}</TableCell>
+                  <TableCell align="center" size='small'>{row.enqDate}</TableCell>
+                  <TableCell align="center" size='small'>{row.companyName || 'N/A'}</TableCell>
+                  <TableCell align="center" size='small'>{row.netAmount || 'N/A'}</TableCell>
+                  <TableCell align="center" size='small'>{row.totalAmount || 'N/A'}</TableCell>
+                  <TableCell align="center" size='small'>
+                    <IconButton onClick={() => handleEdit(row.id)} size="small">
+                      <EditOutlined fontSize="small" />
+                    </IconButton>
+                    <IconButton onClick={() => handleDelete(row.id)} size="small" color="error">
+                      <DeleteForever fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
 
-
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                {columnHeader.map((column, index) => (
-                                    <TableCell
-                                        key={index}
-                                        align="center"
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            backgroundColor: '#f5f5f5',
-                                            color: '#333',
-                                            fontSize: '1rem',
-                                            borderBottom: '2px solid #ccc',
-                                            cursor: ['qtnNo','enqNo', 'companyName', 'daysForNextFollowup'].includes(column.key) ? 'pointer' : 'default'
-                                        }}
-                                        onClick={() =>
-                                            ["qtnNo","enqNo", "companyName", "daysForNextFollowup"].includes(column.key) && handleSort(column.key)
-                                        }
-                                    >
-                                        {column.value}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                            <TableRow>
-                                {columnHeader.map((columnHead, index) => (
-                                    <TableCell key={index} align="center">
-                                        {['qtnNo','enqNo', 'companyName', 'daysForNextFollowup','netAmount','totalAmount'].includes(columnHead.key) ? (
-                                            <TextField
-                                                variant="outlined"
-                                                size="small"
-                                                placeholder={`Filter by ${columnHead.value}`}
-                                                value={filters[columnHead.key]}
-                                                onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                sx={{ width: '80%' }}
-                                            />
-                                        ) : columnHead.key === 'closedDate' ? (
-                                            <Select
-                                                value={filters.closedDate || ""}
-                                                onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                displayEmpty
-                                                sx={{ width: '80%' }}
-                                            >
-                                                <MenuItem value="">All</MenuItem>
-                                                <MenuItem value={null}>Open</MenuItem>
-                                                <MenuItem value={"1900-01-01"}>Closed</MenuItem>
-                                            </Select>
-                                        ) : columnHead.key === 'enqDate' || columnHead.key === 'qtnDate' ? (
-                                            <Box display="flex" alignItems="center" justifyContent="center">
-                                                {console.log(filters[columnHead.key==="enqDate"?"enqDate":"lastContactDate"])}
-                                                <TextField
-                                                    type="date"
-                                                    value={filters[columnHead.key==="enqDate"?"enqDate":"lastContactDate"] || ""}
-                                                    onChange={(e) => handleFilterChange(columnHead.key, e.target.value)}
-                                                    sx={{ width: '70%' }}
-                                                />
-                                            </Box>
-                                        ) : null}
-                                    </TableCell>
-                                ))}
-                            </TableRow>
-                        </TableHead>
-
-                        <TableBody>
-                            {quotationList.map((enquiry, rowIndex) => (
-                                <TableRow
-                                    key={enquiry.id}
-                                    sx={{
-                                        backgroundColor: rowIndex % 2 === 0 ? '#fafafa' : '#fff',
-                                        '&:hover': { backgroundColor: '#f1f1f1' }
-                                    }}
-                                >
-                                    <TableCell align="center">{enquiry.qtnNo}</TableCell>
-                                    <TableCell align="center">{enquiry.qtnDate}</TableCell>
-                                    <TableCell align="center">{enquiry.enqNo}</TableCell>
-                                    <TableCell align="center">{enquiry.enqDate}</TableCell>
-                                    <TableCell align="center">{enquiry.companyName || 'N/A'}</TableCell>
-                                    <TableCell align="center">{enquiry.netAmount || 'N/A'}</TableCell>
-                                    <TableCell align="center">{enquiry.totalAmount || 'N/A'}</TableCell>
-                                    <TableCell align="center">
-                                        <Button onClick={() => handleEdit(enquiry.id)}><EditOutlined /></Button>
-                                        <Button color="secondary" onClick={() => handleDelete(enquiry.id)}><DeleteForever /></Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-
-                    </Table>
-                </TableContainer>
-
-                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                    <Pagination
-                        count={totalPages}
-                        page={currentPage}
-                        onChange={handlePageChange}
-                        color="primary"
-                    />
-                </Box>
-            </Box>
-        </div>
-    );
+      <Box mt={3} display="flex" justifyContent="center">
+        <Pagination
+          count={totalPages}
+          page={currentPage}
+          onChange={handlePageChange}
+          color="primary"
+        />
+      </Box>
+    </Box>
+  );
 };
 
 export default QuotationList;
