@@ -21,7 +21,7 @@ const Inventory = () => {
         uom: '',
     });
 
-    const itemsPerPage = 5;
+    const itemsPerPage = 10;
     const navigate = useNavigate();
     const location = useLocation();
     const debounceTimeout = useRef(null);

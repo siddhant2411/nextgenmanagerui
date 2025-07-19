@@ -16,6 +16,7 @@
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.13",
     "formik": "^2.4.6",
+    "framer-motion": "^12.23.0",
     "i": "^0.3.7",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",
@@ -26,6 +27,7 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
     "react-scripts": "5.0.1",
+    "shadcn-ui": "^0.9.5",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5",
     "yup": "^1.6.1"
