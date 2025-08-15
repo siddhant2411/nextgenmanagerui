@@ -41,101 +41,125 @@ const AddBom = () => {
     const [bomDetails, setBomDetails] = useState(null);
 
     const formik = useFormik({
-        initialValues: {
-            bomName: '',
-            parentItemId: '',
-            bomType: 'PRODUCTION',
-            isActive: true,
-            isDefault: false,
-            revision: '',
-            effectiveFrom: '',
-            effectiveTo: '',
-            components: [],
-            productionTemplate: {
-                estimatedHours: '',
-                estimatedCostOfLabour: '',
-                estimatedCostOfBom: '',
-                overheadCostPercentage: '',
-                overheadCostValue: '',
-                totalCostOfWorkOrder: '',
-                details: '',
-                workOrderJobLists: [{
-                    productionJob: {
-                        id: '',
-                        jobName: '',
-                        machineDetails: '',
-                        roleRequired: '',
-                        costPerHour: '',
-                        description: ''
-
-                    },
-                    numberOfHours: 0,
-                }]
-            }
-        },
-        validationSchema: Yup.object({
-            bomName: Yup.string().required('Required'),
-            parentItemId: Yup.string().required('Required'),
-            productionTemplate: Yup.object({
-                estimatedHours: Yup.number().nullable(),
-                estimatedCostOfLabour: Yup.number().nullable(),
-                estimatedCostOfBom: Yup.number().nullable(),
-                overheadCostPercentage: Yup.number().nullable(),
-                overheadCostValue: Yup.number().nullable(),
-                totalCostOfWorkOrder: Yup.number().nullable(),
-                details: Yup.string().nullable()
-            })
-        }),
-        onSubmit: async (values) => {
-            const bomPayload = {
-                bomName: values.bomName,
-                parentInventoryItem: { inventoryItemId: values.parentItemId },
-                bomType: values.bomType,
-                isActive: values.isActive,
-                isDefault: values.isDefault,
-                revision: values.revision,
-                effectiveFrom: values.effectiveFrom,
-                effectiveTo: values.effectiveTo,
-                childInventoryItems: values.components.map((c) => ({
-                    childInventoryItem: { inventoryItemId: c.inventoryItemId },
-                    quantity: parseInt(c.quantity),
-                    position: parseInt(c.position || 0)
-                }))
-            };
-
-            const templatePayload = {
-                id: values.productionTemplate.id,
-                estimatedHours: values.productionTemplate.estimatedHours,
-                estimatedCostOfLabour: values.productionTemplate.estimatedCostOfLabour,
-                estimatedCostOfBom: values.productionTemplate.estimatedCostOfBom,
-                overheadCostPercentage: values.productionTemplate.overheadCostPercentage,
-                overheadCostValue: values.productionTemplate.overheadCostValue,
-                totalCostOfWorkOrder: values.productionTemplate.totalCostOfWorkOrder,
-                details: values.productionTemplate.details,
-                workOrderJobLists: values.productionTemplate.workOrderJobLists.map(j => ({
-                    productionJob: j.productionJob,
-                    numberOfHours: j.numberOfHours
-                }))
-            };
-
-            const payload = {
-                bom: bomPayload,
-                workOrderProductionTemplate: templatePayload
-            };
-
-            try {
-                if (bomId) {
-                    await apiService.put(`/bom/${bomId}`, payload);
-                } else {
-                    await apiService.post('/bom', payload);
-                }
-                navigate(-1);
-            } catch (e) {
-                alert('Failed to save BOM');
-            }
+    initialValues: {
+        bomName: '',
+        parentItemId: '',
+        bomType: 'PRODUCTION',
+        isActive: true,
+        isDefault: false,
+        revision: '',
+        effectiveFrom: '',
+        effectiveTo: '',
+        components: [],
+        productionTemplate: {
+            estimatedHours: '',
+            estimatedCostOfLabour: '',
+            estimatedCostOfBom: '',
+            overheadCostPercentage: '',
+            overheadCostValue: '',
+            totalCostOfWorkOrder: '',
+            details: '',
+            workOrderJobLists: [{
+                productionJob: {
+                    id: '',
+                    jobName: '',
+                    machineDetails: null,
+                    roleRequired: '',
+                    costPerHour: '',
+                    description: ''
+                },
+                numberOfHours: 0,
+            }]
         }
+    },
+    validationSchema: Yup.object({
+        bomName: Yup.string().required('Required'),
+        parentItemId: Yup.string().required('Required'),
+        productionTemplate: Yup.object({
+            estimatedHours: Yup.number().nullable(),
+            estimatedCostOfLabour: Yup.number().nullable(),
+            estimatedCostOfBom: Yup.number().nullable(),
+            overheadCostPercentage: Yup.number().nullable(),
+            overheadCostValue: Yup.number().nullable(),
+            totalCostOfWorkOrder: Yup.number().nullable(),
+            details: Yup.string().nullable()
+        })
+    }),
+    onSubmit: async (values) => {
+        // Helper: convert empty strings to null
+        const sanitize = (obj) =>
+            JSON.parse(JSON.stringify(obj, (key, value) => value === '' ? null : value));
 
-    });
+        const bomPayload = {
+            bomName: values.bomName,
+            parentInventoryItem: { inventoryItemId: values.parentItemId },
+            bomType: values.bomType,
+            isActive: values.isActive,
+            isDefault: values.isDefault,
+            revision: values.revision,
+            effectiveFrom: values.effectiveFrom,
+            effectiveTo: values.effectiveTo,
+            childInventoryItems: values.components.map((c) => ({
+                childInventoryItem: { inventoryItemId: c.inventoryItemId },
+                quantity: parseInt(c.quantity),
+                position: parseInt(c.position || 0)
+            }))
+        };
+
+        const templatePayload = {
+            id: values.productionTemplate.id,
+            estimatedHours: values.productionTemplate.estimatedHours,
+            estimatedCostOfLabour: values.productionTemplate.estimatedCostOfLabour,
+            estimatedCostOfBom: values.productionTemplate.estimatedCostOfBom,
+            overheadCostPercentage: values.productionTemplate.overheadCostPercentage,
+            overheadCostValue: values.productionTemplate.overheadCostValue,
+            totalCostOfWorkOrder: values.productionTemplate.totalCostOfWorkOrder,
+            details: values.productionTemplate.details,
+            workOrderJobLists: values.productionTemplate.workOrderJobLists.map(j => {
+                const hasJob =
+                    j.productionJob &&
+                    (j.productionJob.id ||
+                        j.productionJob.jobName ||
+                        j.productionJob.machineDetails?.id ||
+                        j.productionJob.roleRequired ||
+                        j.productionJob.costPerHour ||
+                        j.productionJob.description);
+
+                return {
+                    productionJob: hasJob
+                        ? {
+                              id: j.productionJob.id && j.productionJob.id !== 0 ? j.productionJob.id : null,
+                              jobName: j.productionJob.jobName,
+                              machineDetails: j.productionJob.machineDetails?.id
+                                  ? { id: j.productionJob.machineDetails.id }
+                                  : null,
+                              roleRequired: j.productionJob.roleRequired,
+                              costPerHour: j.productionJob.costPerHour,
+                              description: j.productionJob.description
+                          }
+                        : null,
+                    numberOfHours: j.numberOfHours
+                };
+            })
+        };
+
+        const payload = sanitize({
+            bom: bomPayload,
+            workOrderProductionTemplate: templatePayload
+        });
+
+        try {
+            if (bomId) {
+                await apiService.put(`/bom/${bomId}`, payload);
+            } else {
+                await apiService.post('/bom', payload);
+            }
+            navigate(-1);
+        } catch (e) {
+            alert('Failed to save BOM');
+        }
+    }
+});
 
 
     const fetchInventoryItems = useCallback(async (search = "") => {
