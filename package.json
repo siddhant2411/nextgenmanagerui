@@ -4,9 +4,10 @@
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^6.2.1",
-    "@mui/material": "^6.2.1",
+    "@mui/material": "^6.5.0",
+    "@mui/x-data-grid": "^8.9.1",
     "@mui/x-date-pickers": "^7.23.3",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -30,7 +31,7 @@
     "shadcn-ui": "^0.9.5",
     "web-vitals": "^2.1.4",
     "xlsx": "^0.18.5",
-    "yup": "^1.6.1"
+    "yup": "^1.7.0"
   },
   "scripts": {
     "start": "react-scripts start",
