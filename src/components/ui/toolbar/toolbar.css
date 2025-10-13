@@ -1,0 +1,19 @@
+.toolbar{
+    width: 100%;
+    background-color: white;
+    height: 75px;
+    border-bottom: 1px solid rgba(54, 54, 54, 0.158);
+    display: flex;
+    align-items: center; 
+
+}
+
+
+.toolbar-left, .toolbar-right{
+    flex: 1;
+    
+}
+
+.toolbar-right{
+    float: right;
+}

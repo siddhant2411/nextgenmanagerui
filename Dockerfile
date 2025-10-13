@@ -15,5 +15,9 @@ RUN npm run build
 # Step 2: Serve with nginx
 FROM nginx:latest
 COPY --from=build /app/build /usr/share/nginx/html
+
+# Add our custom nginx config
+COPY nginx-custom.conf /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

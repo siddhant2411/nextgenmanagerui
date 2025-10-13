@@ -29,7 +29,7 @@ import {
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Enquiry from "../enquiry/Enquiry";
+import Enquiry from "../../enquiry/Enquiry";
 
 const Sidebar = () => {
     const location = useLocation();
@@ -68,7 +68,7 @@ const Sidebar = () => {
             ],
         },
 
-         {
+        {
             text: "Sells",
             icon: <SellOutlined />,
             children: [
@@ -80,7 +80,7 @@ const Sidebar = () => {
             icon: <Contact />,
             path: "/contact",
         },
-         {
+        {
             text: "Enquiry",
             icon: <RequestQuote />,
             path: "/enquiry",
@@ -122,33 +122,51 @@ const Sidebar = () => {
                 "& .MuiDrawer-paper": {
                     width: 240,
                     boxSizing: "border-box",
-                    background: "#2c3e50",
+                    background: "#00162cff",
                     color: "#fff",
                 },
             }}
         >
-            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 2 }}>
-                <Typography variant="h6" sx={{ color: "#00acc1" }}>
-                    SMART MANAGER
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", padding: 2, borderBottom: "1px solid rgba(44, 73, 110, 0.5)" }}>
+
+                <Typography
+                    variant="h6"
+                    sx={{
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1   // adds spacing between logo and text
+                    }}
+                >
+                    <img
+                        src={process.env.PUBLIC_URL + '/NGM.png'}
+                        alt="logo"
+                        style={{ width: 28, height: 28 }} // adjust size as needed
+                    />
+                    NextGenManager
                 </Typography>
+
             </Box>
             <List>
                 {menuItems.map((item, index) => {
                     const isActive = location.pathname === item.path || (item.children && item.children.some(child => location.pathname === child.path));
                     return (
                         <React.Fragment key={index}>
-                            <ListItem disablePadding sx={{ borderBottom: "1px solid rgba(44, 73, 110, 0.5)" }}>
+                            <ListItem disablePadding>
                                 <ListItemButton
                                     onClick={() => item.children ? toggleSubMenu(item.text) : navigate(item.path)}
                                     sx={{
-                                        backgroundColor: isActive ? "#00acc1" : "transparent",
-                                        "&:hover": { backgroundColor: "#00acc1" },
+                                        "&:hover": { backgroundColor: "#53535f8e" },
                                     }}
                                 >
                                     <ListItemIcon sx={{ color: "#fff" }}>{item.icon}</ListItemIcon>
-                                    <ListItemText primary={item.text} />
+                                    <ListItemText
+                                        primary={item.text}
+                                        slotProps={{ primary: { fontSize: "0.875rem", color: "#fff" } }}
+                                    />
                                     {item.children && (openSubMenus[item.text] ? <ExpandLess /> : <ExpandMore />)}
                                 </ListItemButton>
+
                             </ListItem>
 
                             {item.children && (
@@ -160,11 +178,11 @@ const Sidebar = () => {
                                                 onClick={() => navigate(child.path)}
                                                 sx={{
                                                     pl: 4,
-                                                    backgroundColor: location.pathname === child.path ? "#00acc1" : "transparent",
-                                                    "&:hover": { backgroundColor: "#00acc1" },
+                                                    // backgroundColor: location.pathname === child.path ? "#00acc1" : "transparent",
+                                                    "&:hover": { backgroundColor: "#53535f8e" },
                                                 }}
                                             >
-                                                <ListItemText primary={child.text} sx={{ color: "#fff" }} />
+                                                <ListItemText primary={child.text} sx={{ color: "#fff" }} slotProps={{ primary: { fontSize: "0.875rem", color: "#fff" } }} />
                                             </ListItemButton>
                                         ))}
                                     </List>

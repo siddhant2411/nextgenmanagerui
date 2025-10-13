@@ -11,7 +11,9 @@ import {
     TableContainer,
     Table,
     Paper,
-    IconButton
+    IconButton,
+    Snackbar,
+    Alert
 } from "@mui/material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
@@ -41,125 +43,125 @@ const AddBom = () => {
     const [bomDetails, setBomDetails] = useState(null);
 
     const formik = useFormik({
-    initialValues: {
-        bomName: '',
-        parentItemId: '',
-        bomType: 'PRODUCTION',
-        isActive: true,
-        isDefault: false,
-        revision: '',
-        effectiveFrom: '',
-        effectiveTo: '',
-        components: [],
-        productionTemplate: {
-            estimatedHours: '',
-            estimatedCostOfLabour: '',
-            estimatedCostOfBom: '',
-            overheadCostPercentage: '',
-            overheadCostValue: '',
-            totalCostOfWorkOrder: '',
-            details: '',
-            workOrderJobLists: [{
-                productionJob: {
-                    id: '',
-                    jobName: '',
-                    machineDetails: null,
-                    roleRequired: '',
-                    costPerHour: '',
-                    description: ''
-                },
-                numberOfHours: 0,
-            }]
-        }
-    },
-    validationSchema: Yup.object({
-        bomName: Yup.string().required('Required'),
-        parentItemId: Yup.string().required('Required'),
-        productionTemplate: Yup.object({
-            estimatedHours: Yup.number().nullable(),
-            estimatedCostOfLabour: Yup.number().nullable(),
-            estimatedCostOfBom: Yup.number().nullable(),
-            overheadCostPercentage: Yup.number().nullable(),
-            overheadCostValue: Yup.number().nullable(),
-            totalCostOfWorkOrder: Yup.number().nullable(),
-            details: Yup.string().nullable()
-        })
-    }),
-    onSubmit: async (values) => {
-        // Helper: convert empty strings to null
-        const sanitize = (obj) =>
-            JSON.parse(JSON.stringify(obj, (key, value) => value === '' ? null : value));
-
-        const bomPayload = {
-            bomName: values.bomName,
-            parentInventoryItem: { inventoryItemId: values.parentItemId },
-            bomType: values.bomType,
-            isActive: values.isActive,
-            isDefault: values.isDefault,
-            revision: values.revision,
-            effectiveFrom: values.effectiveFrom,
-            effectiveTo: values.effectiveTo,
-            childInventoryItems: values.components.map((c) => ({
-                childInventoryItem: { inventoryItemId: c.inventoryItemId },
-                quantity: parseInt(c.quantity),
-                position: parseInt(c.position || 0)
-            }))
-        };
-
-        const templatePayload = {
-            id: values.productionTemplate.id,
-            estimatedHours: values.productionTemplate.estimatedHours,
-            estimatedCostOfLabour: values.productionTemplate.estimatedCostOfLabour,
-            estimatedCostOfBom: values.productionTemplate.estimatedCostOfBom,
-            overheadCostPercentage: values.productionTemplate.overheadCostPercentage,
-            overheadCostValue: values.productionTemplate.overheadCostValue,
-            totalCostOfWorkOrder: values.productionTemplate.totalCostOfWorkOrder,
-            details: values.productionTemplate.details,
-            workOrderJobLists: values.productionTemplate.workOrderJobLists.map(j => {
-                const hasJob =
-                    j.productionJob &&
-                    (j.productionJob.id ||
-                        j.productionJob.jobName ||
-                        j.productionJob.machineDetails?.id ||
-                        j.productionJob.roleRequired ||
-                        j.productionJob.costPerHour ||
-                        j.productionJob.description);
-
-                return {
-                    productionJob: hasJob
-                        ? {
-                              id: j.productionJob.id && j.productionJob.id !== 0 ? j.productionJob.id : null,
-                              jobName: j.productionJob.jobName,
-                              machineDetails: j.productionJob.machineDetails?.id
-                                  ? { id: j.productionJob.machineDetails.id }
-                                  : null,
-                              roleRequired: j.productionJob.roleRequired,
-                              costPerHour: j.productionJob.costPerHour,
-                              description: j.productionJob.description
-                          }
-                        : null,
-                    numberOfHours: j.numberOfHours
-                };
-            })
-        };
-
-        const payload = sanitize({
-            bom: bomPayload,
-            workOrderProductionTemplate: templatePayload
-        });
-
-        try {
-            if (bomId) {
-                await apiService.put(`/bom/${bomId}`, payload);
-            } else {
-                await apiService.post('/bom', payload);
+        initialValues: {
+            bomName: '',
+            parentItemId: '',
+            bomType: 'PRODUCTION',
+            isActive: true,
+            isDefault: false,
+            revision: '',
+            effectiveFrom: '',
+            effectiveTo: '',
+            components: [],
+            productionTemplate: {
+                estimatedHours: '',
+                estimatedCostOfLabour: '',
+                estimatedCostOfBom: '',
+                overheadCostPercentage: '',
+                overheadCostValue: '',
+                totalCostOfWorkOrder: '',
+                details: '',
+                workOrderJobLists: [{
+                    productionJob: {
+                        id: '',
+                        jobName: '',
+                        machineDetails: null,
+                        roleRequired: '',
+                        costPerHour: '',
+                        description: ''
+                    },
+                    numberOfHours: 0,
+                }]
             }
-            navigate(-1);
-        } catch (e) {
-            alert('Failed to save BOM');
+        },
+        validationSchema: Yup.object({
+            bomName: Yup.string().required('Required'),
+            parentItemId: Yup.string().required('Required'),
+            productionTemplate: Yup.object({
+                estimatedHours: Yup.number().nullable(),
+                estimatedCostOfLabour: Yup.number().nullable(),
+                estimatedCostOfBom: Yup.number().nullable(),
+                overheadCostPercentage: Yup.number().nullable(),
+                overheadCostValue: Yup.number().nullable(),
+                totalCostOfWorkOrder: Yup.number().nullable(),
+                details: Yup.string().nullable()
+            })
+        }),
+        onSubmit: async (values) => {
+            // Helper: convert empty strings to null
+            const sanitize = (obj) =>
+                JSON.parse(JSON.stringify(obj, (key, value) => value === '' ? null : value));
+
+            const bomPayload = {
+                bomName: values.bomName,
+                parentInventoryItem: { inventoryItemId: values.parentItemId },
+                bomType: values.bomType,
+                isActive: values.isActive,
+                isDefault: values.isDefault,
+                revision: values.revision,
+                effectiveFrom: values.effectiveFrom,
+                effectiveTo: values.effectiveTo,
+                childInventoryItems: values.components.map((c) => ({
+                    childInventoryItem: { inventoryItemId: c.inventoryItemId },
+                    quantity: parseInt(c.quantity),
+                    position: parseInt(c.position || 0)
+                }))
+            };
+
+            const templatePayload = {
+                id: values.productionTemplate.id,
+                estimatedHours: values.productionTemplate.estimatedHours,
+                estimatedCostOfLabour: values.productionTemplate.estimatedCostOfLabour,
+                estimatedCostOfBom: values.productionTemplate.estimatedCostOfBom,
+                overheadCostPercentage: values.productionTemplate.overheadCostPercentage,
+                overheadCostValue: values.productionTemplate.overheadCostValue,
+                totalCostOfWorkOrder: values.productionTemplate.totalCostOfWorkOrder,
+                details: values.productionTemplate.details,
+                workOrderJobLists: values.productionTemplate.workOrderJobLists.map(j => {
+                    const hasJob =
+                        j.productionJob &&
+                        (j.productionJob.id ||
+                            j.productionJob.jobName ||
+                            j.productionJob.machineDetails?.id ||
+                            j.productionJob.roleRequired ||
+                            j.productionJob.costPerHour ||
+                            j.productionJob.description);
+
+                    return {
+                        productionJob: hasJob
+                            ? {
+                                id: j.productionJob.id && j.productionJob.id !== 0 ? j.productionJob.id : null,
+                                jobName: j.productionJob.jobName,
+                                machineDetails: j.productionJob.machineDetails?.id
+                                    ? { id: j.productionJob.machineDetails.id }
+                                    : null,
+                                roleRequired: j.productionJob.roleRequired,
+                                costPerHour: j.productionJob.costPerHour,
+                                description: j.productionJob.description
+                            }
+                            : null,
+                        numberOfHours: j.numberOfHours
+                    };
+                })
+            };
+
+            const payload = sanitize({
+                bom: bomPayload,
+                workOrderProductionTemplate: templatePayload
+            });
+
+            try {
+                if (bomId) {
+                    await apiService.put(`/bom/${bomId}`, payload);
+                } else {
+                    await apiService.post('/bom', payload);
+                }
+                navigate(-1);
+            } catch (e) {
+                alert('Failed to save BOM');
+            }
         }
-    }
-});
+    });
 
 
     const fetchInventoryItems = useCallback(async (search = "") => {
@@ -231,41 +233,57 @@ const AddBom = () => {
 
     const exportDetailedPDF = () => {
         if (!bomDetails) return;
-        const doc = new jsPDF();
-        doc.text(`BOM Name: ${bomDetails.bomName}`, 10, 10);
-        doc.text(`Parent Item: ${bomDetails.parentInventoryItem.itemCode} - ${bomDetails.parentInventoryItem.name}`, 10, 20);
 
-        const childRows = bomDetails.childInventoryItems.map(child => [
-            child.childInventoryItem.itemCode,
-            child.childInventoryItem.name,
-            child.childInventoryItem.hsnCode,
-            child.childInventoryItem.uom,
-            child.childInventoryItem.itemType,
-            child.childInventoryItem.dimension,
-            child.quantity,
-            child.position,
-            child.childInventoryItem.remarks
-        ]);
+        setTimeout(() => {
+            const doc = new jsPDF({ unit: "mm", format: "a4" });
 
-        autoTable(doc, {
-            startY: 30,
-            head: [[
-                "Item Code", "Name", "HSN", "UOM", "Type",
-                "Dimension", "Qty", "Position", "Remarks"
-            ]],
-            body: childRows
-        });
 
-        doc.save("Detailed_BOM_Report.pdf");
-    };
+            console.log("bomName:", bomDetails);
+            console.log("bomName:", bomDetails?.bom?.bomName);
+            console.log("parentItem:", bomDetails?.bom?.parentInventoryItem);
 
+            // Header info
+            doc.text(`BOM Name: ${String(bomDetails?.bom?.bomName ?? "")}`, 10, 10);
+            doc.text(
+                `Parent Item: ${String(bomDetails?.bom?.parentInventoryItem?.itemCode ?? "")} - ${String(bomDetails?.parentInventoryItem?.name ?? "")}`,
+                10,
+                20
+            );
+            // Table rows
+            const childRows = (bomDetails.bom?.childInventoryItems || []).map(child => [
+                child.childInventoryItem?.itemCode || "",
+                child.childInventoryItem?.name || "",
+                child.childInventoryItem?.hsnCode || "",
+                child.childInventoryItem?.uom || "",
+                child.childInventoryItem?.itemType || "",
+                child.childInventoryItem?.dimension || "",
+                child.quantity ?? "",
+                child.position ?? "",
+                child.childInventoryItem?.remarks || ""
+            ]);
+
+            // AutoTable
+            autoTable(doc, {
+                startY: 30,
+                head: [[
+                    "Item Code", "Name", "HSN", "UOM", "Type",
+                    "Dimension", "Qty", "Position", "Remarks"
+                ]],
+                body: childRows,
+            });
+
+            // Save
+            doc.save("Detailed_BOM_Report.pdf");
+        }, 0);
+
+    }
     const exportDetailedExcel = () => {
         if (!bomDetails) return;
         const header = [
             "Item Code", "Name", "HSN Code", "UOM", "Item Type",
             "Dimension", "Quantity", "Position", "Remarks"
         ];
-        const data = bomDetails.childInventoryItems.map(child => ([
+        const data = bomDetails?.bom?.childInventoryItems?.map(child => ([
             child.childInventoryItem.itemCode,
             child.childInventoryItem.name,
             child.childInventoryItem.hsnCode,
@@ -355,6 +373,23 @@ const AddBom = () => {
         }
     }, [fetchParentItems, fetchBomDetails]);
 
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const showSnackbar = (message, severity = 'success') => {
+        setSnackbar({ open: true, message, severity });
+    };
+
+
+    const downloadAttachment = async (fileId, fileName) => {
+
+        try {
+            await apiService.download(`/bom/download/${fileId}`, '', fileName);
+            showSnackbar('File Downloaded');
+            fetchBomDetails();
+        } catch (e) {
+            showSnackbar('File Downloaded failed', 'error');
+        }
+
+    }
     return (
         <Box sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, boxShadow: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -528,8 +563,22 @@ const AddBom = () => {
                         <Button onClick={handleFileUpload} sx={{ mt: 1 }} variant="outlined">Upload</Button>
                         <List>
                             {bomAttachments.map(file => (
-                                <ListItem key={file.id} secondaryAction={<DeleteOutline onClick={() => handleFileDelete(file.id)} style={{ cursor: 'pointer' }} />}>
-                                    <ListItemText primary={file.fileName} secondary={`Uploaded`} />
+                                <ListItem key={file.id}
+                                    secondaryAction={
+                                        <DeleteOutline
+                                            onClick={() => handleFileDelete(file.id)}
+                                            style={{ cursor: "pointer" }} />
+                                    }
+                                    style={{ cursor: "pointer" }} >
+                                    <ListItemText primary={file.fileName}
+                                        secondary={`Uploaded ${new Date(file.uploadedDate).toLocaleDateString()}`
+                                        }
+
+
+                                        onClick={() => downloadAttachment(file.id, file.fileName)}
+                                    />
+
+
                                 </ListItem>
                             ))}
                         </List>
@@ -540,6 +589,17 @@ const AddBom = () => {
                     <Button type="submit" variant="contained" color="primary">{bomId ? 'Update BOM' : 'Create BOM'}</Button>
                 </Box>
             </form>
+
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box >
     );
 };

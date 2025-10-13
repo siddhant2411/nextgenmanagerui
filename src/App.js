@@ -5,7 +5,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from "./pages/Home";
 import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
-import Sidebar from "./components/sidebar/Sidebar";
+import Sidebar from "./components/ui/sidebar/Sidebar";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
@@ -13,16 +13,18 @@ import WorkOrderPage from './pages/WorkOrderPage';
 import ProductionJobPage from './pages/ProductionJobPage';
 import ItemCodeMappingPage from './pages/ItemCodeMappingPage';
 import SalesOrder from './components/sales/salesorder/SalesOrder';
+import Toolbar from './components/ui/toolbar/Toolbar';
 
 
 function App() {
     return (
 
-        <div className='app-class'>
+        <div className='app-class' style={{fontFamily:'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"'}}>
             <Router>
                 <div style={{ display: "flex" }} >
                     <Sidebar />
-                    <main style={{ flexGrow: 1, padding: "16px" }}>
+                    <main style={{ flexGrow: 1 }}>
+                        <Toolbar />
                         <Routes>
                             <Route path="/" element={<Home />} />
                             <Route path="/inventory-item/*" element={<InventoryItem />} />

@@ -10,12 +10,12 @@ const InventoryItem = () => {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [sortBy, setSortBy] = useState('inventoryItemId');
   const [sortDir, setSortDir] = useState('asc');
   const [searchQuery, setSearchQuery] = useState('');
-  const itemsPerPage = 5;
+  const [itemsPerPage, setItemPerPage] = useState(10);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,7 +33,7 @@ const InventoryItem = () => {
       const data = await apiService.get('/inventory_item/all', params);
       setItems(data.content);
       setTotalPages(data.totalPages);
-      setCurrentPage(page);
+      setCurrentPage(0);
     } catch (err) {
       setError('Failed to fetch inventory items');
       console.error(err);
@@ -52,19 +52,11 @@ const InventoryItem = () => {
     fetchInventoryItems(1, sortBy, sortDir, searchQuery);
   };
 
-  const handlePageChange = (page) => {
-    fetchInventoryItems(page, sortBy, sortDir, searchQuery);
-  };
 
-  const handleSortChange = (sortField) => {
-    const newSortDir = sortBy === sortField && sortDir === 'asc' ? 'desc' : 'asc';
-    setSortBy(sortField);
-    setSortDir(newSortDir);
-    fetchInventoryItems(currentPage, sortField, newSortDir, searchQuery);
-  };
 
   const handleAddNewItemClick = () => {
-    navigate('add');
+    const url = `${window.location.origin}${window.location.pathname}/add`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const deleteInventoryItem = async (id) => {
@@ -83,21 +75,22 @@ const InventoryItem = () => {
           path="/"
           element={
             <>
-              
               <InventoryItemList
                 inventoryItems={items}
                 setInventoryItems={setItems}
                 currentPage={currentPage}
                 totalPages={totalPages}
-                onPageChange={handlePageChange}
-                onSortChange={handleSortChange}
                 sortBy={sortBy}
                 sortDir={sortDir}
+                setSortBy={setSortBy}
+                setSortDir={setSortDir}
                 onDeleteItem={deleteInventoryItem}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
-                onSearchSubmit={performSearch}
-                fetchInventoryItems={fetchInventoryItems}
+                itemsPerPage={itemsPerPage}
+                setItemPerPage={setItemPerPage}
+                setTotalPages={setTotalPages}
+                setCurrentPage={setCurrentPage}
                 loading={loading}
                 error={error}
                 handleAddNewItemClick={handleAddNewItemClick}

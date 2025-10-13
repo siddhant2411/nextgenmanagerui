@@ -15,7 +15,7 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 export default function AddInventoryItem() {
-    const { id } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTab, setSelectedTab] = useState(0);
@@ -87,38 +87,49 @@ export default function AddInventoryItem() {
   };
 
   // File change handler
-const handleFileChange = (event) => {
-  setSelectedFile(event.target.files[0]);
-};
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files[0]);
+  };
 
-// File upload handler
-const handleFileUpload = async () => {
-  if (!selectedFile) {
-    return showSnackbar('Select file first', 'warning');
-  }
-  try {
-    await apiService.upload(`/inventory_item/${itemData.inventoryItemId}/upload`, selectedFile);
-    showSnackbar('File uploaded');
-    setSelectedFile(null); // Clear after upload
-    fetchItem(); // Refresh attachment list
-  } catch (e) {
-    showSnackbar('File upload failed', 'error');
-  }
-};
+  // File upload handler
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      return showSnackbar('Select file first', 'warning');
+    }
+    try {
+      await apiService.upload(`/inventory_item/${itemData.inventoryItemId}/upload`, selectedFile);
+      showSnackbar('File uploaded');
+      setSelectedFile(null); // Clear after upload
+      fetchItem(); // Refresh attachment list
+    } catch (e) {
+      showSnackbar('File upload failed', 'error');
+    }
+  };
 
-// File delete handler
-const handleFileDelete = async (fileId) => {
-  try {
-    await apiService.delete(`/inventory_item/delete/${fileId}`);
-    showSnackbar('File deleted');
-    fetchItem();
-  } catch (e) {
-    showSnackbar('Delete failed', 'error');
-  }
-};
+  // File delete handler
+  const handleFileDelete = async (fileId) => {
+    try {
+      await apiService.delete(`/inventory_item/delete/${fileId}`);
+      showSnackbar('File deleted');
+      fetchItem();
+    } catch (e) {
+      showSnackbar('Delete failed', 'error');
+    }
+  };
 
+  const downloadAttachment = async (fileId,fileName) => {
+    
+     try {
+      await apiService.download(`/inventory_item/download/${fileId}`,'',fileName);
+      showSnackbar('File Downloaded');
+      fetchItem();
+    } catch (e) {
+      showSnackbar('File Downloaded failed', 'error');
+    }
+
+  }
   return (
-      <Box component="form" onSubmit={handleSubmit} sx={{ p: 3, backgroundColor: '#fff', borderRadius: 2 }}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ p: 3, backgroundColor: '#fff', borderRadius: 2 }}>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
         <Typography variant="h5">{isEditMode ? 'Edit' : 'Add'} Inventory Item</Typography>
         <Stack direction="row" spacing={2}>
@@ -137,7 +148,7 @@ const handleFileDelete = async (fileId) => {
 
       {selectedTab === 0 && (
         <Grid container spacing={2}>
-          <Grid item xs={12} sm={6}><TextField size="small" label="Item Code *" fullWidth name="itemCode" value={itemData.itemCode} onChange={handleChange}   /></Grid>
+          <Grid item xs={12} sm={6}><TextField size="small" label="Item Code *" fullWidth name="itemCode" value={itemData.itemCode} onChange={handleChange} /></Grid>
           <Grid item xs={12} sm={6}><TextField size="small" label="Item Name *" fullWidth name="name" value={itemData.name} onChange={handleChange} required /></Grid>
           <Grid item xs={12} sm={6}><TextField size="small" label="HSN Code" fullWidth name="hsnCode" value={itemData.hsnCode} onChange={handleChange} /></Grid>
           <Grid item xs={12} sm={6}><FormControl fullWidth size="small"><InputLabel>UOM</InputLabel><Select name="uom" value={itemData.uom} label="UOM" onChange={handleChange}><MenuItem value="NOS">Nos</MenuItem><MenuItem value="KG">KG</MenuItem><MenuItem value="MTR">Meter</MenuItem></Select></FormControl></Grid>
@@ -206,11 +217,14 @@ const handleFileDelete = async (fileId) => {
                     >
                       Delete
                     </Button>
+
                   }
+                  onClick={() => downloadAttachment(file.id,file.fileName)}
+                  style={{cursor:"pointer"}}
                 >
                   <ListItemText
                     primary={file.fileName}
-                    secondary={`Uploaded on ${new Date(file.createdAt).toLocaleDateString()}`}
+                    secondary={`Uploaded on ${new Date(file.uploadedDate).toLocaleDateString()}`}
                   />
                 </ListItem>
               ))
