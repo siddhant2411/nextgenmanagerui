@@ -33,7 +33,7 @@ export default function FilterBar({
     const isNumberField = selectedColumn?.type === "number";
     const isEnum = selectedColumn?.type === "enum";
     const numberOperators = ["=", "<", ">", "<=", ">="];
-    const stringOperators = ["contains"];
+    const stringOperators = ["contains","="];
 
     const handleAddFilter = () => {
         if (!selectedField || !operator || !value) return;
@@ -44,6 +44,7 @@ export default function FilterBar({
             { field: selectedField, operator, value },
         ];
 
+       
         // Update state
         setFilters(newFilters);
 

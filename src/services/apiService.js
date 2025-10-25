@@ -13,11 +13,7 @@ const apiClient = axios.create({
 
 const apiClientFile = axios.create({
     baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': '',
-    },
 });
-
 
 
 
@@ -126,7 +122,7 @@ const apiService = {
         try {
 
             const response = await apiClient.patch(endpoint);
-           
+
             return response.data;
         } catch (error) {
             console.error('PATCH request error:', error);
@@ -144,6 +140,68 @@ const apiService = {
             throw error;
         }
     },
+
+
 };
+
+
+export const postFile = async (endpoint, inventoryItem, attachments = []) => {
+    const formData = new FormData();
+
+    // Append the JSON object as a string
+    formData.append(
+        "inventoryItem",
+        new Blob([JSON.stringify(inventoryItem)], { type: "application/json" })
+    );
+
+    // Append each file
+    attachments.forEach(file => {
+        formData.append("attachments", file.file);
+    });
+
+    try {
+        const response = await apiClientFile.post(endpoint, formData, {
+            headers: {
+                "Accept": "application/json",
+            },
+        });
+        return response.data;
+    } catch (error) {
+        console.error("POST request error:", error);
+        throw error;
+    }
+};
+
+
+
+export const putWithFile = async (endpoint, inventoryItem, attachments = []) => {
+    const formData = new FormData();
+
+    // Add JSON data as a Blob (important for Spring to deserialize correctly)
+    formData.append(
+        "inventoryItem",
+        new Blob([JSON.stringify(inventoryItem)], { type: "application/json" })
+    );
+
+    // Append file(s) if present
+    attachments.forEach(file => {
+        formData.append("attachments", file.file);
+    });
+
+    try {
+        const response = await apiClientFile.put(endpoint, formData, {
+            headers: {
+                "Accept": "application/json",
+                // ❌ DO NOT set Content-Type manually (axios sets boundary automatically)
+            },
+        });
+
+        return response.data;
+    } catch (error) {
+        console.error("PUT request error:", error);
+        throw error;
+    }
+};
+
 
 export default apiService;

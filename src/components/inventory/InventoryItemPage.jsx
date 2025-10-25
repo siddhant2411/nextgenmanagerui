@@ -164,15 +164,9 @@ const InventoryItemPage = () => {
                                     <TableCell align="center">{item.uom}</TableCell>
                                     <TableCell align="center">{item.purchased ? 'Yes' : 'No'} / {item.manufactured ? 'Yes' : 'No'}</TableCell>
                                     <TableCell align="center">{item.minStock || 0}</TableCell>
-                                    <TableCell align="right">{item.availableQuantity.toFixed(1)}</TableCell>
+                                    <TableCell align="right">{item.productInventorySettings?.availableQuantity.toFixed(1)}</TableCell>
                                     <TableCell align="center"><b>{item.leadTime || 'N/A'}</b></TableCell>
                                     <TableCell align="center">
-                                        {/* <Tooltip title="Consume Quantity">
-                                            <IconButton onClick={() => handleConsume(item.inventoryItemId)} size="small">
-                                                <Remove fontSize="small"   sx={{ color: 'red' }} />
-                                            </IconButton>
-                                        </Tooltip> */}
-
                                         <Tooltip title="Add Quantity">
                                             <IconButton onClick={() => handleOpenAddQuantity(item)} size="small">
                                                 <AddBox fontSize="small" sx={{ color: 'green' }}/>
