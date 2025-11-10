@@ -1,5 +1,5 @@
 // Enhanced AddBom component using MUI, Tabs, and Formik
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, version } from "react";
 import {
     Box, Button, FormControl, InputLabel, Select, MenuItem,
     TextField, Typography, Tabs, Tab, Grid, Checkbox, FormControlLabel, List, ListItem, ListItemText,
@@ -47,12 +47,17 @@ const AddBom = () => {
             bomName: '',
             parentItemId: '',
             bomType: 'PRODUCTION',
+            bomStatus: 'DRAFT',
             isActive: true,
             isDefault: false,
+            version: 1,
             revision: '',
             effectiveFrom: '',
             effectiveTo: '',
             components: [],
+            productFinanceSettings:{
+                stanadrCost:0,
+            },
             productionTemplate: {
                 estimatedHours: '',
                 estimatedCostOfLabour: '',
@@ -101,6 +106,8 @@ const AddBom = () => {
                 revision: values.revision,
                 effectiveFrom: values.effectiveFrom,
                 effectiveTo: values.effectiveTo,
+                version: 1,
+                bomStatus: values.bomStatus || 'DRAFT',
                 childInventoryItems: values.components.map((c) => ({
                     childInventoryItem: { inventoryItemId: c.inventoryItemId },
                     quantity: parseInt(c.quantity),
@@ -192,7 +199,7 @@ const AddBom = () => {
         try {
             const data = await apiService.get(`/bom/${bomId}`);
             const { bom, workOrderProductionTemplate } = data;
-
+            console.log(data)
             setBomDetails(data);
 
             formik.setValues({
@@ -204,7 +211,7 @@ const AddBom = () => {
                 revision: bom.revision || '',
                 effectiveFrom: bom.effectiveFrom || '',
                 effectiveTo: bom.effectiveTo || '',
-                components: bom.childInventoryItems.map((c, idx) => ({
+                components: bom.childInventoryItems?.map((c, idx) => ({
                     ...c.childInventoryItem,
                     quantity: c.quantity || 1,
                     position: c.position || (idx + 1) * 10
@@ -225,9 +232,8 @@ const AddBom = () => {
                 }
             });
 
-            setBomAttachments(bom.bomAttachmentList || []);
         } catch (e) {
-            console.error('Failed to fetch BOM');
+            console.error('Failed to fetch BOM',e);
         }
     }, [bomId]);
 
@@ -448,8 +454,26 @@ const AddBom = () => {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12} sm={3}><FormControlLabel control={<Checkbox {...formik.getFieldProps('isActive')} checked={formik.values.isActive} />} label="Is Active" /></Grid>
-                        <Grid item xs={12} sm={3}><FormControlLabel control={<Checkbox {...formik.getFieldProps('isDefault')} checked={formik.values.isDefault} />} label="Default BOM" /></Grid>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    name="isActive"
+                                    checked={formik.values.isActive}
+                                    onChange={(e) => formik.setFieldValue('isActive', e.target.checked)}
+                                />
+                            }
+                            label="Is Active"
+                        />
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    name="isDefault"
+                                    checked={formik.values.isDefault}
+                                    onChange={(e) => formik.setFieldValue('isDefault', e.target.checked)}
+                                />
+                            }
+                            label="Default BOM"
+                        />
                     </Grid>
                 )}
 
@@ -468,8 +492,8 @@ const AddBom = () => {
                                 getOptionLabel={(option) => `${option.name} | ${option.itemCode}`}
                                 onChange={(e, newValue) => {
                                     if (newValue) {
-                                        const newPosition = (formik.values.components.length + 1) * 10;
-                                        formik.setFieldValue('components', [...formik.values.components, {
+                                        const newPosition = (formik.values.components?.length + 1) * 10;
+                                        formik.setFieldValue('components', [...formik.values.components||[], {
                                             ...newValue,
                                             quantity: 1,
                                             position: newPosition
@@ -495,7 +519,7 @@ const AddBom = () => {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {formik.values.components.map((component, index) => (
+                                    {formik.values.components?.map((component, index) => (
                                         <TableRow key={index}>
                                             <TableCell>
                                                 <TextField

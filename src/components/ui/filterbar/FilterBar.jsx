@@ -22,7 +22,9 @@ export default function FilterBar({
     filters,
     setFilters,
     page,
-    handleApplyFilters
+    handleApplyFilters,
+    sortKey,
+    sortDir
 }) {
     const [selectedField, setSelectedField] = useState("");
     const [operator, setOperator] = useState("");
@@ -54,15 +56,15 @@ export default function FilterBar({
         setValue("");
 
         // Apply immediately using latest array
-        handleApplyFilters(newFilters, 0, "inventoryItemId", "asc")
+        handleApplyFilters(newFilters, 0, sortKey, sortDir)
     };
 
     const handleRemoveFilter = (index) => {
         const newFilters = filters.filter((_, i) => i !== index);
         setFilters(newFilters);
-        handleApplyFilters(newFilters, 0, "inventoryItemId", "asc")
+        handleApplyFilters(newFilters, 0, sortKey, sortDir)
     };
-    const handleClearAll = () => { setFilters([]); handleApplyFilters([], 0, "inventoryItemId", "asc") };
+    const handleClearAll = () => { setFilters([]); handleApplyFilters([], 0, sortKey, sortDir) };
 
 
 
