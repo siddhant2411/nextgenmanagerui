@@ -25,6 +25,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import WorkOrderTemplate from "./WorkOrderTemplate";
 import BomJob from "./BomJob";
+import dayjs from "dayjs";
 
 const AddBom = () => {
     const [items, setItems] = useState([]);
@@ -55,8 +56,8 @@ const AddBom = () => {
             effectiveFrom: '',
             effectiveTo: '',
             components: [],
-            productFinanceSettings:{
-                stanadrCost:0,
+            productFinanceSettings: {
+                stanadrCost: 0,
             },
             productionTemplate: {
                 estimatedHours: '',
@@ -108,8 +109,8 @@ const AddBom = () => {
                 effectiveTo: values.effectiveTo,
                 version: 1,
                 bomStatus: values.bomStatus || 'DRAFT',
-                childInventoryItems: values.components.map((c) => ({
-                    childInventoryItem: { inventoryItemId: c.inventoryItemId },
+                positions: values.components.map((c) => ({
+                    childBom: { id: c.id },
                     quantity: parseInt(c.quantity),
                     position: parseInt(c.position || 0)
                 }))
@@ -176,7 +177,8 @@ const AddBom = () => {
         setError(null);
         try {
             const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", search };
-            const data = await apiService.get("/inventory_item/all", params);
+            const data = await apiService.post("/bom/active/search", search);
+            console.log(data.content)
             setSearchedItemList(data.content);
         } catch (err) {
             setError("Failed to fetch inventory items");
@@ -209,13 +211,9 @@ const AddBom = () => {
                 isActive: bom.isActive,
                 isDefault: bom.isDefault,
                 revision: bom.revision || '',
-                effectiveFrom: bom.effectiveFrom || '',
-                effectiveTo: bom.effectiveTo || '',
-                components: bom.childInventoryItems?.map((c, idx) => ({
-                    ...c.childInventoryItem,
-                    quantity: c.quantity || 1,
-                    position: c.position || (idx + 1) * 10
-                })),
+                effectiveFrom: dayjs(bom.effectiveFrom).format("YYYY-MM-DD") || '',
+                effectiveTo: dayjs(bom.effectiveTo).format("YYYY-MM-DD") || '',
+                components: bom.childrenBoms || [],
                 productionTemplate: {
                     id: workOrderProductionTemplate?.id || null,
                     estimatedHours: workOrderProductionTemplate?.estimatedHours || 0,
@@ -233,7 +231,7 @@ const AddBom = () => {
             });
 
         } catch (e) {
-            console.error('Failed to fetch BOM',e);
+            console.error('Failed to fetch BOM', e);
         }
     }, [bomId]);
 
@@ -256,16 +254,17 @@ const AddBom = () => {
                 20
             );
             // Table rows
-            const childRows = (bomDetails.bom?.childInventoryItems || []).map(child => [
-                child.childInventoryItem?.itemCode || "",
-                child.childInventoryItem?.name || "",
-                child.childInventoryItem?.hsnCode || "",
-                child.childInventoryItem?.uom || "",
-                child.childInventoryItem?.itemType || "",
-                child.childInventoryItem?.dimension || "",
+            const childRows = (bomDetails.bom?.positions || []).map(child => [
+                child.childBom?.parentInventoryItem?.itemCode || "",
+                child.childBom?.parentInventoryItem?.name || "",
+                child.childBom?.parentInventoryItem?.hsnCode || "",
+                child.childBom?.parentInventoryItem?.uom || "",
+                child.childBom?.parentInventoryItem?.itemType || "",
+                child.childBom?.parentInventoryItem?.dimension || "",
+                child.childBom?.parentInventoryItem?.drawingNumber || "",
+                child.childBom?.revision || "",
                 child.quantity ?? "",
                 child.position ?? "",
-                child.childInventoryItem?.remarks || ""
             ]);
 
             // AutoTable
@@ -367,7 +366,7 @@ const AddBom = () => {
                 effectiveFrom: '',
                 effectiveTo: '',
                 components: data.components.map((c, idx) => ({
-                    ...c.childInventoryItem,
+                    ...c.childBom,
                     quantity: c.quantity || 1,
                     position: c.position || (idx + 1) * 10
                 }))
@@ -396,10 +395,11 @@ const AddBom = () => {
         }
 
     }
+
     return (
         <Box sx={{ p: 3, backgroundColor: 'white', borderRadius: 2, boxShadow: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h5">{bomId ? 'Edit BOM' : 'Add BOM'}</Typography>
+                <Typography variant="h5">{bomId ? formik.values.bomName : 'Add BOM'}</Typography>
                 {bomId && (
                     <Box display="flex" gap={1}>
                         <Button size="small" variant="text" onClick={exportDetailedExcel}>Excel</Button>
@@ -427,6 +427,7 @@ const AddBom = () => {
             </Tabs>
 
             <form onSubmit={formik.handleSubmit}>
+                {console.log(formik.values)}
                 {selectedTab === 0 && (
                     <Grid container spacing={2}>
                         <Grid item xs={12} sm={6}>
@@ -442,7 +443,10 @@ const AddBom = () => {
                                 </Select>
                             </FormControl>
                         </Grid>
-                        <Grid item xs={12} sm={6}><TextField label="Revision" fullWidth size="small" {...formik.getFieldProps('revision')} /></Grid>
+                        <Grid item xs={12} sm={6}><TextField label="Revision" fullWidth size="small" {...formik.getFieldProps('revision')}
+                            InputProps={{
+                                readOnly: true,
+                            }} /></Grid>
                         <Grid item xs={12} sm={6}><TextField type="date" label="Effective From" fullWidth size="small" InputLabelProps={{ shrink: true }} {...formik.getFieldProps('effectiveFrom')} /></Grid>
                         <Grid item xs={12} sm={6}><TextField type="date" label="Effective To" fullWidth size="small" InputLabelProps={{ shrink: true }} {...formik.getFieldProps('effectiveTo')} /></Grid>
                         <Grid item xs={12} sm={6}>
@@ -489,11 +493,12 @@ const AddBom = () => {
                                 onInputChange={(e, newValue, reason) => {
                                     if (reason === 'input') handleSearchChange(newValue);
                                 }}
-                                getOptionLabel={(option) => `${option.name} | ${option.itemCode}`}
+                                getOptionLabel={(option) => `${option.parentItemName} | ${option?.parentItemCode} | ${option?.bomName} | Rev (${option?.revision})`}
                                 onChange={(e, newValue) => {
                                     if (newValue) {
                                         const newPosition = (formik.values.components?.length + 1) * 10;
-                                        formik.setFieldValue('components', [...formik.values.components||[], {
+                                        console.log(newValue)
+                                        formik.setFieldValue('components', [...formik.values.components || [], {
                                             ...newValue,
                                             quantity: 1,
                                             position: newPosition
@@ -511,9 +516,12 @@ const AddBom = () => {
                                 <TableHead>
                                     <TableRow>
                                         <TableCell>Position</TableCell>
+                                        <TableCell>BOM</TableCell>
                                         <TableCell>Component Name</TableCell>
                                         <TableCell>Item Code</TableCell>
-                                        <TableCell>Quantity</TableCell>
+                                        <TableCell>Drawing Number</TableCell>
+                                        <TableCell sx={{ textAlign: "center" }}>Revision</TableCell>
+                                        <TableCell sx={{ width: "150px", textAlign: "center" }}>Quantity</TableCell>
                                         <TableCell>UOM</TableCell>
                                         <TableCell>Action</TableCell>
                                     </TableRow>
@@ -523,9 +531,9 @@ const AddBom = () => {
                                         <TableRow key={index}>
                                             <TableCell>
                                                 <TextField
-                                                    fullWidth
+                                                    sx={{ width: "100px", textAlign: "center" }}
                                                     size="small"
-                                                    value={component.position || (index + 1) * 10}
+                                                    value={component?.position || (index + 1) * 10}
                                                     onChange={(e) => {
                                                         const newComponents = [...formik.values.components];
                                                         newComponents[index].position = parseInt(e.target.value, 10);
@@ -533,14 +541,18 @@ const AddBom = () => {
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell>{component.name}</TableCell>
-                                            <TableCell>{component.itemCode}</TableCell>
+                                            <TableCell>{component?.bomName}</TableCell>
+                                            <TableCell>{component?.parentItemName}</TableCell>
+                                            <TableCell>{component?.parentItemCode}</TableCell>
+                                            <TableCell>{component?.parentDrawingNumber}</TableCell>
+                                            <TableCell sx={{ textAlign: "center" }}>{component?.revision}</TableCell>
                                             <TableCell>
                                                 <TextField
-                                                    fullWidth
+                                                    sx={{ width: "100px", textAlign: "center" }}
                                                     size="small"
                                                     type="number"
-                                                    value={component.quantity || 1}
+
+                                                    value={component?.quantity || 1}
                                                     onChange={(e) => {
                                                         const newComponents = [...formik.values.components];
                                                         newComponents[index].quantity = e.target.value;
@@ -548,7 +560,7 @@ const AddBom = () => {
                                                     }}
                                                 />
                                             </TableCell>
-                                            <TableCell>{component.uom}</TableCell>
+                                            <TableCell>{component?.uom}</TableCell>
                                             <TableCell>
                                                 <IconButton onClick={() => moveRow(index, 'up')}><ArrowUpward fontSize="small" /></IconButton>
                                                 <IconButton onClick={() => moveRow(index, 'down')}><ArrowDownward fontSize="small" /></IconButton>

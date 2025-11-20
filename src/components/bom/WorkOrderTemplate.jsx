@@ -15,7 +15,7 @@ export default function WorkOrderTemplate({ formik, selectedTab }) {
         });
 
         formik.values.components?.forEach((item) => {
-            totalItemCost += Number(item.standardCost) * Number(item.quantity);
+            totalItemCost += Number(item.productFinanceSettings?.standardCost) * Number(item.quantity);
         });
 
         const estimatedCostOfLabour = totalEstimatedHours * totalEstimatedCostOfLabour;
