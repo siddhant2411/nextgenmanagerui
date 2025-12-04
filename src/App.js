@@ -14,6 +14,8 @@ import ProductionJobPage from './pages/ProductionJobPage';
 import ItemCodeMappingPage from './pages/ItemCodeMappingPage';
 import SalesOrder from './components/sales/salesorder/SalesOrder';
 import Toolbar from './components/ui/toolbar/Toolbar';
+import ManufacturingPage from './pages/ManufacturingPage';
+import RoutingPage from './pages/RoutingPage';
 
 
 function App() {
@@ -29,12 +31,14 @@ function App() {
                             <Route path="/" element={<Home />} />
                             <Route path="/inventory-item/*" element={<InventoryItem />} />
                             <Route path="/bom/*" element={<BomPage />} />
+                            <Route path='/manufacturing/*' element={<ManufacturingPage />} />
                             <Route path="/inventory/*" element={<InventoryPage />} />
                             <Route path="/contact/*" element={<Contact />} />
                             <Route path={"/enquiry/*"} element={<EnquiryPage />} />
                             <Route path={"/quotation/*"} element={<QuotationPage />} />
                             <Route path={"/production/work-order/*"} element={<WorkOrderPage />} />
                             <Route path={"/production/production-job/*"} element={<ProductionJobPage />} />
+                            <Route path={"/manufacturing/routing/*"} element={<RoutingPage />} />
                             <Route path={"/sales/sales-order/*"} element={<SalesOrder />} />
                             <Route path={"/config/item-code-mapping/*"} element={<ItemCodeMappingPage />} />
                             

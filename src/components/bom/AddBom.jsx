@@ -59,39 +59,10 @@ const AddBom = () => {
             productFinanceSettings: {
                 stanadrCost: 0,
             },
-            productionTemplate: {
-                estimatedHours: '',
-                estimatedCostOfLabour: '',
-                estimatedCostOfBom: '',
-                overheadCostPercentage: '',
-                overheadCostValue: '',
-                totalCostOfWorkOrder: '',
-                details: '',
-                workOrderJobLists: [{
-                    productionJob: {
-                        id: '',
-                        jobName: '',
-                        machineDetails: null,
-                        roleRequired: '',
-                        costPerHour: '',
-                        description: ''
-                    },
-                    numberOfHours: 0,
-                }]
-            }
         },
         validationSchema: Yup.object({
             bomName: Yup.string().required('Required'),
-            parentItemId: Yup.string().required('Required'),
-            productionTemplate: Yup.object({
-                estimatedHours: Yup.number().nullable(),
-                estimatedCostOfLabour: Yup.number().nullable(),
-                estimatedCostOfBom: Yup.number().nullable(),
-                overheadCostPercentage: Yup.number().nullable(),
-                overheadCostValue: Yup.number().nullable(),
-                totalCostOfWorkOrder: Yup.number().nullable(),
-                details: Yup.string().nullable()
-            })
+            parentItemId: Yup.string().required('Required')
         }),
         onSubmit: async (values) => {
             // Helper: convert empty strings to null
@@ -99,6 +70,7 @@ const AddBom = () => {
                 JSON.parse(JSON.stringify(obj, (key, value) => value === '' ? null : value));
 
             const bomPayload = {
+                id: bomId? bomId:null,
                 bomName: values.bomName,
                 parentInventoryItem: { inventoryItemId: values.parentItemId },
                 bomType: values.bomType,
@@ -116,46 +88,9 @@ const AddBom = () => {
                 }))
             };
 
-            const templatePayload = {
-                id: values.productionTemplate.id,
-                estimatedHours: values.productionTemplate.estimatedHours,
-                estimatedCostOfLabour: values.productionTemplate.estimatedCostOfLabour,
-                estimatedCostOfBom: values.productionTemplate.estimatedCostOfBom,
-                overheadCostPercentage: values.productionTemplate.overheadCostPercentage,
-                overheadCostValue: values.productionTemplate.overheadCostValue,
-                totalCostOfWorkOrder: values.productionTemplate.totalCostOfWorkOrder,
-                details: values.productionTemplate.details,
-                workOrderJobLists: values.productionTemplate.workOrderJobLists.map(j => {
-                    const hasJob =
-                        j.productionJob &&
-                        (j.productionJob.id ||
-                            j.productionJob.jobName ||
-                            j.productionJob.machineDetails?.id ||
-                            j.productionJob.roleRequired ||
-                            j.productionJob.costPerHour ||
-                            j.productionJob.description);
-
-                    return {
-                        productionJob: hasJob
-                            ? {
-                                id: j.productionJob.id && j.productionJob.id !== 0 ? j.productionJob.id : null,
-                                jobName: j.productionJob.jobName,
-                                machineDetails: j.productionJob.machineDetails?.id
-                                    ? { id: j.productionJob.machineDetails.id }
-                                    : null,
-                                roleRequired: j.productionJob.roleRequired,
-                                costPerHour: j.productionJob.costPerHour,
-                                description: j.productionJob.description
-                            }
-                            : null,
-                        numberOfHours: j.numberOfHours
-                    };
-                })
-            };
-
+          
             const payload = sanitize({
-                bom: bomPayload,
-                workOrderProductionTemplate: templatePayload
+                bom: bomPayload
             });
 
             try {
@@ -200,7 +135,7 @@ const AddBom = () => {
         if (!bomId) return;
         try {
             const data = await apiService.get(`/bom/${bomId}`);
-            const { bom, workOrderProductionTemplate } = data;
+            const  bom = data;
             console.log(data)
             setBomDetails(data);
 
@@ -213,21 +148,8 @@ const AddBom = () => {
                 revision: bom.revision || '',
                 effectiveFrom: dayjs(bom.effectiveFrom).format("YYYY-MM-DD") || '',
                 effectiveTo: dayjs(bom.effectiveTo).format("YYYY-MM-DD") || '',
-                components: bom.childrenBoms || [],
-                productionTemplate: {
-                    id: workOrderProductionTemplate?.id || null,
-                    estimatedHours: workOrderProductionTemplate?.estimatedHours || 0,
-                    estimatedCostOfLabour: workOrderProductionTemplate?.estimatedCostOfLabour || 0,
-                    estimatedCostOfBom: workOrderProductionTemplate?.estimatedCostOfBom || 0,
-                    overheadCostPercentage: workOrderProductionTemplate?.overheadCostPercentage || 0,
-                    overheadCostValue: workOrderProductionTemplate?.overheadCostValue || 0,
-                    totalCostOfWorkOrder: workOrderProductionTemplate?.totalCostOfWorkOrder || 0,
-                    details: workOrderProductionTemplate?.details || '',
-                    workOrderJobLists: workOrderProductionTemplate?.workOrderJobLists?.map(j => ({
-                        productionJob: j.productionJob,
-                        numberOfHours: j.numberOfHours
-                    })) || []
-                }
+                components: bom.positions || [],
+
             });
 
         } catch (e) {

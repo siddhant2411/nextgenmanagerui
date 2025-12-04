@@ -26,6 +26,7 @@ import {
     Settings,
     RequestQuote,
     SellOutlined,
+    PrecisionManufacturing,
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -62,6 +63,17 @@ const Sidebar = () => {
             icon: <FactoryOutlined />,
             children: [
                 { text: "Work Orders", path: "/production/work-order" },
+                { text: "Manage Batches", path: "/production/manage-batches" },
+                { text: "Production Report", path: "/production/reports" },
+            ],
+        },
+
+        {
+            text: "Manufacturing",
+            icon: <PrecisionManufacturing />,
+            children: [
+                { text: "Work Center", path: "/manufacturing/work-center" },
+                  { text: "Routing", path: "/manufacturing/routing" },
                 { text: "Production Job", path: "/production/production-job" },
                 { text: "Manage Batches", path: "/production/manage-batches" },
                 { text: "Production Report", path: "/production/reports" },

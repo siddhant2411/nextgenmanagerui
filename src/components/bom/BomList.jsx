@@ -516,7 +516,7 @@ const BomList = ({
                                             <TableCell align="center" onClick={null}>
 
                                                 <IconButton
-                                                    onClick={() => handleDeleteClick(item.inventoryItemId)}
+                                                    onClick={() => handleDeleteClick(item.id)}
                                                     size="small"
                                                 >
                                                     <DeleteIcon fontSize="small" sx={{ color: "rgba(211, 0, 0, 1)" }} />
