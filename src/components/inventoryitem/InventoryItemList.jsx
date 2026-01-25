@@ -9,7 +9,9 @@ import {
   Menu,
   MenuItem,
   Checkbox,
-  CircularProgress
+  CircularProgress,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { BuildCircle, DiamondRounded, Done, FmdGoodRounded, GppGoodSharp, Inventory2Rounded, ProductionQuantityLimits, Tune as TuneIcon, WorkOff } from "@mui/icons-material";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -26,18 +28,18 @@ import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
 
 const allColumns = [
-  { field: 'itemCode', headerName: 'Product Code', width: 120, type: 'string' },
-  { field: 'name', headerName: 'Product Name', width: 180, type: 'string' },
-  { field: 'hsnCode', headerName: 'HSN Code', width: 90, type: 'string' },
-  { field: 'uom', headerName: 'UOM', width: 80, type: "enum", options: ["NOS", "KG", "METER", "INCH"] },
-  { field: 'itemType', headerName: 'Type', width: 120, type: "enum", options: ["RAW_MATERIAL", "ASSEMBLY", "FINISHED_GOOD"] },
-  { field: 'basicMaterial', headerName: 'Material', width: 130, type: 'string' },
-  { field: 'dimension', headerName: 'Dimension', width: 100, type: 'string' },
-  { field: 'weight', headerName: 'Weight', width: 90, type: 'number' },
-  { field: 'availableQuantity', headerName: 'Stock', width: 130, type: 'number' },
-  { field: 'sellingPrice', headerName: 'Price', width: 120, type: 'number' },
-  { field: 'revision', headerName: 'Revision', width: 80, type: 'string' },
-  { field: 'drawingNumber', headerName: 'Drawing No.', width: 130, type: 'string' },
+  { field: 'itemCode', headerName: 'Product Code', width: 100, type: 'string' },
+  { field: 'name', headerName: 'Product Name', width: 150, type: 'string' },
+  { field: 'hsnCode', headerName: 'HSN Code', width: 80, type: 'string' },
+  { field: 'uom', headerName: 'UOM', width: 70, type: "enum", options: ["NOS", "KG", "METER", "INCH"] },
+  { field: 'itemType', headerName: 'Type', width: 100, type: "enum", options: ["RAW_MATERIAL", "ASSEMBLY", "FINISHED_GOOD"] },
+  { field: 'basicMaterial', headerName: 'Material', width: 110, type: 'string' },
+  { field: 'dimension', headerName: 'Dimension', width: 90, type: 'string' },
+  { field: 'weight', headerName: 'Weight', width: 80, type: 'number' },
+  { field: 'availableQuantity', headerName: 'Stock', width: 100, type: 'number' },
+  { field: 'sellingPrice', headerName: 'Price', width: 100, type: 'number' },
+  { field: 'revision', headerName: 'Revision', width: 70, type: 'string' },
+  { field: 'drawingNumber', headerName: 'Drawing No.', width: 110, type: 'string' },
 ];
 
 
@@ -69,6 +71,8 @@ const InventoryItemList = ({
   handleAddNewItemClick,
 }) => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const debounceTimeout = useRef(null);
   const [openRow, setOpenRow] = React.useState(null);
   const [visibleCols, setVisibleCols] = useState(allColumns.map(c => c.field));
@@ -119,8 +123,12 @@ const InventoryItemList = ({
 
   // ✅ UseMemo to ensure stable, filtered columns
   const displayedColumns = useMemo(() => {
-    return stableColumns.filter((col) => visibleCols.includes(col.field));
-  }, [stableColumns, visibleCols]);
+    const base = stableColumns.filter((col) => visibleCols.includes(col.field));
+    if (isMobile) {
+      return base.filter(col => !['dimension', 'weight', 'revision', 'drawingNumber'].includes(col.field));
+    }
+    return base;
+  }, [stableColumns, visibleCols, isMobile]);
 
 
   const handleSelectAll = (event) => {
@@ -247,15 +255,15 @@ const InventoryItemList = ({
       minHeight: "100%",
       padding: 3,
       fontFamily: "Roboto, Helvetica, Arial, sans-serif",
-      maxWidth: "300lvh"
+      maxWidth: "100%"
 
     }}>
 
 
       <Paper elevation={3} sx={{ padding: 2, maxWidth: "100%", margin: "auto", borderRadius: 2 }}>
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1, pb: 1 }}>
+        <Toolbar sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1, pb: 1, flexDirection: { xs: 'column', md: 'row' }, gap: 1 }}>
           <Typography variant="h4" fontWeight={700} color="primary.main" >Manage Products</Typography>
-          <Box sx={{ position: 'relative' }}>
+          <Box sx={{ position: 'relative', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
 
             <BulkImportItems />
 
@@ -293,12 +301,14 @@ const InventoryItemList = ({
         </Toolbar>
         <Divider sx={{ mb: 2 }} />
 
-        <div
-          style={{
+        <Box
+          sx={{
             display: "flex",
             width: "100%",
             alignItems: "center",
-            justifyContent: "space-between", // 👈 key: space between FilterBar and button
+            justifyContent: "space-between",
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 1
           }}
         >
           <FilterBar
@@ -316,16 +326,15 @@ const InventoryItemList = ({
             variant="outlined"
             sx={{
               minWidth: 120,
-              ml: 1,
               height: 36,
               alignContent: "center",
-              textTransform: "none", // optional: keeps text normal case
+              textTransform: "none",
             }}
             onClick={(e) => setAnchorEl(e.currentTarget)}
           >
             COLUMNS
           </Button>
-        </div>
+        </Box>
 
 
         {

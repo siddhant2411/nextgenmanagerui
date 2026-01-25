@@ -65,8 +65,7 @@ const BomList = ({
     const [bomList, setBomList] = useState([])
 
     const onPageChange = (page) => {
-        console.log("Current Page:" + currentPage)
-        console.log("onPageChange " + page)
+
         setCurrentPage(page)
         handleApplyFilters(filters, page, sortBy, sortDir)
     }
@@ -74,7 +73,6 @@ const BomList = ({
 
 
     const handleFilterApplied = (data) => {
-        console.log(data.content)
         setBomList(data.content);
         setTotalPages(data.totalPages);
         setTotalElements(data.totalElements)
@@ -154,7 +152,6 @@ const BomList = ({
     );
 
     const handleSortChange = (sortField) => {
-        console.log(sortField)
         const newSortDir = sortBy === sortField && sortDir === 'asc' ? 'desc' : 'asc';
         setSortBy(sortField);
         setSortDir(newSortDir);
@@ -180,8 +177,6 @@ const BomList = ({
 
     const handleChangeRowsPerPage = (event) => {
 
-
-        console.log("Yes Handle Row Change ",event.target.value)
         setItemPerPage(parseInt(event.target.value, 10));
 
     };
@@ -189,7 +184,6 @@ const BomList = ({
 
 
     useEffect(() => {
-        console.log("YEs going through this ",itemsPerPage )
         onPageChange(0)
 
     }, [itemsPerPage])
@@ -464,7 +458,7 @@ const BomList = ({
                                         </TableCell>
                                     </TableRow>
                                 </TableHead>
-                                {console.log(bomList)}
+
                                 <TableBody>
                                     {bomList?.map((item, index) => (
                                         <TableRow key={item.id}>

@@ -9,6 +9,7 @@ const apiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 15000,
 });
 
 const apiClientFile = axios.create({
@@ -35,35 +36,16 @@ const apiService = {
         }
     },
 
-    upload: async (endpoint, file) => {
-        try {
-            const formData = new FormData();
-            formData.append("file", file);
-
-            const response = await axios.post(API_BASE_URL + endpoint, formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
-            });
-
-            return response.data;
-        } catch (error) {
-            console.error("File upload error:", error);
-            throw error;
-        }
-    },
-
     download: async (endpoint, params, fileName = "downloaded_file") => {
         try {
             const queryParams = new URLSearchParams(params).toString();
-            console.log(`Requesting file from: ${apiClient.defaults.baseURL + endpoint}?${queryParams}`);
+    
 
             const response = await apiClient.get(endpoint, {
                 params,
                 responseType: 'blob', // Important: Ensures response is treated as binary data
             });
 
-            console.log(response);
 
             // Extract filename from Content-Disposition header
             const contentDisposition = response.headers['content-disposition'];
@@ -74,6 +56,7 @@ const apiService = {
                     filename = match[1];
                 }
             }
+            filename = filename.replace(/^\d+_/, "");
 
             // Create a blob URL and trigger the download
             const blob = new Blob([response.data], { type: response.headers['content-type'] });
@@ -89,6 +72,24 @@ const apiService = {
             throw error;
         }
     },
+
+
+
+    upload: async (url, file, config = {}) => {
+        const formData = new FormData();
+
+        // IMPORTANT: append File directly
+        formData.append("file", file);
+
+        return apiClientFile.post(url, formData, {
+            headers: {
+                // DO NOT set Content-Type manually
+                Accept: "application/json",
+            },
+            ...config,
+        });
+    },
+
 
 
 
@@ -143,6 +144,7 @@ const apiService = {
 
 
 };
+
 
 
 export const postFile = async (endpoint, inventoryItem, attachments = []) => {

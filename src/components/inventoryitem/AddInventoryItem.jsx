@@ -489,9 +489,8 @@ export default function AddInventoryItem() {
 
         <Divider sx={{ mb: 2 }} />
 
-        <Box display="flex" justifyContent="space-between" mb={2} sx={{ height: "650px" }}>
-          <Box mb={2} width="60%" >
-
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid item xs={12} md={8}>
             <Tabs value={selectedTab} onChange={(e, newValue) => setSelectedTab(newValue)} sx={{ mb: 2 }}>
               <Tab label="Basic Info" />
               {/* <Tab label="Specifications" /> */}
@@ -997,17 +996,17 @@ export default function AddInventoryItem() {
 
 
 
-          </Box>
+          </Grid>
 
 
-          <Box alignItems={"center"} width="30%" pl={"30px"} mt={1}>
-            <Typography variant="h6" fontWeight={500} ml={4} mb={1}>Product Images</Typography>
+          <Grid item xs={12} md={4} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Typography variant="h6" fontWeight={500} mb={1}>Product Images</Typography>
             <ImageUploadBox handleChange={handleChange} images={images} setImages={setImages} />
 
-            <Typography variant="h6" fontWeight={500} ml={4} mb={1} mt={1} >Technical Documents</Typography>
+            <Typography variant="h6" fontWeight={500} mb={1} mt={1} >Technical Documents</Typography>
             <PDFUploadBox handleChange={handleChange} pdfFiles={pdfFiles} setPdfFiles={setPdfFiles} />
-          </Box>
-        </Box>
+          </Grid>
+        </Grid>
         <Snackbar
           open={snackbar.open}
           autoHideDuration={3000}

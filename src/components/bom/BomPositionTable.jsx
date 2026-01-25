@@ -1,213 +1,355 @@
-import React, {useState, useRef, useCallback, useEffect} from "react";
-import { Table, Dropdown, Form, Spinner, Alert, Button } from "react-bootstrap";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import apiService from "../../services/apiService";
-import {useLocation} from "react-router-dom";
 
-const BomPositionTable = ({ onSubmit,initialData = []  }) => {
-    const columns = [
-        "Pos",
-        "Item Code",
-        "Name",
-        "Qty",
-        "UOM",
-        "Type",
-        "Dim",
-        "Size 1",
-        "Size 2",
-        "Remarks",
-        "Action"
-    ];
+import { Table, Grid, Autocomplete, IconButton, Paper, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, Box } from "@mui/material";
+import { ArrowDownward, ArrowUpward, DeleteOutline, ExpandLess, ExpandMore, SubdirectoryArrowRight, SubdirectoryArrowRightRounded } from "@mui/icons-material";
 
-    const [searchQuery, setSearchQuery] = useState("");
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const debounceTimeout = useRef(null);
-    const [rowData, setRowData] = useState([]);
-    const [noOfRows, setNoOfRows] = useState(0);
-    const location = useLocation();
-    const fetchInventoryItems = useCallback(
-        async (search = "") => {
-            setLoading(true);
-            setError(null);
-            try {
-                const params = {
-                    page: 0,
-                    size: 5,
-                    sortBy: "name",
-                    sortDir: "asc",
-                    search,
-                };
-                const data = await apiService.get("/inventory_item/all", params);
-                setItems(data.content);
-            } catch (err) {
-                setError("Failed to fetch inventory items");
-            } finally {
-                setLoading(false);
+const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, formik }) => {
+
+
+    const buildParentBlocks = (rows) => {
+        const blocks = [];
+        let i = 0;
+
+        while (i < rows.length) {
+            const row = rows[i];
+
+            // only level-0 parents start a block
+            if ((row.level ?? 0) === 0) {
+                const start = i;
+                let end = i;
+
+                for (let j = i + 1; j < rows.length; j++) {
+                    if ((rows[j].level ?? 0) === 0) break;
+                    end = j;
+                }
+
+                blocks.push(rows.slice(start, end + 1));
+                i = end + 1;
+            } else {
+                i++;
             }
-        },
-        []
-    );
-
-    useEffect(() => {
-        setRowData(initialData);
-        setNoOfRows(initialData.length || 0);
-    }, [initialData]);
-
-    const handleSearchChange = (event) => {
-        const query = event.target.value;
-        setSearchQuery(query);
-
-        if (debounceTimeout.current) {
-            clearTimeout(debounceTimeout.current);
         }
 
-        debounceTimeout.current = setTimeout(() => {
-            fetchInventoryItems(query);
-        }, 500); // Debounce for 500ms
+        return blocks;
     };
 
-    const handleItemSelect = (item, rowIndex) => {
-        setRowData((prev) => {
-            const updatedData = [...prev];
-            updatedData[rowIndex] = {
-                ...item,
-                quantity: 1,
-                position: (rowIndex+1)*10// Default quantity
-            };
-            return updatedData;
+
+    const recalcPositions = (rows) => {
+        let parentCounter = 0;
+
+        return rows.map(row => {
+            if ((row.level ?? 0) === 0) {
+                parentCounter++;
+                return {
+                    ...row,
+                    position: parentCounter * 10
+                };
+            }
+
+            // child → DO NOT touch position
+            return row;
         });
-        if (rowIndex === noOfRows) {
-            setNoOfRows(noOfRows + 1);
+    };
+    const moveRow = (index, direction) => {
+        const rows = formik.values.components;
+
+        //Only allow moving level-0 parents
+        if ((rows[index].level ?? 0) !== 0) return;
+
+        const blocks = buildParentBlocks(rows);
+
+        // find which block this parent belongs to
+        const blockIndex = blocks.findIndex(
+            block => block[0].id === rows[index].id
+        );
+
+        if (blockIndex === -1) return;
+
+        const targetBlockIndex =
+            direction === "up"
+                ? blockIndex - 1
+                : blockIndex + 1;
+
+        if (
+            targetBlockIndex < 0 ||
+            targetBlockIndex >= blocks.length
+        ) {
+            return;
         }
+
+        // swap blocks
+        const newBlocks = [...blocks];
+        [newBlocks[blockIndex], newBlocks[targetBlockIndex]] =
+            [newBlocks[targetBlockIndex], newBlocks[blockIndex]];
+
+        // flatten back to rows
+        const updatedRows = recalcPositions(newBlocks.flat());
+
+        formik.setFieldValue("components", updatedRows);
     };
 
-    const handleRemoveRow = (key) => {
-        console.log(`Removing row at index: ${key}`);
 
-        // Filter out the row at the given key
-        const updatedRows = rowData.filter((_, index) => index !== key);
+    const collapseAll = () => {
+        const components = formik.values.components;
 
-        // Recalculate positions for the remaining rows
-        const changedRowPosition = updatedRows.map((row, index) => ({
-            ...row,
-            position: (index + 1) * 10, // Update position based on (index + 1) * 10
+        const collapsed = components
+            .filter(c => (c.level ?? 0) === 0)
+            .map(c => ({
+                ...c,
+                isExpanded: false
+            }));
+
+        formik.setFieldValue("components", collapsed);
+    };
+
+    const showChildBom = async (index, bomId) => {
+        const components = formik.values.components;
+        const parent = components[index];
+        if (!parent) return;
+
+        // 🔽 COLLAPSE (level-based)
+        if (parent.isExpanded) {
+            const parentLevel = parent.level ?? 0;
+            const updated = [];
+
+            for (let i = 0; i < components.length; i++) {
+                if (i > index && components[i].level > parentLevel) continue;
+
+                updated.push(
+                    i === index
+                        ? { ...components[i], isExpanded: false }
+                        : components[i]
+                );
+            }
+
+            formik.setFieldValue("components", updated);
+            return;
+        }
+
+        // 🔼 EXPAND
+        const res = await apiService.get(`/bom/positions/${bomId}`);
+
+        const childBoms = res?.map(cb => ({
+            ...cb,
+            level: (parent.level ?? 0) + 1,
+            parentId: parent.id,
+            isExpanded: false,
+            isChild: true
         }));
 
-        console.log(changedRowPosition);
+        const updated = [
+            ...components.slice(0, index + 1),
+            ...childBoms,
+            ...components.slice(index + 1)
+        ];
 
-        // Update the state or perform any additional actions
-        setRowData(changedRowPosition);
+        updated[index] = { ...updated[index], isExpanded: true };
+        formik.setFieldValue("components", updated);
     };
-    useEffect(() => {
-        if(location.pathname === '/bom/add') {
-            fetchInventoryItems();
-        }
-    },[location])
-    return (
-        <div>
-            <Table striped bordered hover size="sm">
-                <thead>
-                <tr>
-                    {columns.map((column) => (
-                        <th key={column} style={{ cursor: "pointer" }}>
-                            {column}
-                        </th>
-                    ))}
-                </tr>
-                </thead>
-                <tbody>
-                {Array.from({ length: noOfRows + 1 }, (_, rowIndex) => (
-                    <tr key={rowIndex}>
-                        <td>{(rowIndex + 1) * 10}</td>
-                        <td>
-                            <Dropdown>
-                                <Dropdown.Toggle
-                                    variant="secondary"
-                                    id={`dropdown-${rowIndex}`}
-                                >
-                                    {rowData[rowIndex]?.itemCode || "Select Item"}
-                                </Dropdown.Toggle>
 
-                                <Dropdown.Menu style={{ width: "300px" }}>
-                                    <Form.Control
-                                        type="text"
-                                        placeholder="Search items..."
-                                        value={searchQuery}
-                                        onChange={handleSearchChange}
-                                        className="mb-2"
-                                    />
-                                    {loading && (
-                                        <Dropdown.Item disabled>
-                                            <Spinner animation="border" size="sm" />
-                                            Loading...
-                                        </Dropdown.Item>
-                                    )}
-                                    {error && <Dropdown.Item disabled>{error}</Dropdown.Item>}
-                                    {!loading &&
-                                        !error &&
-                                        items.map((item) => (
-                                            <Dropdown.Item
-                                                key={item.itemCode}
-                                                onClick={() =>
-                                                    handleItemSelect(item, rowIndex)
-                                                }
-                                            >
-                                                <strong>{item.itemCode}</strong>
-                                                <br />
-                                                <small className="text-muted">
-                                                    {item.name}
-                                                </small>
-                                            </Dropdown.Item>
-                                        ))}
-                                </Dropdown.Menu>
-                            </Dropdown>
-                        </td>
-                        <td>{rowData[rowIndex]?.name || ""}</td>
-                        <td>
-                            <Form.Control
-                                type="number"
-                                min="1"
-                                value={rowData[rowIndex]?.quantity || "1"}
-                                onChange={(e) =>
-                                    setRowData((prev) => {
-                                        const updatedData = [...prev];
-                                        updatedData[rowIndex] = {
-                                            ...updatedData[rowIndex],
-                                            quantity: e.target.value,
-                                        };
-                                        return updatedData;
-                                    })
-                                }
-                                style={{"width":"80px"}}
-                            />
-                        </td>
-                        <td>{rowData[rowIndex]?.uom || ""}</td>
-                        <td>{rowData[rowIndex]?.itemType || ""}</td>
-                        <td>{rowData[rowIndex]?.dimension || ""}</td>
-                        <td>{rowData[rowIndex]?.size1 || ""}</td>
-                        <td>{rowData[rowIndex]?.size2 || ""}</td>
-                        <td>{rowData[rowIndex]?.remarks || ""}</td>
-                        <td> <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => handleRemoveRow(rowIndex)}
-                        >
-                            Remove
-                        </Button></td>
-                    </tr>
-                ))}
-                </tbody>
-            </Table>
-            <Button
-                variant="primary"
-                className="mt-3"
-                onClick={()=>onSubmit(rowData)}
-                disabled={loading}
+
+    const handlePositionAdd = (val) => {
+        if (!val) return;
+        const components = formik.values.components;
+        const index = components.findIndex(c => c.id === val.id);
+        if (index !== -1) {
+            const updated = components[index]
+
+            updated.quantity = components[index].quantity + 1;
+            components[index] = updated;
+            formik.setFieldValue("components", components);
+            handleSearchChange("");
+            return
+        };
+
+
+        const newPosition = (formik.values.components?.length + 1) * 10;
+        formik.setFieldValue("components", [
+            ...(formik.values.components || []),
+            {
+                ...val,
+                quantity: 1,
+                position: newPosition
+            }
+        ]);
+        handleSearchChange("");
+    }
+    return (
+        <Grid
+
+
+        >
+            <Typography variant="h6" gutterBottom>Components</Typography>
+
+            <Autocomplete
+                fullWidth
+                size="small"
+                options={searchedItemList}
+                inputValue={searchQuery}
+                onInputChange={(e, v, r) => r === "input" && handleSearchChange(v)}
+                getOptionLabel={(o) =>
+                    `${o.parentItemName} | ${o.parentItemCode} | ${o.bomName} | Rev (${o.revision})`
+                }
+                onChange={(e, val) => {
+                    handlePositionAdd(val);
+                }}
+                renderInput={(params) =>
+                    <TextField {...params}
+                        sx={{
+                            "& .MuiInputBase-input": { fontSize: 14 },
+                            "& .MuiInputLabel-root": { fontSize: 14 },
+
+                        }}
+
+                        label="Add Component" />}
+            />
+
+            {/* COMPONENT TABLE */}
+            <TableContainer
+                component={Paper}
+                sx={{
+
+                    flexGrow: 1,
+                    overflow: "auto",
+                }}
             >
-                Submit BOM
-            </Button>
-        </div>
+                <Table size="small" sx={{
+                    mt: 2,
+                    flexGrow: 1,
+                    overflow: "auto",
+                }}>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell></TableCell>
+                            <TableCell>Position</TableCell>
+                            <TableCell>BOM</TableCell>
+                            <TableCell>Component Name</TableCell>
+                            <TableCell>Item Code</TableCell>
+                            <TableCell>Drawing Number</TableCell>
+                            <TableCell>Revision</TableCell>
+                            <TableCell>Quantity</TableCell>
+                            <TableCell>UOM</TableCell>
+                            <TableCell>Action</TableCell>
+                        </TableRow>
+                    </TableHead>
+
+                    <TableBody>
+                        {formik.values.components?.map((c, i) => (
+                            <TableRow
+                                key={i}
+                                sx={{
+                                    backgroundColor: c?.isChild ? "#fafafa" : "inherit",
+                                    "& td": {
+                                        color: c?.isChild ? "text.secondary" : "text.primary"
+                                    }
+                                }}
+                            >
+                                <TableCell
+                                    sx={{
+                                        pl: 1 + c?.level * 3,
+                                        borderLeft: c?.level > 0 ? "1px dashed #ddd" : "none"
+                                    }}
+                                >
+                                    <Box display="flex" alignItems="center" gap={0.5}>
+                                        {c?.hasChildBom ? (
+                                            <Tooltip title={c?.isExpanded ? "Collapse" : "Expand"}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => showChildBom(i, c.id)}
+                                                >
+                                                    {c.isExpanded ? <ExpandLess /> : <ExpandMore />}
+                                                </IconButton>
+                                            </Tooltip>
+                                        ) : (
+                                            <Box sx={{ width: 28 }} /> // alignment spacer
+                                        )}
+
+                                        {c?.isChild && (
+                                            <SubdirectoryArrowRightRounded
+                                                fontSize="small"
+                                                sx={{ color: "text.secondary" }}
+                                            />
+                                        )}
+                                    </Box>
+                                </TableCell>
+                                <TableCell>
+                                    <TextField
+                                        size="small"
+                                        disabled={c?.isChild}
+                                        sx={{
+                                            width: 70,
+                                            "& .MuiInputBase-input": {
+                                                fontSize: 13,
+                                                textAlign: "center"
+                                            }
+                                        }}
+                                        value={c?.position ?? ""}
+                                        onChange={(e) => {
+                                            if (c?.isChild) return;
+                                            const arr = [...formik.values.components];
+                                            arr[i].position = parseInt(e.target.value, 10);
+                                            formik.setFieldValue("components", arr);
+                                        }}
+                                    />
+
+                                </TableCell>
+
+                                <TableCell sx={{ fontSize: 14, }}>{c?.bomName}</TableCell>
+                                <TableCell sx={{ fontSize: 14, }}>{c?.parentItemName}</TableCell>
+                                <TableCell sx={{ fontSize: 14, }}>{c?.parentItemCode}</TableCell>
+                                <TableCell sx={{ fontSize: 14, }}>{c?.parentDrawingNumber}</TableCell>
+                                <TableCell sx={{ fontSize: 14, }}>{c?.revision}</TableCell>
+
+
+                                <TableCell>
+                                    <TextField
+                                        type="number"
+                                        size="small"
+                                        sx={{
+                                            width: "80px",
+                                            "& .MuiInputBase-input": { fontSize: 14 },
+                                            "& .MuiInputLabel-root": { fontSize: 14 },
+                                        }}
+                                        value={c?.quantity}
+                                        disabled={c?.isChild}
+                                        onChange={(e) => {
+                                            const arr = [...formik.values.components];
+                                            arr[i].quantity = e.target.value;
+                                            formik.setFieldValue("components", arr);
+                                        }}
+                                    />
+                                </TableCell>
+
+                                <TableCell sx={{ fontSize: 14, }}>{c?.uom}</TableCell>
+
+                                {!c?.isChild ?
+                                    <TableCell>
+                                        <IconButton onClick={() => moveRow(i, "up")}><ArrowUpward fontSize="small" /></IconButton>
+                                        <IconButton onClick={() => moveRow(i, "down")}><ArrowDownward fontSize="small" /></IconButton>
+                                        <IconButton color="error" onClick={() => {
+                                            const updated = formik.values.components
+                                                .filter((_, idx) => idx !== i)
+                                                .map((item, idx) => ({
+                                                    ...item,
+                                                    position: (idx + 1) * 10
+                                                }));
+                                            formik.setFieldValue("components", updated);
+                                        }}>
+                                            <DeleteOutline />
+                                        </IconButton>
+                                    </TableCell>
+                                    :
+                                    <TableCell></TableCell>
+                                }
+
+
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+        </Grid>
     );
 };
 

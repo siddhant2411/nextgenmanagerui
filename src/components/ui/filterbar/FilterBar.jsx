@@ -73,7 +73,7 @@ export default function FilterBar({
             <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
                 Filters
             </Typography>
-            {console.log(selectedField)}
+            
             {/* Filter Builder Row */}
             <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
                 <FormControl size="small" sx={{ minWidth: 180 }}>
