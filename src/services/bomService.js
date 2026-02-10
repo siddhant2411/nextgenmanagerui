@@ -10,7 +10,6 @@ export const downloadBomAttachment = (fileId, fileName) => {
 
 export const uploadBomAttachment = (bomId, file) => {
 
-    console.log(file)
     return apiService.upload(
         `/bom/upload/${bomId}`,
         file
@@ -32,3 +31,11 @@ export const downloadBomExcel = (bomId) => {
         "BOM_" + bomId + ".xlsx")
 
 };
+
+export const getActiveBomByItemid = (itemId) => {
+    return apiService.get(`/bom/active-by-item/${itemId}`);
+}
+
+export const getBomPositisions = (bomId) => {
+    return apiService.get(`/bom/positions/${bomId}`);
+}

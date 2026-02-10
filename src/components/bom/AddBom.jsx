@@ -109,10 +109,11 @@ const AddBom = () => {
             try {
                 if (bomId) {
                     await apiService.put(`/bom/${bomId}`, payload);
+                    showSnackbar("BOM updated successfully");
                 } else {
                     await apiService.post('/bom', payload);
+                    showSnackbar("BOM created successfully");
                 }
-                navigate(-1);
             } catch (e) {
                 showSnackbar(e.response?.data?.error, "error");
             }

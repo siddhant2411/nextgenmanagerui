@@ -119,10 +119,10 @@ const apiService = {
     },
 
 
-    patch: async (endpoint) => {
+    patch: async (endpoint, data = null, config = {}) => {
         try {
 
-            const response = await apiClient.patch(endpoint);
+            const response = await apiClient.patch(endpoint, data, config);
 
             return response.data;
         } catch (error) {
