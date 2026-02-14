@@ -666,7 +666,8 @@ export default function AddInventoryItem() {
                     >
                       <MenuItem value="NOS">Nos</MenuItem>
                       <MenuItem value="KG">KG</MenuItem>
-                      <MenuItem value="MTR">Meter</MenuItem>
+                      <MenuItem value="METER">Meter</MenuItem>
+                      <MenuItem value="INCH">Inch</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>

@@ -92,7 +92,8 @@ const AddBom = () => {
                 positions: values.components.map((c) => ({
                     childBom: { id: c.id },
                     quantity: parseInt(c.quantity),
-                    position: parseInt(c.position || 0)
+                    position: parseInt(c.position || 0),
+                    scrapPercentage: parseFloat(c.scrapPercentage || 0),
                 }))
 
             };

@@ -25,7 +25,7 @@ import {
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { useNavigate } from "react-router-dom";
-import { getWorkOrderList } from "../../../services/workOrderService";
+import { getWorkOrderList, getWorkOrderSummary } from "../../../services/workOrderService";
 import FilterBar from "../../ui/filterbar/FilterBar";
 
 dayjs.extend(isSameOrBefore);
@@ -38,6 +38,7 @@ const StatusChip = ({ status }) => {
     IN_PROGRESS: "primary",
     READY: "warning",
     COMPLETED: "success",
+    BLOCKED: "error",
     CLOSED: "default",
     CANCELLED: "error",
   };
@@ -94,9 +95,10 @@ const getReferenceDoc = (item) => {
   return item.referenceDocument || item.salesOrderNumber || item.parentWorkOrderNumber || "-";
 };
 
-const StatCard = ({ title, value, subtitle, accent = "#1f6feb" }) => (
+const StatCard = ({ title, value, subtitle, accent = "#1f6feb", onClick }) => (
   <Paper
     elevation={0}
+    onClick={onClick}
     sx={{
       p: 1.5,
       borderRadius: 2,
@@ -106,6 +108,11 @@ const StatCard = ({ title, value, subtitle, accent = "#1f6feb" }) => (
       position: "relative",
       overflow: "hidden",
       minHeight: 84,
+      cursor: onClick ? "pointer" : "default",
+      transition: "box-shadow 0.2s ease",
+      "&:hover": onClick
+        ? { boxShadow: "0 10px 22px rgba(2, 12, 27, 0.12)" }
+        : undefined,
     }}
   >
     <Box
@@ -138,10 +145,10 @@ const allColumns = [
   { field: "workOrderNumber", headerName: "Document No.", width: 200, type: "string" },
   { field: "salesOrderNumber", headerName: "Reference Doc.", width: 200, type: "string" },
   { field: "bomName", headerName: "BOM", width: 180, type: "string" },
-  { field: "status", headerName: "Status", width: 140, type: "enum", options: ["DRAFT", "CREATED", "RELEASED", "IN_PROGRESS", "READY", "COMPLETED", "CLOSED", "CANCELLED"] },
+  { field: "status", headerName: "Status", width: 140, type: "enum", options: ["DRAFT", "CREATED", "RELEASED", "IN_PROGRESS", "READY", "COMPLETED", "BLOCKED", "CLOSED", "CANCELLED"] },
   { field: "plannedQuantity", headerName: "Qty", width: 100, type: "number" },
   { field: "completedQuantity", headerName: "Completed", width: 130, type: "number" },
-  { field: "dueDate", headerName: "Due Date", width: 150, type: "string" },
+  { field: "dueDate", headerName: "Due Date", width: 150, type: "date" },
   { field: "workCenter", headerName: "Work Center", width: 180, type: "string" }
 ];
 
@@ -149,6 +156,16 @@ const defaultFilters = [
   { field: "status", operator: "!=", value: "CLOSED" },
   { field: "status", operator: "!=", value: "CANCELLED" },
 ];
+
+const DATE_FIELDS = new Set([
+  ...allColumns
+    .filter((col) => typeof col.type === "string" && col.type.toLowerCase() === "date")
+    .map((col) => col.field),
+  "actualEndDate",
+  "actualStartDate",
+  "plannedStartDate",
+  "plannedEndDate",
+]);
 
 export default function WorkOrderList({ setLoading, loading, setError }) {
   const navigate = useNavigate();
@@ -160,10 +177,12 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
   const [currentPage, setCurrentPage] = useState(0);
   const [WorkOrderList, setWorkOrderList] = useState([]);
   const [filters, setFilters] = useState(defaultFilters);
-  const [sortBy, setSortBy] = useState("workOrderNumber");
+  const [sortBy, setSortBy] = useState("dueDate");
   const [sortDir, setSortDir] = useState("asc");
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+  const [summary, setSummary] = useState(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [columnWidths, setColumnWidths] = useState(
     allColumns.reduce((acc, col) => {
       acc[col.field] = col.width;
@@ -182,6 +201,25 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
     return allColumns;
   }, [isMobile, isNarrowDesktop]);
 
+  const sortedWorkOrders = useMemo(() => {
+    if (!Array.isArray(WorkOrderList)) return WorkOrderList;
+    if (!DATE_FIELDS.has(sortBy)) return WorkOrderList;
+
+    const dir = sortDir === "desc" ? -1 : 1;
+    return [...WorkOrderList].sort((a, b) => {
+      const aDate = dayjs(a?.[sortBy]);
+      const bDate = dayjs(b?.[sortBy]);
+      const aTime = aDate.isValid() ? aDate.valueOf() : null;
+      const bTime = bDate.isValid() ? bDate.valueOf() : null;
+
+      if (aTime === null && bTime === null) return 0;
+      if (aTime === null) return 1;
+      if (bTime === null) return -1;
+      if (aTime === bTime) return 0;
+      return aTime > bTime ? dir : -dir;
+    });
+  }, [WorkOrderList, sortBy, sortDir]);
+
   const tableMinWidth = useMemo(() => {
     return visibleColumns.reduce((sum, col) => {
       const width = columnWidths[col.field] || col.width || 150;
@@ -189,48 +227,8 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
     }, 56); // include checkbox column
   }, [columnWidths, visibleColumns]);
 
-  const dashboard = useMemo(() => {
-    const list = WorkOrderList || [];
-    const statusCounts = list.reduce((acc, item) => {
-      const key = item.status || "DRAFT";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-
-    const plannedTotal = list.reduce(
-      (sum, item) => sum + (Number(item.plannedQuantity) || 0),
-      0
-    );
-    const completedTotal = list.reduce(
-      (sum, item) => sum + (Number(item.completedQuantity) || 0),
-      0
-    );
-
-    const today = dayjs();
-    let overdue = 0;
-    let dueSoon = 0;
-
-    list.forEach((item) => {
-      if (!item.dueDate) return;
-      const date = dayjs(item.dueDate);
-      if (date.isSameOrBefore(today, "day")) {
-        overdue += 1;
-      } else if (date.diff(today, "day") <= 2) {
-        dueSoon += 1;
-      }
-    });
-
-    return {
-      total: list.length,
-      inProgress: statusCounts.IN_PROGRESS || 0,
-      released: statusCounts.RELEASED || 0,
-      ready: statusCounts.READY || 0,
-      overdue,
-      dueSoon,
-      plannedTotal,
-      completedTotal,
-    };
-  }, [WorkOrderList]);
+  const summaryValue = (value) =>
+    value === null || value === undefined ? "-" : value;
 
   const resizingCol = useRef(null);
 
@@ -294,11 +292,109 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
 
   }, [itemsPerPage])
 
+  useEffect(() => {
+    const loadSummary = async () => {
+      try {
+        setIsSummaryLoading(true);
+        const response = await getWorkOrderSummary();
+        setSummary(response);
+      } catch (err) {
+        console.error("Failed to load work order summary:", err);
+        setError(err?.response?.data?.error || "Failed to load work order summary.");
+      } finally {
+        setIsSummaryLoading(false);
+      }
+    };
+    loadSummary();
+  }, [setError]);
+
 
   const handleFilterApplied = (data) => {
     setWorkOrderList(data.content);
     setTotalPages(data.totalPages);
     setTotalElements(data.totalElements)
+  };
+
+  const applyCardFilters = (nextFilters = []) => {
+    setSelectedRows([]);
+    setFilters([]);
+    setCurrentPage(0);
+    handleApplyFilters(nextFilters, 0, sortBy, sortDir);
+    setFilters(nextFilters);
+  };
+
+  const handleSummaryCardClick = (key) => {
+    const today = dayjs().format("YYYY-MM-DD");
+    const dueSoonLimit = dayjs().add(2, "day").format("YYYY-MM-DD");
+
+    const baseFilters = [...defaultFilters];
+    let nextFilters = baseFilters;
+
+    if (key === "overdue") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "dueDate", operator: "<", value: today },
+      ];
+    }
+    if (key === "dueSoon") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "dueDate", operator: ">=", value: today },
+        { field: "dueDate", operator: "<=", value: dueSoonLimit },
+      ];
+    }
+    if (key === "ready") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "status", operator: "=", value: "READY" },
+      ];
+    }
+    if (key === "inProgress") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "status", operator: "=", value: "IN_PROGRESS" },
+      ];
+    }
+    if (key === "completingToday") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "status", operator: "!=", value: "COMPLETED" },
+        { field: "plannedEndDate", operator: ">=", value: today },
+        { field: "plannedEndDate", operator: "<=", value: today },
+      ];
+    }
+    if (key === "blocked") {
+      nextFilters = [
+        ...baseFilters,
+        { field: "status", operator: "=", value: "BLOCKED" },
+      ];
+    }
+
+    applyCardFilters(nextFilters);
+  };
+
+  const normalizeDateFilterValue = (value, operator) => {
+    if (!value) return value;
+    const trimmed = String(value).trim();
+    if (!trimmed) return trimmed;
+
+    const timestampPattern = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+    if (timestampPattern.test(trimmed)) return trimmed;
+
+    const parsed = dayjs(trimmed);
+    if (!parsed.isValid()) return value;
+
+    if (trimmed.includes("T") || trimmed.includes(":")) {
+      return parsed.format("YYYY-MM-DD HH:mm:ss");
+    }
+
+    const timePart = operator === "<" || operator === "<=" ? "23:59:59" : "00:00:00";
+    return `${parsed.format("YYYY-MM-DD")} ${timePart}`;
+  };
+
+  const normalizeFilterValue = (filter) => {
+    if (!filter || !DATE_FIELDS.has(filter.field)) return filter?.value;
+    return normalizeDateFilterValue(filter.value, filter.operator);
   };
 
 
@@ -314,7 +410,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
         filters: appliedFilters.map(f => ({
           field: f.field,
           operator: f.operator,
-          value: f.value,
+          value: normalizeFilterValue(f),
         })),
       };
       const response = await getWorkOrderList(payload);
@@ -437,40 +533,52 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
             gridTemplateColumns: {
               xs: "1fr",
               sm: "repeat(2, 1fr)",
-              lg: "repeat(5, 1fr)",
+              lg: "repeat(6, 1fr)",
             },
             gap: 1.5,
           }}
         >
           <StatCard
-            title="Total Work Orders"
-            value={dashboard.total}
-            subtitle={`${dashboard.released} Released • ${dashboard.inProgress} In Progress`}
-            accent="#0ea5e9"
-          />
-          <StatCard
-            title="Ready to Start"
-            value={dashboard.ready}
-            subtitle="Queued for execution"
-            accent="#f59e0b"
-          />
-          <StatCard
             title="Overdue"
-            value={dashboard.overdue}
+            value={isSummaryLoading ? "..." : summaryValue(summary?.overdue)}
             subtitle="Past due date"
             accent="#ef4444"
+            onClick={() => handleSummaryCardClick("overdue")}
           />
           <StatCard
             title="Due Soon"
-            value={dashboard.dueSoon}
-            subtitle="Due in 48 hours"
-            accent="#22c55e"
+            value={isSummaryLoading ? "..." : summaryValue(summary?.dueSoon)}
+            subtitle="Due in 72 hours"
+            accent="#f59e0b"
+            onClick={() => handleSummaryCardClick("dueSoon")}
           />
           <StatCard
-            title="Completion Qty"
-            value={`${dashboard.completedTotal}/${dashboard.plannedTotal}`}
-            subtitle="Completed / Planned"
+            title="Ready"
+            value={isSummaryLoading ? "..." : summaryValue(summary?.ready)}
+            subtitle="Queued for execution"
+            accent="#0ea5e9"
+            onClick={() => handleSummaryCardClick("ready")}
+          />
+          <StatCard
+            title="In Progress"
+            value={isSummaryLoading ? "..." : summaryValue(summary?.inProgress)}
+            subtitle="Active execution"
             accent="#6366f1"
+            onClick={() => handleSummaryCardClick("inProgress")}
+          />
+          <StatCard
+            title="Completed Today"
+            value={isSummaryLoading ? "..." : summaryValue(summary?.completedToday)}
+            subtitle="Finished today"
+            accent="#22c55e"
+            onClick={() => handleSummaryCardClick("completingToday")}
+          />
+          <StatCard
+            title="Blocked"
+            value={isSummaryLoading ? "..." : summaryValue(summary?.blocked)}
+            subtitle="Needs attention"
+            accent="#ef4444"
+            onClick={() => handleSummaryCardClick("blocked")}
           />
         </Box>
 
@@ -482,7 +590,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
           <>
             {isMobile ? (
               <Stack spacing={1.5}>
-                {WorkOrderList?.map((item) => (
+                {sortedWorkOrders?.map((item) => (
                   <Paper
                     key={item.id}
                     variant="outlined"
@@ -682,7 +790,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {WorkOrderList?.map((item, idx) => (
+                      {sortedWorkOrders?.map((item, idx) => (
                         <TableRow
                           key={item.id}
                           sx={{

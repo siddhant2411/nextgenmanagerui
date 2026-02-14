@@ -11,6 +11,17 @@ export const getWorkOrder = async (id) => {
     }
     return apiService.get(`/production/work-order/${id}`);
 }
+
+export const getWorkOrderHistory = async (id) => {
+    if (!id) {
+        throw new Error('Work order id is required');
+    }
+    return apiService.get(`/production/work-order/${id}/history`);
+}
+
+export const getWorkOrderSummary = async () => {
+    return apiService.get('/production/work-order/summary');
+}
 export const createWorkOrder = async (data) => {
     return apiService.post('/production/work-order', data);
 }

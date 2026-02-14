@@ -229,6 +229,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                             <TableCell>Drawing Number</TableCell>
                             <TableCell>Revision</TableCell>
                             <TableCell>Quantity</TableCell>
+                            <TableCell>Scrap %</TableCell>
                             <TableCell>UOM</TableCell>
                             <TableCell>Action</TableCell>
                         </TableRow>
@@ -316,6 +317,25 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                         onChange={(e) => {
                                             const arr = [...formik.values.components];
                                             arr[i].quantity = e.target.value;
+                                            formik.setFieldValue("components", arr);
+                                        }}
+                                    />
+                                </TableCell>
+
+                                <TableCell>
+                                    <TextField
+                                        type="number"
+                                        size="small"
+                                        sx={{
+                                            width: "80px",
+                                            "& .MuiInputBase-input": { fontSize: 14 },
+                                            "& .MuiInputLabel-root": { fontSize: 14 },
+                                        }}
+                                        value={c?.scrapPercentage ?? ""}
+                                        disabled={c?.isChild}
+                                        onChange={(e) => {
+                                            const arr = [...formik.values.components];
+                                            arr[i].scrapPercentage = e.target.value;
                                             formik.setFieldValue("components", arr);
                                         }}
                                     />

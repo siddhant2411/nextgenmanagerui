@@ -326,7 +326,7 @@ export default function WorkOrderOperationsTab({
                           type="number"
                           value={operation?.scrappedQuantity ?? 0}
                           onChange={(e) => handleOperationChange(index, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0,  }}
+                          inputProps={{ min: 0,  step: '0.01' }}
                           sx={compactInputSx}
                         />
                       )}
@@ -420,7 +420,7 @@ export default function WorkOrderOperationsTab({
                           type="number"
                           value={partialDrafts[rowKey]?.scrappedQuantity ?? ''}
                           onChange={(e) => handlePartialDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0 }}
+                          inputProps={{ min: 0, step: '0.01' }}
                           placeholder="0"
                           disabled={!partialCompletionAllowed || isCurrentOperationAction}
                           sx={compactInputSx}

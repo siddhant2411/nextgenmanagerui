@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
 import WorkOrderMaterialsTab from './tabs/WorkOrderMaterialsTab';
 import WorkOrderOperationsTab from './tabs/WorkOrderOperationsTab';
+import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
 import { useFormik } from 'formik';
 import dayjs from 'dayjs';
 import { FileDownload } from '@mui/icons-material';
@@ -16,6 +17,7 @@ import {
   completeWorkOrder,
   createWorkOrder,
   getWorkOrder,
+  getWorkOrderHistory,
   issueWorkOrderMaterials,
   releaseWorkOrder,
   startOperation,
@@ -71,6 +73,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const [hasFetchedAddOperations, setHasFetchedAddOperations] = useState(false);
   const [baseMaterialRequirements, setBaseMaterialRequirements] = useState([]);
   const [basePlannedQuantityForMaterials, setBasePlannedQuantityForMaterials] = useState(1);
+  const [workOrderHistory, setWorkOrderHistory] = useState([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
   const statusColorMap = {
     DRAFT: "default",
     CREATED: "default",
@@ -257,6 +262,12 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   }, [reloadWorkOrder]);
 
   useEffect(() => {
+    setWorkOrderHistory([]);
+    setHasFetchedHistory(false);
+    setIsHistoryLoading(false);
+  }, [workOrderId]);
+
+  useEffect(() => {
     if (workOrderId) return;
     setHasFetchedAddMaterials(false);
     setHasFetchedAddOperations(false);
@@ -386,6 +397,29 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     setHasFetchedAddOperations(true);
   };
 
+  const loadWorkOrderHistory = useCallback(async ({ force = false } = {}) => {
+    if (!workOrderId) return;
+    if (!force && hasFetchedHistory) return;
+    try {
+      setIsHistoryLoading(true);
+      const response = await getWorkOrderHistory(workOrderId);
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.content)
+          ? response.content
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+      setWorkOrderHistory(rows);
+      setHasFetchedHistory(true);
+    } catch (error) {
+      console.error('Error fetching work order history:', error);
+      setError(error?.response?.data?.error || 'Failed to fetch work order history.');
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, [workOrderId, hasFetchedHistory, setError]);
+
   const handleTabChange = (_, tab) => {
     setSelectedTab(tab);
     if (tab === 1 && !workOrderId) {
@@ -393,6 +427,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     }
     if (tab === 2 && !workOrderId) {
       loadOperationsFromBom();
+    }
+    if (tab === 4) {
+      loadWorkOrderHistory();
     }
   };
 
@@ -714,6 +751,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           <Tab label="Materials" />
           <Tab label="Operations" />
           {<Tab label="Attachments" />}
+          <Tab label="History" />
         </Tabs>
 
         <form onSubmit={formik.handleSubmit}>
@@ -740,6 +778,13 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               onStartOperation={handleStartOperation}
               onCompleteOperation={handleCompleteOperation}
               operationActionState={operationActionState}
+            />
+          )}
+          {selectedTab === 4 && (
+            <WorkOrderHistoryTab
+              rows={workOrderHistory}
+              loading={isHistoryLoading}
+              isAddMode={!workOrderId}
             />
           )}
         </form>

@@ -32,10 +32,13 @@ export default function FilterBar({
 
 
     const selectedColumn = allColumns.find((col) => col.field === selectedField);
-    const isNumberField = selectedColumn?.type === "number";
-    const isEnum = selectedColumn?.type === "enum";
+    const fieldType = selectedColumn?.type?.toLowerCase();
+    const isNumberField = fieldType === "number";
+    const isEnum = fieldType === "enum";
+    const isDateField = fieldType === "date";
     const numberOperators = ["=", "<", ">", "<=", ">="];
     const stringOperators = ["contains", "=", "!="];
+    const operatorOptions = isNumberField || isDateField ? numberOperators : stringOperators;
 
     const handleAddFilter = () => {
         if (!selectedField || !operator || !value) return;
@@ -113,7 +116,7 @@ export default function FilterBar({
                         disabled={!selectedField}
                         sx={{ fontSize: 13, height: 36, width: "100%" }}
                     >
-                        {(isNumberField ? numberOperators : stringOperators).map((op) => (
+                        {operatorOptions.map((op) => (
                             <MenuItem key={op} value={op}>
                                 {op}
                             </MenuItem>
@@ -139,11 +142,13 @@ export default function FilterBar({
                         size="small"
                         label="Value"
                         variant="outlined"
+                        type={isDateField ? "date" : "text"}
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         sx={{
                             width: { xs: "100%", sm: 180 }, fontSize: 13
                         }}
+                        InputLabelProps={isDateField ? { shrink: true } : undefined}
                         slotProps={{
                             input: {
                                 sx: {

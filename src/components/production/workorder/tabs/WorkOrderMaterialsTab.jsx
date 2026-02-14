@@ -249,9 +249,10 @@ export default function WorkOrderMaterialsTab({
               <TableCell>Item Code</TableCell>
               <TableCell>Component</TableCell>
               <TableCell>UOM</TableCell>
-              <TableCell>Required Qty</TableCell>
+              <TableCell>Net Req</TableCell>
+              <TableCell>Planned</TableCell>
               <TableCell>Issued Qty</TableCell>
-              <TableCell>Scrapped Qty</TableCell>
+              <TableCell>Scrap Qty</TableCell>
               {!isAddMode && <TableCell>Remaining Qty</TableCell>}
               <TableCell>Status</TableCell>
               {!isAddMode && <TableCell>Issue Now</TableCell>}
@@ -262,7 +263,7 @@ export default function WorkOrderMaterialsTab({
           <TableBody>
             {materials.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAddMode ? 9 : 12} align="center">
+                <TableCell colSpan={isAddMode ? 10 : 13} align="center">
                   <Typography variant="body2" color="text.secondary">
                     {isAddMode
                       ? 'No materials found. Select item/BOM and open this tab to load.'
@@ -275,10 +276,11 @@ export default function WorkOrderMaterialsTab({
                 const rowKey = getMaterialRowKey(material, index);
                 const issuePayload = getIssuePayload(material, rowKey);
                 const canIssue = canIssuePayload(issuePayload);
-                const requiredQuantity = toNumberValue(material?.requiredQuantity);
+                const netRequiredQuantity = toNumberValue(material?.netRequiredQuantity);
+                const plannedRequiredQuantity = toNumberValue(material?.plannedRequiredQuantity);
                 const issuedQuantity = toNumberValue(material?.issuedQuantity);
                 const scrappedQuantity = toNumberValue(material?.scrappedQuantity);
-                const remainingQuantity = Math.max(requiredQuantity - issuedQuantity - scrappedQuantity, 0);
+                const remainingQuantity = Math.max(netRequiredQuantity - issuedQuantity - scrappedQuantity, 0);
 
                 return (
                   <TableRow
@@ -294,13 +296,30 @@ export default function WorkOrderMaterialsTab({
                         <TextField
                           size="small"
                           type="number"
-                          value={material?.requiredQuantity ?? 0}
-                          onChange={(e) => handleMaterialChange(index, 'requiredQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.00001' }}
+                          value={material?.netRequiredQuantity ?? 0}
+                          onChange={(e) => handleMaterialChange(index, 'netRequiredQuantity', e.target.value)}
+                          inputProps={{ min: 0 }}
                           sx={compactInputSx}
                         />
                       ) : (
-                        <Typography variant="caption">{requiredQuantity}</Typography>
+                        <Typography variant="caption">{netRequiredQuantity}</Typography>
+                      )}
+                    </TableCell>
+
+                    <TableCell sx={{ minWidth: 88 }}>
+                      {isAddMode ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          value={material?.plannedRequiredQuantity ?? 0}
+                          onChange={(e) =>
+                            handleMaterialChange(index, 'plannedRequiredQuantity', e.target.value)
+                          }
+                          inputProps={{ min: 0 }}
+                          sx={compactInputSx}
+                        />
+                      ) : (
+                        <Typography variant="caption">{plannedRequiredQuantity}</Typography>
                       )}
                     </TableCell>
 
@@ -311,7 +330,7 @@ export default function WorkOrderMaterialsTab({
                           type="number"
                           value={material?.issuedQuantity ?? 0}
                           onChange={(e) => handleMaterialChange(index, 'issuedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.00001' }}
+                          inputProps={{ min: 0 }}
                           sx={compactInputSx}
                         />
                       ) : (
@@ -326,7 +345,7 @@ export default function WorkOrderMaterialsTab({
                           type="number"
                           value={material?.scrappedQuantity ?? 0}
                           onChange={(e) => handleMaterialChange(index, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.00001' }}
+                          inputProps={{ min: 0, step: '0.01' }}
                           sx={compactInputSx}
                         />
                       ) : (
@@ -373,7 +392,7 @@ export default function WorkOrderMaterialsTab({
                           type="number"
                           value={issueDrafts[rowKey]?.issuedQuantity ?? ''}
                           onChange={(e) => handleIssueDraftChange(rowKey, 'issuedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.00001' }}
+                          inputProps={{ min: 0 }}
                           placeholder="0"
                           disabled={isMaterialIssueLoading}
                           sx={compactInputSx}
@@ -388,7 +407,7 @@ export default function WorkOrderMaterialsTab({
                           type="number"
                           value={issueDrafts[rowKey]?.scrappedQuantity ?? ''}
                           onChange={(e) => handleIssueDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.00001' }}
+                          inputProps={{ min: 0, step: '0.01' }}
                           placeholder="0"
                           disabled={isMaterialIssueLoading}
                           sx={compactInputSx}
