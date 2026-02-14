@@ -6,11 +6,21 @@ import {
   List,
   ListItem,
   ListItemText,
-  Toolbar
+  Toolbar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  CircularProgress,
+  Tooltip
 } from '@mui/material';
-import { Delete as DeleteIcon, UploadFile as UploadFileIcon, PictureAsPdf, FileDownload } from '@mui/icons-material';
+import { Delete as DeleteIcon, UploadFile as UploadFileIcon, PictureAsPdf, FileDownload, OpenInNew } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiService, { postFile, putWithFile } from '../../services/apiService';
+import { getActiveBomByItemid, getBomHistoryByInventoryItem } from '../../services/bomService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -26,6 +36,9 @@ export default function AddInventoryItem() {
   const [images, setImages] = useState([]);
   const [pdfFiles, setPdfFiles] = useState([]);
   const [isItemCodeAuto, setIsItemCodeAuto] = useState(false)
+  const [activeBom, setActiveBom] = useState(null);
+  const [bomHistory, setBomHistory] = useState([]);
+  const [isBomLoading, setIsBomLoading] = useState(false);
   const [itemData, setItemData] = useState({
     itemCode: '', name: '', hsnCode: '', uom: 'NOS', itemType: 'RAW_MATERIAL',
     productSpecification: { dimension: '', size: '', weight: '', basicMaterial: '', drawingNumber: '', processType: '', }, revision: 1, remarks: '',
@@ -61,6 +74,26 @@ export default function AddInventoryItem() {
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
+  const openNewTab = (path) => {
+    if (!path) return;
+    window.open(path, '_blank', 'noopener,noreferrer');
+  };
+
+  const extractArray = (response) => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response.content)) return response.content;
+    if (Array.isArray(response.data)) return response.data;
+    if (Array.isArray(response.data?.content)) return response.data.content;
+    return [];
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-GB');
+  };
 
   const fetchItem = useCallback(async () => {
     try {
@@ -73,6 +106,31 @@ export default function AddInventoryItem() {
   }, [id]);
 
   useEffect(() => { if (id) fetchItem(); }, [id, fetchItem]);
+
+  const fetchManufacturingData = useCallback(async () => {
+    if (!id) return;
+    setIsBomLoading(true);
+    try {
+      const [activeBomResponse, bomHistoryResponse] = await Promise.all([
+        getActiveBomByItemid(id),
+        getBomHistoryByInventoryItem(id),
+      ]);
+      setActiveBom(activeBomResponse?.bom || activeBomResponse || null);
+      setBomHistory(extractArray(bomHistoryResponse));
+    } catch (error) {
+      setActiveBom(null);
+      setBomHistory([]);
+      // showSnackbar('Failed to load BOM details', 'error');
+    } finally {
+      setIsBomLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      fetchManufacturingData();
+    }
+  }, [id, fetchManufacturingData]);
 
 
 
@@ -496,6 +554,7 @@ export default function AddInventoryItem() {
               {/* <Tab label="Specifications" /> */}
               <Tab label="Inventory Settings" />
               <Tab label="Finance" />
+              <Tab label="Manufacturing" />
             </Tabs>
 
             {selectedTab === 0 && (
@@ -990,6 +1049,123 @@ export default function AddInventoryItem() {
                   <Grid item xs={12} sm={6}><TextField size="small" label="Tax Category" fullWidth name="productFinanceSettings.taxCategory" value={itemData.productFinanceSettings?.taxCategory} onChange={handleChange} /></Grid>
                   {/* <Grid item xs={12} sm={6}><TextField size="small" label="Revision" fullWidth name="revision" value={itemData.revision} onChange={handleChange} /></Grid> */}
 
+                </Grid>
+              )
+            }
+
+            {
+              selectedTab === 3 && (
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
+                      Active BOM
+                    </Typography>
+                    {isBomLoading ? (
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <CircularProgress size={18} />
+                        <Typography variant="body2" color="text.secondary">Loading BOM details...</Typography>
+                      </Box>
+                    ) : activeBom ? (
+                      <Paper variant="outlined" sx={{ p: 2 }}>
+                        <Grid container spacing={2}>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">BOM Name</Typography>
+                            <Typography variant="body1" fontWeight={500}>{activeBom.bomName || '-'}</Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">Revision</Typography>
+                            <Box display="flex" alignItems="center" gap={0.5}>
+                              <Typography variant="body1" fontWeight={500}>{activeBom.revision ?? '-'}</Typography>
+                              <Tooltip title="Open BOM details in new tab">
+                                <span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => openNewTab(activeBom?.id ? `/bom/edit/${activeBom.id}` : null)}
+                                    disabled={!activeBom?.id}
+                                    aria-label="Open BOM details"
+                                  >
+                                    <OpenInNew fontSize="inherit" />
+                                  </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">Status</Typography>
+                            <Chip size="small" label={activeBom.bomStatus || 'ACTIVE'} color="success" variant="outlined" />
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">Effective From</Typography>
+                            <Typography variant="body1">{formatDate(activeBom.effectiveFrom)}</Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">Effective To</Typography>
+                            <Typography variant="body1">{formatDate(activeBom.effectiveTo)}</Typography>
+                          </Grid>
+                          <Grid item xs={12} sm={4}>
+                            <Typography variant="body2" color="text.secondary">BOM Code</Typography>
+                            <Typography variant="body1">{activeBom.bomCode || activeBom.id || '-'}</Typography>
+                          </Grid>
+                        </Grid>
+                      </Paper>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No active BOM found for this inventory item.
+                      </Typography>
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" fontWeight={600} color="text.secondary" sx={{ mb: 1 }}>
+                      BOM History
+                    </Typography>
+                    {bomHistory.length === 0 ? (
+                      <Typography variant="body2" color="text.secondary">
+                        No BOM history available for this inventory item.
+                      </Typography>
+                    ) : (
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>BOM Name</TableCell>
+                              <TableCell>Revision</TableCell>
+                              <TableCell>Status</TableCell>
+                              <TableCell>Effective From</TableCell>
+                              <TableCell>Effective To</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {bomHistory.map((bom, index) => (
+                              <TableRow key={bom.id || `${bom.bomName || 'bom'}-${index}`}>
+                                <TableCell>{bom.bomName || '-'}</TableCell>
+                                <TableCell>
+                                  <Box display="flex" alignItems="center" gap={0.5}>
+                                    <Typography variant="body2">{bom.revision ?? '-'}</Typography>
+                                    <Tooltip title="Open BOM details in new tab">
+                                      <span>
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => openNewTab(bom?.id ? `/bom/edit/${bom.id}` : null)}
+                                          disabled={!bom?.id}
+                                          aria-label="Open BOM details"
+                                        >
+                                          <OpenInNew fontSize="inherit" />
+                                        </IconButton>
+                                      </span>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>{bom.bomStatus || '-'}</TableCell>
+                                <TableCell>{formatDate(bom.effectiveFrom)}</TableCell>
+                                <TableCell>{formatDate(bom.effectiveTo)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    )}
+                  </Grid>
                 </Grid>
               )
             }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, TextField, IconButton, Typography, TablePagination
+  Paper, TextField, IconButton, Typography, TablePagination, Box
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
@@ -41,7 +41,7 @@ const InventoryItemList = () => {
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <Box sx={{ padding: 2, width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "hidden" }}>
       <Typography variant="h6" gutterBottom>Inventory Items</Typography>
       <TextField
         label="Search by name or code"
@@ -51,8 +51,8 @@ const InventoryItemList = () => {
         onChange={e => setFilter(e.target.value)}
         style={{ marginBottom: 16 }}
       />
-      <TableContainer component={Paper}>
-        <Table>
+      <TableContainer component={Paper} sx={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
+        <Table sx={{ minWidth: 840, width: "max-content" }}>
           <TableHead>
             <TableRow>
               <TableCell>Item Code</TableCell>
@@ -91,7 +91,7 @@ const InventoryItemList = () => {
         onRowsPerPageChange={handleChangeRowsPerPage}
         rowsPerPageOptions={[5, 10, 25, 50]}
       />
-    </div>
+    </Box>
   );
 };
 

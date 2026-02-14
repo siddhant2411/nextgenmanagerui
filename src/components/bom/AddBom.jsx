@@ -22,7 +22,7 @@ import dayjs from "dayjs";
 import BomRouting from "./BomRouting";
 import BomPositionTable from "./BomPositionTable";
 import BomSidebar from "./BomSidebar";
-import { deleteBomAttachment, downloadBomAttachment, downloadBomExcel, duplicateBom, uploadBomAttachment } from "../../services/bomService";
+import { deleteBomAttachment, downloadBomAttachment, downloadBomExcel, duplicateBom, uploadBomAttachment, getActiveBomByItemid } from "../../services/bomService";
 import DuplicateBomDilogue from "./DuplicateBomDilogue";
 
 const AddBom = () => {
@@ -48,6 +48,7 @@ const AddBom = () => {
     const [uploading, setUploading] = useState(false);
     const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
     const [duplicating, setDuplicating] = useState(false);
+    const [activeBomForItem, setActiveBomForItem] = useState(null);
 
     const formik = useFormik({
         initialValues: {
@@ -346,6 +347,27 @@ const AddBom = () => {
         fetchBomDetails();
     }, [fetchParentItems, fetchBomDetails]);
 
+    useEffect(() => {
+        const itemId = bomDetails?.bom?.parentInventoryItem?.inventoryItemId;
+        if (!itemId) {
+            setActiveBomForItem(null);
+            return;
+        }
+        let isMounted = true;
+        (async () => {
+            try {
+                const res = await getActiveBomByItemid(itemId);
+                if (!isMounted) return;
+                setActiveBomForItem(res?.bom || res || null);
+            } catch (e) {
+                if (isMounted) setActiveBomForItem(null);
+            }
+        })();
+        return () => {
+            isMounted = false;
+        };
+    }, [bomDetails?.bom?.parentInventoryItem?.inventoryItemId]);
+
 
     useEffect(() => {
         fetchParentItems();
@@ -434,11 +456,24 @@ const AddBom = () => {
 
                     {/* HEADER */}
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography variant="h5" fontWeight={700} color="primary.main">
-                            {bomId
-                                ? formik.values.bomName
-                                : 'New BOM'}
-                        </Typography>
+                        <Box display="flex" alignItems="center" gap={1.5}>
+                            <Typography variant="h5" fontWeight={700} color="primary.main">
+                                {bomId
+                                    ? formik.values.bomName
+                                    : 'New BOM'}
+                            </Typography>
+                            {bomId &&
+                                activeBomForItem?.id &&
+                                String(activeBomForItem.id) !== String(bomId) && (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        onClick={() => navigate(`/bom/edit/${activeBomForItem.id}`)}
+                                    >
+                                        Go to Active BOM
+                                    </Button>
+                                )}
+                        </Box>
 
 
                         <Box display="flex" gap={1}>

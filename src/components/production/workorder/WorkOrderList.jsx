@@ -94,6 +94,46 @@ const getReferenceDoc = (item) => {
   return item.referenceDocument || item.salesOrderNumber || item.parentWorkOrderNumber || "-";
 };
 
+const StatCard = ({ title, value, subtitle, accent = "#1f6feb" }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 1.5,
+      borderRadius: 2,
+      border: "1px solid #e5e9f2",
+      background:
+        "linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)",
+      position: "relative",
+      overflow: "hidden",
+      minHeight: 84,
+    }}
+  >
+    <Box
+      sx={{
+        position: "absolute",
+        top: -18,
+        right: -18,
+        width: 56,
+        height: 56,
+        borderRadius: "50%",
+        background: accent,
+        opacity: 0.12,
+      }}
+    />
+    <Typography sx={{ fontSize: 12, color: "text.secondary", fontWeight: 600 }}>
+      {title}
+    </Typography>
+    <Typography sx={{ fontSize: 22, fontWeight: 700, color: "text.primary" }}>
+      {value}
+    </Typography>
+    {subtitle ? (
+      <Typography sx={{ fontSize: 12, color: "text.secondary" }}>
+        {subtitle}
+      </Typography>
+    ) : null}
+  </Paper>
+);
+
 const allColumns = [
   { field: "workOrderNumber", headerName: "Document No.", width: 200, type: "string" },
   { field: "salesOrderNumber", headerName: "Reference Doc.", width: 200, type: "string" },
@@ -105,15 +145,21 @@ const allColumns = [
   { field: "workCenter", headerName: "Work Center", width: 180, type: "string" }
 ];
 
+const defaultFilters = [
+  { field: "status", operator: "!=", value: "CLOSED" },
+  { field: "status", operator: "!=", value: "CANCELLED" },
+];
+
 export default function WorkOrderList({ setLoading, loading, setError }) {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isNarrowDesktop = useMediaQuery(theme.breakpoints.down("xl"));
   const [itemsPerPage, setItemPerPage] = useState(10);
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(0);
   const [WorkOrderList, setWorkOrderList] = useState([]);
-  const [filters, setFilters] = useState([]);
+  const [filters, setFilters] = useState(defaultFilters);
   const [sortBy, setSortBy] = useState("workOrderNumber");
   const [sortDir, setSortDir] = useState("asc");
   const [totalPages, setTotalPages] = useState(1);
@@ -125,12 +171,66 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
     }, {})
   );
 
+  const visibleColumns = useMemo(() => {
+    if (isMobile) return allColumns;
+    if (isNarrowDesktop) {
+      return allColumns.filter(
+        (col) =>
+          !["workCenter", "bomName", "salesOrderNumber"].includes(col.field)
+      );
+    }
+    return allColumns;
+  }, [isMobile, isNarrowDesktop]);
+
   const tableMinWidth = useMemo(() => {
-    return allColumns.reduce((sum, col) => {
+    return visibleColumns.reduce((sum, col) => {
       const width = columnWidths[col.field] || col.width || 150;
       return sum + width;
     }, 56); // include checkbox column
-  }, [columnWidths]);
+  }, [columnWidths, visibleColumns]);
+
+  const dashboard = useMemo(() => {
+    const list = WorkOrderList || [];
+    const statusCounts = list.reduce((acc, item) => {
+      const key = item.status || "DRAFT";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const plannedTotal = list.reduce(
+      (sum, item) => sum + (Number(item.plannedQuantity) || 0),
+      0
+    );
+    const completedTotal = list.reduce(
+      (sum, item) => sum + (Number(item.completedQuantity) || 0),
+      0
+    );
+
+    const today = dayjs();
+    let overdue = 0;
+    let dueSoon = 0;
+
+    list.forEach((item) => {
+      if (!item.dueDate) return;
+      const date = dayjs(item.dueDate);
+      if (date.isSameOrBefore(today, "day")) {
+        overdue += 1;
+      } else if (date.diff(today, "day") <= 2) {
+        dueSoon += 1;
+      }
+    });
+
+    return {
+      total: list.length,
+      inProgress: statusCounts.IN_PROGRESS || 0,
+      released: statusCounts.RELEASED || 0,
+      ready: statusCounts.READY || 0,
+      overdue,
+      dueSoon,
+      plannedTotal,
+      completedTotal,
+    };
+  }, [WorkOrderList]);
 
   const resizingCol = useRef(null);
 
@@ -200,7 +300,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
     setTotalPages(data.totalPages);
     setTotalElements(data.totalElements)
   };
-  
+
 
 
   const handleApplyFilters = async (appliedFilters = filters, page = currentPage, sortKey = sortBy, sortIn = sortDir) => {
@@ -248,6 +348,10 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
         background: "linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%)",
         p: { xs: 1, sm: 2 },
         borderRadius: 2,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
       }}
     >
       <Paper
@@ -258,6 +362,9 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
           border: "1px solid #e3e8ef",
           boxShadow: "0 10px 26px rgba(2, 12, 27, 0.08)",
           backgroundColor: "#ffffff",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
         }}
       >
         <Toolbar
@@ -271,7 +378,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
             mb: 2,
           }}
         >
-        
+
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={1.5}
@@ -321,6 +428,51 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
           sortKey={sortBy}
           sortDir={sortDir}
         />
+
+        <Box
+          sx={{
+            mt: 2,
+            mb: 2,
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              lg: "repeat(5, 1fr)",
+            },
+            gap: 1.5,
+          }}
+        >
+          <StatCard
+            title="Total Work Orders"
+            value={dashboard.total}
+            subtitle={`${dashboard.released} Released • ${dashboard.inProgress} In Progress`}
+            accent="#0ea5e9"
+          />
+          <StatCard
+            title="Ready to Start"
+            value={dashboard.ready}
+            subtitle="Queued for execution"
+            accent="#f59e0b"
+          />
+          <StatCard
+            title="Overdue"
+            value={dashboard.overdue}
+            subtitle="Past due date"
+            accent="#ef4444"
+          />
+          <StatCard
+            title="Due Soon"
+            value={dashboard.dueSoon}
+            subtitle="Due in 48 hours"
+            accent="#22c55e"
+          />
+          <StatCard
+            title="Completion Qty"
+            value={`${dashboard.completedTotal}/${dashboard.plannedTotal}`}
+            subtitle="Completed / Planned"
+            accent="#6366f1"
+          />
+        </Box>
 
         {loading ? (
           <Box display="flex" justifyContent="center" py={6}>
@@ -400,13 +552,16 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                 ))}
               </Stack>
             ) : (
-              <Box sx={{ width: "100%", overflowX: "auto" }}>
+              <Box sx={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
                 <TableContainer
                   sx={{
                     maxHeight: "70vh",
                     borderRadius: 1.5,
                     border: "1px solid #e5e9f2",
                     backgroundColor: "#ffffff",
+                    width: "100%",
+                    maxWidth: "100%",
+                    overflowX: "auto",
                   }}
                 >
                   <Table
@@ -420,7 +575,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                   >
                     <colgroup>
                       <col style={{ width: 56 }} />
-                      {allColumns.map((col) => (
+                      {visibleColumns.map((col) => (
                         <col
                           key={col.field}
                           style={{
@@ -447,7 +602,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                           <Checkbox sx={{ color: "white" }} />
                         </TableCell>
 
-                        {allColumns.map((col) => (
+                        {visibleColumns.map((col) => (
                           <TableCell
                             key={col.field}
                             sx={{
@@ -543,9 +698,9 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                             />
                           </TableCell>
 
-                          {allColumns?.map((col) => (
-                            <TableCell
-                              key={`${item.id}-${col.field}`}
+                        {visibleColumns?.map((col) => (
+                          <TableCell
+                            key={`${item.id}-${col.field}`}
                               sx={{
                                 minWidth:
                                   columnWidths[col.field] || col.width || "150px",
@@ -600,16 +755,18 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
             )}
           </>
         )}
+
+        <TablePagination
+          component="div"
+          count={totalElements}
+          page={currentPage}
+          onPageChange={(e, page) => onPageChange(page)}
+          rowsPerPage={itemsPerPage}
+          rowsPerPageOptions={[5, 10]}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+        />
       </Paper>
-      <TablePagination
-        component="div"
-        count={totalElements}
-        page={currentPage}
-        onPageChange={(e, page) => onPageChange(page)}
-        rowsPerPage={itemsPerPage}
-        rowsPerPageOptions={[5, 10]}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+
     </Box>
   );
 }

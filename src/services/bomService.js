@@ -36,6 +36,10 @@ export const getActiveBomByItemid = (itemId) => {
     return apiService.get(`/bom/active-by-item/${itemId}`);
 }
 
+export const getBomHistoryByInventoryItem = (itemId) => {
+    return apiService.get(`/bom/${itemId}/bom-history`);
+}
+
 export const getBomPositisions = (bomId) => {
     return apiService.get(`/bom/positions/${bomId}`);
 }

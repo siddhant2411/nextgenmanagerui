@@ -35,7 +35,7 @@ export default function FilterBar({
     const isNumberField = selectedColumn?.type === "number";
     const isEnum = selectedColumn?.type === "enum";
     const numberOperators = ["=", "<", ">", "<=", ">="];
-    const stringOperators = ["contains","="];
+    const stringOperators = ["contains", "=", "!="];
 
     const handleAddFilter = () => {
         if (!selectedField || !operator || !value) return;
@@ -69,20 +69,29 @@ export default function FilterBar({
 
 
     return (
-        <Box sx={{ mb: 2, p: 2, borderRadius: 2, width: "100%", alignContent: "center"}}>
+        <Box sx={{ mb: 2, p: 2, borderRadius: 2, width: "100%", maxWidth: "100%", minWidth: 0 }}>
             <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
                 Filters
             </Typography>
             
             {/* Filter Builder Row */}
-            <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 180 }}>
+            <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                alignItems={{ xs: "stretch", md: "center" }}
+                flexWrap="wrap"
+                sx={{ mb: 2, width: "100%", minWidth: 0 }}
+            >
+                <FormControl
+                    size="small"
+                    sx={{ minWidth: { xs: "100%", sm: 180 }, width: { xs: "100%", sm: 180 } }}
+                >
                     <InputLabel sx={{ fontSize: 13 }}>Field</InputLabel>
                     <Select
                         value={selectedField}
                         onChange={(e) => setSelectedField(e.target.value)}
                         label="Field"
-                        sx={{ fontSize: 13, height: 36, width: 180 }}
+                        sx={{ fontSize: 13, height: 36, width: "100%" }}
                     >
                         {allColumns.map((col) => (
                             <MenuItem key={col.field} value={col.field}>
@@ -92,14 +101,17 @@ export default function FilterBar({
                     </Select>
                 </FormControl>
 
-                <FormControl size="small" sx={{ minWidth: 120 }}>
+                <FormControl
+                    size="small"
+                    sx={{ minWidth: { xs: "100%", sm: 160 }, width: { xs: "100%", sm: 160 } }}
+                >
                     <InputLabel sx={{ fontSize: 13, height: 36 }}>Operator</InputLabel>
                     <Select
                         value={operator}
                         onChange={(e) => setOperator(e.target.value)}
                         label="Operator"
                         disabled={!selectedField}
-                        sx={{ fontSize: 13, height: 36, width: 180 }}
+                        sx={{ fontSize: 13, height: 36, width: "100%" }}
                     >
                         {(isNumberField ? numberOperators : stringOperators).map((op) => (
                             <MenuItem key={op} value={op}>
@@ -114,7 +126,7 @@ export default function FilterBar({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         size="small"
-                        sx={{ width: 140 }}
+                        sx={{ width: { xs: "100%", sm: 180 } }}
                     >
                         {selectedColumn?.options?.map((opt) => (
                             <MenuItem key={opt} value={opt}>
@@ -130,7 +142,7 @@ export default function FilterBar({
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
                         sx={{
-                            width: 180, fontSize: 13
+                            width: { xs: "100%", sm: 180 }, fontSize: 13
                         }}
                         slotProps={{
                             input: {
@@ -157,7 +169,7 @@ export default function FilterBar({
                     color="primary"
                     onClick={handleAddFilter}
                     disabled={!selectedField || !operator || !value}
-                    sx={{ borderRadius: 2, height: 36 }}
+                    sx={{ borderRadius: 2, height: 36, minWidth: { xs: "100%", sm: 120 } }}
                 >
                     Add Filter
                 </Button>
@@ -167,7 +179,7 @@ export default function FilterBar({
                     color="error"
                     onClick={handleClearAll}
                     disabled={filters.length === 0}
-                    sx={{ borderRadius: 2 }}
+                    sx={{ borderRadius: 2, minWidth: { xs: "100%", sm: 110 } }}
                 >
                     Clear All
                 </Button>

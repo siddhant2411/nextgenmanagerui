@@ -175,7 +175,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           })
           .catch((error) => {
             console.error('Error creating work order:', error);
-            setError('Failed to create work order. Please try again.');
+            setError(error.response?.data?.error|| 'Failed to create work order. Please try again.');
           });
       }
     }

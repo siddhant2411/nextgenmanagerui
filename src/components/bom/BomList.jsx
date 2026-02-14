@@ -11,7 +11,9 @@ import {
     Divider,
     CircularProgress,
     Checkbox,
-    TablePagination
+    TablePagination,
+    useMediaQuery,
+    useTheme
 } from '@mui/material';
 import { Edit, Delete, Search, PictureAsPdf, FileDownload, Tune as TuneIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -30,11 +32,29 @@ const allColumns = [
     { field: 'effectiveTo', headerName: 'Effective To', width: 150, type: 'Date' }
 ];
 
+const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
+    let cols = allColumns.map(c => c.field);
+    if (isNarrowDesktop) {
+        cols = cols.filter(
+            (field) =>
+                !["parentDrawingNumber", "effectiveFrom", "effectiveTo"].includes(field)
+        );
+    }
+    if (isMobile) {
+        cols = cols.filter((field) => field !== "parentItemName");
+    }
+    return cols;
+};
+
 
 function formatDate(dateStr) {
     if (!dateStr) return "";
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB');
+    if (Number.isNaN(d.getTime())) return "";
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = String(d.getMonth() + 1);
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
 }
 
 function formatDateTime(dateStr) {
@@ -49,7 +69,12 @@ const BomList = ({
     setError,
     handleAddNewBomClick
 }) => {
-    const [visibleCols, setVisibleCols] = useState(allColumns.map(c => c.field));
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+    const isNarrowDesktop = useMediaQuery(theme.breakpoints.down("xl"));
+    const [visibleCols, setVisibleCols] = useState(() =>
+        getDefaultVisibleCols(isNarrowDesktop, isMobile)
+    );
     const stableColumns = useMemo(() => [...allColumns], [allColumns]);
     const [selectedRows, setSelectedRows] = useState([]);
     const [filters, setFilters] = useState([]);
@@ -151,6 +176,14 @@ const BomList = ({
         }, {})
     );
 
+    const tableMinWidth = useMemo(() => {
+        const dynamicCols = displayedColumns.reduce((sum, col) => {
+            const width = columnWidths[col.field] || col.width || 150;
+            return sum + width;
+        }, 0);
+        return dynamicCols + 56 + 40 + 100;
+    }, [displayedColumns, columnWidths]);
+
     const handleSortChange = (sortField) => {
         const newSortDir = sortBy === sortField && sortDir === 'asc' ? 'desc' : 'asc';
         setSortBy(sortField);
@@ -215,22 +248,45 @@ const BomList = ({
 
         <Box sx={{
             minHeight: "100%",
-            padding: 3,
+            padding: { xs: 1, sm: 2, md: 3 },
             fontFamily: "Roboto, Helvetica, Arial, sans-serif",
-            maxWidth: "300lvh"
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            overflowX: "hidden"
 
         }}>
-            <Paper elevation={3} sx={{ padding: 2, maxWidth: "100%", margin: "auto", borderRadius: 2 }}>
-                <Toolbar sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1, pb: 1 }}>
+            <Paper
+                elevation={3}
+                sx={{
+                    padding: { xs: 1.25, sm: 2 },
+                    width: "100%",
+                    maxWidth: "100%",
+                    minWidth: 0,
+                    margin: "auto",
+                    borderRadius: 2
+                }}
+            >
+                <Toolbar
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: { xs: "stretch", md: "center" },
+                        flexDirection: { xs: "column", md: "row" },
+                        gap: 1,
+                        px: 1,
+                        pb: 1
+                    }}
+                >
                     <Typography variant="h4" fontWeight={700} color="primary.main" >Manage BOMs</Typography>
-                    <Box sx={{ position: 'relative' }}>
+                    <Box sx={{ position: 'relative', display: "flex", width: { xs: "100%", md: "auto" }, justifyContent: { xs: "stretch", md: "flex-end" } }}>
 
 
                         <Button
                             onClick={handleAddNewBomClick}
                             color="primary"
                             variant="contained"
-                            sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: 2 }}
+                            sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: { xs: 0, md: 2 } }}
                         >
                             Add BOM
                         </Button>
@@ -261,40 +317,47 @@ const BomList = ({
                 </Toolbar>
                 <Divider sx={{ mb: 2 }} />
 
-                <div
-                    style={{
+                <Box
+                    sx={{
                         display: "flex",
                         width: "100%",
-                        alignItems: "center",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                        alignItems: { xs: "stretch", xl: "center" },
+                        flexDirection: { xs: "column", xl: "row" },
+                        gap: 1.5,
                         justifyContent: "space-between", // 👈 key: space between FilterBar and button
                     }}
                 >
 
-                    <FilterBar
-                        allColumns={allColumns}
-                        filters={filters}
-                        setFilters={setFilters}
-                        page={currentPage}
-                        handleApplyFilters={handleApplyFilters}
-                        sortKey={sortBy}
-                        sortDir={sortDir}
-                    />
+                    <Box sx={{ flex: 1, width: "100%", minWidth: 0 }}>
+                        <FilterBar
+                            allColumns={allColumns}
+                            filters={filters}
+                            setFilters={setFilters}
+                            page={currentPage}
+                            handleApplyFilters={handleApplyFilters}
+                            sortKey={sortBy}
+                            sortDir={sortDir}
+                        />
+                    </Box>
 
                     <Button
                         startIcon={<TuneIcon />}
                         variant="outlined"
                         sx={{
-                            minWidth: 120,
-                            ml: 1,
+                            minWidth: { xs: "100%", xl: 120 },
                             height: 36,
                             alignContent: "center",
                             textTransform: "none", // optional: keeps text normal case
+                            flexShrink: 0,
+                            alignSelf: { xs: "stretch", xl: "flex-start" },
                         }}
                         onClick={(e) => setAnchorEl(e.currentTarget)}
                     >
                         COLUMNS
                     </Button>
-                </div>
+                </Box>
 
                 {
                     loading &&
@@ -308,6 +371,8 @@ const BomList = ({
                     <Box
                         sx={{
                             width: "100%",
+                            maxWidth: "100%",
+                            minWidth: 0,
                             overflowX: "auto", // Enable horizontal scroll
                             overflowY: "visible",
                             position: "relative",
@@ -319,12 +384,15 @@ const BomList = ({
                             maxHeight: "calc(100vh - 200px)", // Adjust based on your layout
                             overflowY: "auto", // Vertical scroll for table body
                             overflowX: "auto", // Horizontal scroll
+                            width: "100%",
+                            maxWidth: "100%",
                         }}>
                             <Table
                                 stickyHeader
                                 size="small"
                                 sx={{
-                                    tableLayout: "fixed",
+                                    tableLayout: "auto",
+                                    minWidth: tableMinWidth,
                                     width: "100%",
                                     borderCollapse: "collapse",
                                 }}
@@ -496,13 +564,11 @@ const BomList = ({
 
 
                                                 >
-                                                    {
-
-                                                        item[col.field] !== undefined && item[col.field] !== null
-                                                            ? item[col.field].toString()
-                                                            : "-"
-
-                                                    }
+                                                {col.type?.toLowerCase() === "date"
+                                                    ? (formatDate(item[col.field]) || "-")
+                                                    : item[col.field] !== undefined && item[col.field] !== null
+                                                        ? item[col.field].toString()
+                                                        : "-"}
                                                 </TableCell>
                                             ))}
 

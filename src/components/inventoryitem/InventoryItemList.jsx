@@ -42,6 +42,23 @@ const allColumns = [
   { field: 'drawingNumber', headerName: 'Drawing No.', width: 110, type: 'string' },
 ];
 
+const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
+  let cols = allColumns.map(c => c.field);
+  if (isNarrowDesktop) {
+    cols = cols.filter(
+      (field) =>
+        !["dimension", "weight", "revision", "drawingNumber"].includes(field)
+    );
+  }
+  if (isMobile) {
+    cols = cols.filter(
+      (field) =>
+        !["hsnCode", "basicMaterial", "dimension", "weight", "revision", "drawingNumber"].includes(field)
+    );
+  }
+  return cols;
+};
+
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -73,9 +90,13 @@ const InventoryItemList = ({
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isNarrowDesktop = useMediaQuery(theme.breakpoints.down('xl'));
   const debounceTimeout = useRef(null);
+  const tableContainerRef = useRef(null);
   const [openRow, setOpenRow] = React.useState(null);
-  const [visibleCols, setVisibleCols] = useState(allColumns.map(c => c.field));
+  const [visibleCols, setVisibleCols] = useState(() =>
+    getDefaultVisibleCols(isNarrowDesktop, isMobile)
+  );
   const stableColumns = useMemo(() => [...allColumns], [allColumns]);
   const [selectedRows, setSelectedRows] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -87,6 +108,7 @@ const InventoryItemList = ({
   const [currentPage, setCurrentPage] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [tableContainerWidth, setTableContainerWidth] = useState(0);
 
   const handleFilterApplied = (data) => {
     setInventoryItems(data.content);
@@ -108,6 +130,32 @@ const InventoryItemList = ({
     return () => debounceTimeout.current && clearTimeout(debounceTimeout.current);
   }, []);
 
+  useEffect(() => {
+    if (!tableContainerRef.current) return;
+    const element = tableContainerRef.current;
+    const updateWidth = () => {
+      const nextWidth = element.getBoundingClientRect().width;
+      if (nextWidth) {
+        setTableContainerWidth(nextWidth);
+      }
+    };
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateWidth);
+      return () => window.removeEventListener("resize", updateWidth);
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry?.contentRect?.width) {
+        setTableContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const handleRowToggle = (id) => {
     setOpenRow(openRow === id ? null : id);
   };
@@ -123,12 +171,8 @@ const InventoryItemList = ({
 
   // ✅ UseMemo to ensure stable, filtered columns
   const displayedColumns = useMemo(() => {
-    const base = stableColumns.filter((col) => visibleCols.includes(col.field));
-    if (isMobile) {
-      return base.filter(col => !['dimension', 'weight', 'revision', 'drawingNumber'].includes(col.field));
-    }
-    return base;
-  }, [stableColumns, visibleCols, isMobile]);
+    return stableColumns.filter((col) => visibleCols.includes(col.field));
+  }, [stableColumns, visibleCols]);
 
 
   const handleSelectAll = (event) => {
@@ -215,18 +259,48 @@ const InventoryItemList = ({
   }, [itemsPerPage])
 
   const [columnWidths, setColumnWidths] = useState(
-    displayedColumns.reduce((acc, col) => {
+    allColumns.reduce((acc, col) => {
       acc[col.field] = col.width || 150;
       return acc;
     }, {})
   );
+
+  const getBaseWidth = (field) => {
+    return columnWidths[field] || allColumns.find((c) => c.field === field)?.width || 150;
+  };
+
+  const extraColumnsWidth = 56 + 40 + 100;
+
+  const { scaledColumnWidths, tableMinWidth } = useMemo(() => {
+    const baseWidths = displayedColumns.map((col) => ({
+      field: col.field,
+      width: getBaseWidth(col.field),
+    }));
+    const dataWidthTotal = baseWidths.reduce((sum, col) => sum + col.width, 0);
+    const availableWidth = tableContainerWidth || dataWidthTotal + extraColumnsWidth;
+    const availableForData = Math.max(0, availableWidth - extraColumnsWidth);
+    const scale =
+      dataWidthTotal > availableForData && availableForData > 0
+        ? availableForData / dataWidthTotal
+        : 1;
+
+    const scaled = baseWidths.reduce((acc, col) => {
+      acc[col.field] = Math.max(60, Math.floor(col.width * scale));
+      return acc;
+    }, {});
+
+    return {
+      scaledColumnWidths: scaled,
+      tableMinWidth: Math.min(dataWidthTotal + extraColumnsWidth, availableWidth),
+    };
+  }, [displayedColumns, columnWidths, tableContainerWidth]);
 
   const resizingCol = useRef(null);
   const handleMouseDown = (e, field) => {
     resizingCol.current = {
       field,
       startX: e.clientX,
-      startWidth: columnWidths[field]
+      startWidth: getBaseWidth(field)
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -253,14 +327,27 @@ const InventoryItemList = ({
   return (
     <Box sx={{
       minHeight: "100%",
-      padding: 3,
+      padding: { xs: 1, sm: 2, md: 3 },
       fontFamily: "Roboto, Helvetica, Arial, sans-serif",
-      maxWidth: "100%"
+      width: "100%",
+      maxWidth: "100%",
+      minWidth: 0,
+      overflowX: "hidden"
 
     }}>
 
 
-      <Paper elevation={3} sx={{ padding: 2, maxWidth: "100%", margin: "auto", borderRadius: 2 }}>
+      <Paper
+        elevation={3}
+        sx={{
+          padding: { xs: 1.25, sm: 2 },
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          margin: "auto",
+          borderRadius: 2
+        }}
+      >
         <Toolbar sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1, pb: 1, flexDirection: { xs: 'column', md: 'row' }, gap: 1 }}>
           <Typography variant="h4" fontWeight={700} color="primary.main" >Manage Products</Typography>
           <Box sx={{ position: 'relative', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -271,7 +358,7 @@ const InventoryItemList = ({
               onClick={handleAddNewItemClick}
               color="primary"
               variant="contained"
-              sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: 2 }}
+              sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: { xs: 0, md: 2 } }}
             >
               Add Product
             </Button>
@@ -305,30 +392,36 @@ const InventoryItemList = ({
           sx={{
             display: "flex",
             width: "100%",
-            alignItems: "center",
+            maxWidth: "100%",
+            minWidth: 0,
+            alignItems: { xs: "stretch", xl: "center" },
             justifyContent: "space-between",
-            flexDirection: { xs: 'column', md: 'row' },
-            gap: 1
+            flexDirection: { xs: 'column', xl: 'row' },
+            gap: 1.5
           }}
         >
-          <FilterBar
-            allColumns={allColumns}
-            filters={filters}
-            setFilters={setFilters}
-            page={currentPage}
-            handleApplyFilters={handleApplyFilters}
-            sortKey={sortBy}
-            sortDir={sortDir}
-          />
+          <Box sx={{ flex: 1, width: "100%", minWidth: 0 }}>
+            <FilterBar
+              allColumns={allColumns}
+              filters={filters}
+              setFilters={setFilters}
+              page={currentPage}
+              handleApplyFilters={handleApplyFilters}
+              sortKey={sortBy}
+              sortDir={sortDir}
+            />
+          </Box>
 
           <Button
             startIcon={<TuneIcon />}
             variant="outlined"
             sx={{
-              minWidth: 120,
+              minWidth: { xs: "100%", xl: 120 },
               height: 36,
               alignContent: "center",
               textTransform: "none",
+              flexShrink: 0,
+              alignSelf: { xs: "stretch", xl: "flex-start" },
             }}
             onClick={(e) => setAnchorEl(e.currentTarget)}
           >
@@ -349,23 +442,32 @@ const InventoryItemList = ({
           <Box
             sx={{
               width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
               overflowX: "auto", // Enable horizontal scroll
               overflowY: "visible",
               position: "relative",
             }}
           >
-            <TableContainer component={Box} sx={{
-              borderRadius: 2,
-              background: "white",
-              maxHeight: "calc(100vh - 200px)", // Adjust based on your layout
-              overflowY: "auto", // Vertical scroll for table body
-              overflowX: "auto", // Horizontal scroll
-            }}>
+            <TableContainer
+              component={Box}
+              ref={tableContainerRef}
+              sx={{
+                borderRadius: 2,
+                background: "white",
+                maxHeight: "calc(100vh - 200px)", // Adjust based on your layout
+                overflowY: "auto", // Vertical scroll for table body
+                overflowX: "auto", // Horizontal scroll
+                width: "100%",
+                maxWidth: "100%",
+            }}
+            >
               <Table
                 stickyHeader
                 size="small"
                 sx={{
                   tableLayout: "fixed",
+                  minWidth: tableMinWidth,
                   width: "100%",
                   borderCollapse: "collapse",
                 }}
@@ -456,8 +558,9 @@ const InventoryItemList = ({
                         key={col.field}
                         sx={{
                           position: "relative",
-                          width: columnWidths[col.field],
-                          minWidth: columnWidths[col.field],
+                          width: scaledColumnWidths[col.field] || col.width || 150,
+                          maxWidth: scaledColumnWidths[col.field] || col.width || 150,
+                          minWidth: 0,
                           background: "#00162cff",
                           color: "white",
                           fontWeight: 600,
@@ -465,7 +568,10 @@ const InventoryItemList = ({
                           borderRight: "1px solid #2e3b4e",
                           cursor: "pointer",
                           letterSpacing: 0.4,
-                          borderBottom: "2px solid #dae3ee"
+                          borderBottom: "2px solid #dae3ee",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                         onClick={() => handleSortChange(col.field)}
                       >
@@ -474,9 +580,12 @@ const InventoryItemList = ({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
+                            gap: 6,
                           }}
                         >
-                          <span>{col.headerName}</span>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {col.headerName}
+                          </span>
 
                           {/* Resize Handle */}
                           <div
@@ -541,8 +650,9 @@ const InventoryItemList = ({
                         <TableCell
                           key={`${item.inventoryItemId}-${col.field}`}
                           sx={{
-                            width: col.width || "150px",
-                            minWidth: col.width || "150px",
+                            width: scaledColumnWidths[col.field] || col.width || 150,
+                            maxWidth: scaledColumnWidths[col.field] || col.width || 150,
+                            minWidth: 0,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
