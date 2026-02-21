@@ -1,14 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import WorkOrderList from './WorkOrderList';
 import AddUpdateWorkOrder from './AddUpdateWorkOrder';
 import "./WorkOrder.css";
 import Snackbar from '@mui/material/Snackbar';
 import { Alert } from '@mui/material';
+import RoleProtectedRoute from '../../../auth/RoleProtectedRoute';
+import { PRODUCTION_MANAGE_ROLES } from '../../../auth/roles';
 export default function WorkOrder() {
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
   const setLoadingStable = useCallback((val) => setLoading(val), []);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -42,11 +43,25 @@ export default function WorkOrder() {
         />
         <Route
           path="/add"
-          element={<AddUpdateWorkOrder setError={setErrorStable} setSnackbar={showSnackbar} />}
+          element={
+            <RoleProtectedRoute
+              allowedRoles={PRODUCTION_MANAGE_ROLES}
+              deniedMessage="You are not authorized to create work orders."
+            >
+              <AddUpdateWorkOrder setError={setErrorStable} setSnackbar={showSnackbar} />
+            </RoleProtectedRoute>
+          }
         />
         <Route
           path="/edit/:workOrderId"
-          element={<AddUpdateWorkOrder setError={setErrorStable} setSnackbar={showSnackbar} />}
+          element={
+            <RoleProtectedRoute
+              allowedRoles={PRODUCTION_MANAGE_ROLES}
+              deniedMessage="You are not authorized to edit work orders."
+            >
+              <AddUpdateWorkOrder setError={setErrorStable} setSnackbar={showSnackbar} />
+            </RoleProtectedRoute>
+          }
         />
       </Routes>
 

@@ -21,6 +21,8 @@ import {
 import { Tune as TuneIcon } from "@mui/icons-material";
 import apiService from "../../../services/apiService";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../auth/AuthContext";
+import { SALES_MANAGE_ROLES } from "../../../auth/roles";
 
 const allColumns = [
   { field: 'orderNumber', headerName: 'Order No.', width: 160, align: 'left' },
@@ -103,6 +105,8 @@ const SalesOrderRegister = () => {
 
   const displayedColumns = allColumns.filter(col => visibleCols.includes(col.field));
   const navigate = useNavigate();
+  const { hasAnyRole } = useAuth();
+  const canManageSalesOrders = hasAnyRole(SALES_MANAGE_ROLES);
 
 
   const onAdd = () => {
@@ -128,14 +132,16 @@ const SalesOrderRegister = () => {
               right: 32,
               zIndex: 1000
             }}>
-              <Button
-                onClick={onAdd}
-                color="primary"
-                variant="contained"
-                sx={{ boxShadow: 3, borderRadius: 8, px: 3, py: 1.5, fontWeight: 700 }}
-              >
-                + Create Sales Order
-              </Button>
+              {canManageSalesOrders ? (
+                <Button
+                  onClick={onAdd}
+                  color="primary"
+                  variant="contained"
+                  sx={{ boxShadow: 3, borderRadius: 8, px: 3, py: 1.5, fontWeight: 700 }}
+                >
+                  + Create Sales Order
+                </Button>
+              ) : null}
             </Box>
             <Button
               startIcon={<TuneIcon />}
@@ -206,15 +212,17 @@ const SalesOrderRegister = () => {
                     key={row.id}
                     hover
                     onClick={() => {
-                      navigate(`/sales/sales-order/edit/${row.id}`)
+                      if (canManageSalesOrders) {
+                        navigate(`/sales/sales-order/edit/${row.id}`);
+                      }
                     }}
                     sx={{
                       bgcolor:
                         idx % 2 === 0 ? "#f7fafc" : "white",
-                      cursor: "pointer",
+                      cursor: canManageSalesOrders ? "pointer" : "default",
                       transition: "background 0.2s",
                       "&:hover": {
-                        background: "#e5f1fb"
+                        background: canManageSalesOrders ? "#e5f1fb" : undefined
                       }
                     }}
                   >

@@ -21,6 +21,8 @@ import './style/bom.css';
 import apiService from '../../services/apiService';
 import FilterBar from '../ui/filterbar/FilterBar';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useAuth } from '../../auth/AuthContext';
+import {  PRODUCTION_APPROVAL_ROLES, PRODUCTION_MANAGE_ROLES } from '../../auth/roles';
 const allColumns = [
     { field: 'bomName', headerName: 'Bom Name', width: 200, type: 'string' },
     { field: 'parentItemCode', headerName: 'Product Code', width: 200, type: 'string' },
@@ -88,6 +90,9 @@ const BomList = ({
     const [totalPages, setTotalPages] = useState(1);
     const [anchorEl, setAnchorEl] = useState(null);
     const [bomList, setBomList] = useState([])
+    const { hasAnyRole } = useAuth();
+    const canManageBom = hasAnyRole(PRODUCTION_MANAGE_ROLES);
+    const isAdminRole = hasAnyRole(PRODUCTION_APPROVAL_ROLES);
 
     const onPageChange = (page) => {
 
@@ -136,12 +141,19 @@ const BomList = ({
     };
 
 
-    const handleEditClick = (id) => navigate(`/bom/edit/${id}`);
+    const handleEditClick = (id) => {
+        if (!canManageBom) {
+            return;
+        }
+        navigate(`/bom/edit/${id}`);
+    };
 
     const onDeleteItem = async (id) => {
         try {
             await apiService.delete(`/bom/${id}`);
+
         } catch (err) {
+            console.error(err);
             setError(err);
         }
     };
@@ -282,14 +294,16 @@ const BomList = ({
                     <Box sx={{ position: 'relative', display: "flex", width: { xs: "100%", md: "auto" }, justifyContent: { xs: "stretch", md: "flex-end" } }}>
 
 
-                        <Button
-                            onClick={handleAddNewBomClick}
-                            color="primary"
-                            variant="contained"
-                            sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: { xs: 0, md: 2 } }}
-                        >
-                            Add BOM
-                        </Button>
+                        {canManageBom ? (
+                            <Button
+                                onClick={handleAddNewBomClick}
+                                color="primary"
+                                variant="contained"
+                                sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: { xs: 0, md: 2 } }}
+                            >
+                                Add BOM
+                            </Button>
+                        ) : null}
 
                         <Menu
                             anchorEl={anchorEl}
@@ -564,24 +578,29 @@ const BomList = ({
 
 
                                                 >
-                                                {col.type?.toLowerCase() === "date"
-                                                    ? (formatDate(item[col.field]) || "-")
-                                                    : item[col.field] !== undefined && item[col.field] !== null
-                                                        ? item[col.field].toString()
-                                                        : "-"}
+                                                    {col.type?.toLowerCase() === "date"
+                                                        ? (formatDate(item[col.field]) || "-")
+                                                        : item[col.field] !== undefined && item[col.field] !== null
+                                                            ? item[col.field].toString()
+                                                            : "-"}
                                                 </TableCell>
                                             ))}
 
                                             {/* Actions */}
+
                                             <TableCell align="center" onClick={null}>
 
-                                                <IconButton
-                                                    onClick={() => handleDeleteClick(item.id)}
-                                                    size="small"
-                                                >
-                                                    <DeleteIcon fontSize="small" sx={{ color: "rgba(211, 0, 0, 1)" }} />
-                                                </IconButton>
+                                                {isAdminRole &&
+                                                    <IconButton
+                                                        onClick={() => handleDeleteClick(item.id)}
+                                                        size="small"
+                                                        disabled={!canManageBom}
+                                                    >
+                                                        <DeleteIcon fontSize="small" sx={{ color: "rgba(211, 0, 0, 1)" }} />
+                                                    </IconButton>
+                                                }
                                             </TableCell>
+
                                         </TableRow>
                                     ))}
                                 </TableBody>

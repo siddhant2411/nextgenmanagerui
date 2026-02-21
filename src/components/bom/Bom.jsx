@@ -9,6 +9,8 @@ import { CircularProgress, Box, Typography, Snackbar, Alert } from "@mui/materia
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { utils as XLSXUtils, writeFile } from 'xlsx';
+import RoleProtectedRoute from "../../auth/RoleProtectedRoute";
+import { PRODUCTION_MANAGE_ROLES } from "../../auth/roles";
 
 const Bom = () => {
     const [loading, setLoading] = useState(false);
@@ -86,13 +88,26 @@ const Bom = () => {
                 <Route
                     path="/add"
                     element={
-                        <AddBom
-
-                        />
+                        <RoleProtectedRoute
+                            allowedRoles={PRODUCTION_MANAGE_ROLES}
+                            deniedMessage="You are not authorized to create BOM."
+                        >
+                            <AddBom />
+                        </RoleProtectedRoute>
                     }
                 />
 
-                <Route path="/edit/:bomId" element={<AddBom />} />
+                <Route
+                    path="/edit/:bomId"
+                    element={
+                        <RoleProtectedRoute
+                            allowedRoles={PRODUCTION_MANAGE_ROLES}
+                            deniedMessage="You are not authorized to edit BOM."
+                        >
+                            <AddBom />
+                        </RoleProtectedRoute>
+                    }
+                />
             </Routes>
 
             <Snackbar

@@ -24,6 +24,8 @@ import {
   updateWorkOrder,
 } from '../../../services/workOrderService';
 import { getBomPositisions } from '../../../services/bomService';
+import { useAuth } from '../../../auth/AuthContext';
+import { ACTION_KEYS } from '../../../auth/roles';
 
 const getDefaultValues = () => ({
   inventoryItem: {},
@@ -50,6 +52,8 @@ const getDefaultValues = () => ({
 });
 
 export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
+  const { canAction } = useAuth();
+  const canManageWorkOrderAdminActions = canAction(ACTION_KEYS.WORK_ORDER_ADMIN_WRITE);
   const [initialValues, setInitialValues] = useState(getDefaultValues());
   const { workOrderId } = useParams();
   const [selectedTab, setSelectedTab] = useState(0);
@@ -170,7 +174,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           })
           .catch((error) => {
             console.error('Error updating work order:', error);
-            setError('Failed to update work order. Please try again.');
+            setError(error.response?.data?.error ||'Failed to update work order. Please try again.', "error");
           });
       } else {
         createWorkOrder(cleanedValues)
@@ -434,6 +438,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const handleRelease = async () => {
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to issue work orders.');
+      return;
+    }
     setIsReleaseConfirmOpen(true);
   };
 
@@ -444,6 +452,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
 
   const handleReleaseConfirm = async () => {
     if (!workOrderId) return;
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to issue work orders.');
+      return;
+    }
     try {
       setIsReleaseLoading(true);
       await releaseWorkOrder(workOrderId);
@@ -459,6 +471,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const openWorkOrderActionDialog = (action) => {
+    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to cancel work orders.');
+      return;
+    }
     setWorkOrderActionDialog({ open: true, action });
   };
 
@@ -470,6 +486,11 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const handleConfirmWorkOrderAction = async () => {
     if (!workOrderId || !workOrderActionDialog.action) return;
     const action = workOrderActionDialog.action;
+    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to cancel work orders.');
+      setWorkOrderActionDialog({ open: false, action: '' });
+      return;
+    }
 
     try {
       setIsWorkOrderActionLoading(true);
@@ -691,7 +712,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                   color="secondary"
                   sx={compactButtonSx}
                   onClick={handleRelease}
-                  disabled={isReleaseLoading || !canIssueWorkOrder}
+                  disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
                 >
                   {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
                 </Button>
@@ -719,7 +740,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                   color="error"
                   sx={compactButtonSx}
                   onClick={() => openWorkOrderActionDialog('cancel')}
-                  disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus}
+                  disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
                 >
                   Cancel WO
                 </Button>

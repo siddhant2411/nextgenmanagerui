@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { Chip, Divider, FormControlLabel, Typography, Box, Checkbox, FormControl, InputLabel, Select, MenuItem, FormHelperText } from "@mui/material";
 import BomStatusChangeDialog from './BomStatusChangeDialog';
 import apiService from '../../services/apiService';
+import { resolveApiErrorMessage } from '../../services/apiService';
+import { useAuth } from '../../auth/AuthContext';
+import { ACTION_KEYS } from '../../auth/roles';
 const bomStatus = [
     { key: "DRAFT", value: "Draft" },
     { key: "PENDING_APPROVAL", value: "Under Review" },
@@ -17,6 +20,8 @@ const bomStatus = [
 export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackbar,loading,error }) {
 
     const [dialogOpen, setDialogOpen] = useState(false);
+    const { canAction } = useAuth();
+    const canChangeBomStatus = canAction(ACTION_KEYS.BOM_STATUS_VERSION_WRITE);
     const [nextStatus, setNextStatus] = useState(null);
     const [statusChangePayload, setStatusChangePayload] = useState({
         bomId: bomId,
@@ -29,6 +34,10 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
     const currentStatus = formik.values.bomStatus;
 
     const handleChangeStatus = (e) => {
+        if (!canChangeBomStatus) {
+            showSnackbar("You are not authorized to change BOM status.", "error");
+            return;
+        }
         setNextStatus(e.target.value);
         setDialogOpen(true);
 
@@ -41,6 +50,10 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
     };
 
     const handleConfirm = async (payload) => {
+        if (!canChangeBomStatus) {
+            showSnackbar("You are not authorized to change BOM status.", "error");
+            return;
+        }
         const finalPayload = {
             bomId: bomId,
             nextStatus: payload.nextStatus,
@@ -59,7 +72,7 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
         }
         catch (e){
             console.log(e)
-             showSnackbar( "Falied to change Status: "+ e.response?.data,"error")
+             showSnackbar(resolveApiErrorMessage(e, "Failed to change BOM status."), "error")
          
         }
         setLoading(false)
@@ -99,6 +112,7 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
                         }
                         onBlur={formik.handleBlur}
                         sx={{ width: "200px" }}
+                        disabled={!canChangeBomStatus || loading}
                     >
                         {bomStatus.map((option) => (
                             <MenuItem key={option.key} value={option.key}>

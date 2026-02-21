@@ -1,9 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import InventoryItemList from './InventoryItemList';
 import AddInventoryItem from './AddInventoryItem';
 import apiService from '../../services/apiService';
-import { Alert, Box, Button, Snackbar, Typography } from '@mui/material';
+import { Alert, Box, Snackbar } from '@mui/material';
+import RoleProtectedRoute from '../../auth/RoleProtectedRoute';
+import { ACTION_KEYS, INVENTORY_ITEM_APPROVAL_ROLES, INVENTORY_MANAGE_ROLES } from '../../auth/roles';
+import { useAuth } from '../../auth/AuthContext';
 import './style/InventoryItem.css'
 const InventoryItem = () => {
 
@@ -11,13 +14,21 @@ const InventoryItem = () => {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-
+  const { canAction } = useAuth();
+  const canWriteInventoryItems = canAction(ACTION_KEYS.INVENTORY_ITEM_WRITE);
+  const isAdminRole = canAction(INVENTORY_ITEM_APPROVAL_ROLES);
 
   const handleAddNewItemClick = () => {
+    if (!canWriteInventoryItems) {
+      return;
+    }
     navigate(`/inventory-item/add/`)
   };
 
   const deleteInventoryItem = async (id) => {
+    if (!canWriteInventoryItems) {
+      return;
+    }
     try {
       await apiService.delete(`/inventory_item/${id}`);
     } catch (err) {
@@ -54,12 +65,34 @@ const InventoryItem = () => {
                 error={error}
                 setError={setError}
                 handleAddNewItemClick={handleAddNewItemClick}
+                canWriteInventoryItems={canWriteInventoryItems}
+                isAdminRole={isAdminRole}
               />
             </>
           }
         />
-        <Route path="/add" element={<AddInventoryItem />} />
-        <Route path="/edit/:id" element={<AddInventoryItem />} />
+        <Route
+          path="/add"
+          element={
+            <RoleProtectedRoute
+              allowedRoles={INVENTORY_MANAGE_ROLES}
+              deniedMessage="You are not authorized to create inventory items."
+            >
+              <AddInventoryItem />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/edit/:id"
+          element={
+            <RoleProtectedRoute
+              allowedRoles={INVENTORY_MANAGE_ROLES}
+              deniedMessage="You are not authorized to update inventory items."
+            >
+              <AddInventoryItem />
+            </RoleProtectedRoute>
+          }
+        />
       </Routes>
 
       <Snackbar

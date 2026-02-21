@@ -141,8 +141,9 @@ const AddBom = () => {
         setLoading(true);
         setError(null);
         try {
-            const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", search };
-            const data = await apiService.post("/bom/active/search", search);
+            const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", querysearch: search };
+            console.log(params)
+            const data = await apiService.post("/bom/active/search", params);
             console.log(data.content)
             setSearchedItemList(data.content);
         } catch (err) {

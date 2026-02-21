@@ -86,6 +86,8 @@ const InventoryItemList = ({
   error,
   setError,
   handleAddNewItemClick,
+  canWriteInventoryItems = false,
+  isAdminRole = false
 }) => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -117,10 +119,16 @@ const InventoryItemList = ({
   };
 
   const handleEditClick = (id) => {
+    if (!canWriteInventoryItems) {
+      return;
+    }
     navigate(`/inventory-item/edit/${id}`)
 
   };
   const handleDeleteClick = async (id) => {
+    if (!canWriteInventoryItems) {
+      return;
+    }
     window.confirm('Delete this item?') && await onDeleteItem(id);
     handleApplyFilters(filters, currentPage, sortBy, sortDir)
 
@@ -352,12 +360,13 @@ const InventoryItemList = ({
           <Typography variant="h4" fontWeight={700} color="primary.main" >Manage Products</Typography>
           <Box sx={{ position: 'relative', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
 
-            <BulkImportItems />
+            {canWriteInventoryItems ? <BulkImportItems /> : null}
 
             <Button
               onClick={handleAddNewItemClick}
               color="primary"
               variant="contained"
+              disabled={!canWriteInventoryItems}
               sx={{ boxShadow: 3, borderRadius: 1, fontWeight: 200, ml: { xs: 0, md: 2 } }}
             >
               Add Product
@@ -460,7 +469,7 @@ const InventoryItemList = ({
                 overflowX: "auto", // Horizontal scroll
                 width: "100%",
                 maxWidth: "100%",
-            }}
+              }}
             >
               <Table
                 stickyHeader
@@ -678,13 +687,15 @@ const InventoryItemList = ({
 
                       {/* Actions */}
                       <TableCell align="center" onClick={null}>
-
-                        <IconButton
-                          onClick={() => handleDeleteClick(item.inventoryItemId)}
-                          size="small"
-                        >
-                          <DeleteIcon fontSize="small" sx={{ color: "rgba(211, 0, 0, 1)" }} />
-                        </IconButton>
+                        {isAdminRole &&
+                          <IconButton
+                            onClick={() => handleDeleteClick(item.inventoryItemId)}
+                            size="small"
+                            disabled={!canWriteInventoryItems}
+                          >
+                            <DeleteIcon fontSize="small" sx={{ color: "rgba(211, 0, 0, 1)" }} />
+                          </IconButton>
+                        }
                       </TableCell>
                     </TableRow>
                   ))}

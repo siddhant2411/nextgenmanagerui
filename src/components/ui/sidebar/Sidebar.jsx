@@ -30,6 +30,10 @@ import {
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../../auth/AuthContext";
+import {
+    MODULE_KEYS,
+} from "../../../auth/roles";
 
 const EXPANDED_WIDTH = 240;
 const COLLAPSED_WIDTH = 72;
@@ -43,7 +47,17 @@ const Sidebar = ({
 }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { canModule } = useAuth();
     const [openSubMenus, setOpenSubMenus] = useState({});
+    const canManageUsers = canModule(MODULE_KEYS.USER_MANAGEMENT);
+    const canAccessSales = canModule(MODULE_KEYS.SALES);
+    const canAccessInventory = canModule(MODULE_KEYS.INVENTORY);
+    const canAccessProduction = canModule(MODULE_KEYS.WORK_ORDER);
+    const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
+    const productChildren = [
+        ...(canAccessItemCode ? [{ text: "Master", path: "/inventory-item" }] : []),
+        ...(canAccessProduction ? [{ text: "Bill Of Material", path: "/bom" }] : []),
+    ];
 
     const drawerWidth = collapsed && !isSmallScreen ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
@@ -73,56 +87,71 @@ const Sidebar = ({
 
     const menuItems = [
         { text: "Dashboard", icon: <Dashboard />, path: "/dashboard" },
-        {
-            text: "Products",
-            icon: <ListAltOutlined />,
-            children: [
-                { text: "Master", path: "/inventory-item" },
-                { text: "Bill Of Material", path: "/bom" },
-            ],
-        },
-        {
-            text: "Production",
-            icon: <FactoryOutlined />,
-            children: [
-                { text: "Work Orders", path: "/production/work-order" },
-                { text: "Manage Batches", path: "/production/manage-batches" },
-                { text: "Production Report", path: "/production/reports" },
-            ],
-        },
-        {
-            text: "Manufacturing",
-            icon: <PrecisionManufacturing />,
-            children: [
-                { text: "Work Center", path: "/manufacturing/work-center" },
-                { text: "Routing", path: "/manufacturing/routing" },
-                { text: "Production Job", path: "/production/production-job" },
-                { text: "Manage Batches", path: "/production/manage-batches" },
-                { text: "Production Report", path: "/production/reports" },
-            ],
-        },
-        {
-            text: "Sells",
-            icon: <SellOutlined />,
-            children: [{ text: "Sells Orders", path: "/sales/sales-order" }],
-        },
-        { text: "Company", icon: <Contact />, path: "/contact" },
-        { text: "Enquiry", icon: <RequestQuote />, path: "/enquiry" },
-        { text: "Inventory", icon: <Inventory2 />, path: "/inventory" },
-        { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
-        {
-            text: "Configuration",
-            icon: <Settings />,
-            children: [{ text: "Item Code", path: "/config/item-code-mapping" }],
-        },
-        {
-            text: "SuperAdmin",
-            icon: <Person />,
-            children: [
-                { text: "User List", path: "/superadmin/users" },
-                { text: "Permissions", path: "/superadmin/permissions" },
-            ],
-        },
+        ...(productChildren.length > 0
+            ? [
+                {
+                    text: "Products",
+                    icon: <ListAltOutlined />,
+                    children: productChildren,
+                },
+            ]
+            : []),
+        ...(canAccessProduction
+            ? [
+                {
+                    text: "Production",
+                    icon: <FactoryOutlined />,
+                    children: [
+                        { text: "Work Orders", path: "/production/work-order" },
+                    ],
+                },
+                {
+                    text: "Manufacturing",
+                    icon: <PrecisionManufacturing />,
+                    children: [
+                        { text: "Work Center", path: "/manufacturing/work-center" },
+                        { text: "Routing", path: "/manufacturing/routing" },
+                        { text: "Production Job", path: "/production/production-job" },
+                    ],
+                },
+            ]
+            : []),
+        ...(canAccessSales
+            ? [
+                {
+                    text: "Sells",
+                    icon: <SellOutlined />,
+                    children: [{ text: "Sells Orders", path: "/sales/sales-order" }],
+                },
+                { text: "Company", icon: <Contact />, path: "/contact" },
+                { text: "Enquiry", icon: <RequestQuote />, path: "/enquiry" },
+                { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
+            ]
+            : []),
+        ...(canAccessInventory
+            ? [{ text: "Inventory", icon: <Inventory2 />, path: "/inventory" }]
+            : []),
+        ...(canAccessItemCode
+            ? [
+                {
+                    text: "Configuration",
+                    icon: <Settings />,
+                    children: [{ text: "Item Code", path: "/config/item-code-mapping" }],
+                },
+            ]
+            : []),
+        ...(canManageUsers
+            ? [
+                {
+                    text: "SuperAdmin",
+                    icon: <Person />,
+                    children: [
+                        { text: "User List", path: "/superadmin/users" },
+                        { text: "Role Management", path: "/superadmin/roles" },
+                    ],
+                },
+            ]
+            : []),
     ];
 
     const menuContent = (
