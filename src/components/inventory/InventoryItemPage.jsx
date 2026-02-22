@@ -22,10 +22,11 @@ import {
     Tooltip
 } from '@mui/material';
 import { Search, Add, Edit, Inventory2, AddBox, Remove } from '@mui/icons-material';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/apiService';
 import AddItemQtyForm from './AddItemQtyForm';
+import { useAuth } from '../../auth/AuthContext';
+import { ACTION_KEYS } from '../../auth/roles';
 
 const InventoryItemPage = () => {
     const [items, setItems] = useState([]);
@@ -45,6 +46,8 @@ const InventoryItemPage = () => {
     });
 
     const navigate = useNavigate();
+    const { canAction } = useAuth();
+    const canManageInventory = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
     const debounceTimeout = useRef(null);
 
     useEffect(() => {
@@ -96,6 +99,9 @@ const InventoryItemPage = () => {
     // };
 
     const handleOpenAddQuantity = (item) => {
+        if (!canManageInventory) {
+            return;
+        }
         setSelectedItem(item);
         setFormData({ procurementDecision: '', referenceId: '', quantity: '' });
         setOpenDialog(true);
@@ -168,7 +174,11 @@ const InventoryItemPage = () => {
                                     <TableCell align="center"><b>{item.leadTime || 'N/A'}</b></TableCell>
                                     <TableCell align="center">
                                         <Tooltip title="Add Quantity">
-                                            <IconButton onClick={() => handleOpenAddQuantity(item)} size="small">
+                                            <IconButton
+                                                onClick={() => handleOpenAddQuantity(item)}
+                                                size="small"
+                                                disabled={!canManageInventory}
+                                            >
                                                 <AddBox fontSize="small" sx={{ color: 'green' }}/>
                                             </IconButton>
                                         </Tooltip>
@@ -201,6 +211,7 @@ const InventoryItemPage = () => {
                 setFormData={setFormData}
                 selectedItem={selectedItem}
                 setSelectedItem={setSelectedItem}
+                canManageInventory={canManageInventory}
 
             />
         </Box>

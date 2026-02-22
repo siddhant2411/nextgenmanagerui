@@ -7,7 +7,8 @@ export default function CreateInventoryRequestForm({
     openDialog,
     setOpenDialog,
     selectedItem,
-    setSelectedItem
+    setSelectedItem,
+    canManageInventory = false,
 }) {
     const [formData, setFormData] = React.useState({
         itemID: null,
@@ -21,7 +22,6 @@ export default function CreateInventoryRequestForm({
     const [itemList, setItemList] = useState([]);
     const [loading, setLoading] = React.useState(false);
     const [inputValue, setInputValue] = React.useState('');
-    const [open, setOpen] = React.useState(false);
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -42,6 +42,9 @@ export default function CreateInventoryRequestForm({
 
 
     const handleSubmit = async () => {
+        if (!canManageInventory || !selectedItem?.inventoryItemId) {
+            return;
+        }
         try {
             const params = new URLSearchParams();
             params.append('itemId', selectedItem.inventoryItemId);
@@ -52,7 +55,7 @@ export default function CreateInventoryRequestForm({
             params.append('requestRemarks', formData.requestRemarks);
 
             const res = await apiService.post(`/inventory/requests?${params.toString()}`);
-            console.log('Request created:', res.data);
+            console.log('Request created:', res);
             handleCloseDialog();
         } catch (err) {
             console.error('Error creating request:', err);
@@ -172,7 +175,11 @@ export default function CreateInventoryRequestForm({
             </DialogContent>
             <DialogActions>
                 <Button onClick={handleCloseDialog}>Cancel</Button>
-                <Button onClick={handleSubmit} variant="contained">
+                <Button
+                    onClick={handleSubmit}
+                    variant="contained"
+                    disabled={!canManageInventory}
+                >
                     Create Request
                 </Button>
             </DialogActions>

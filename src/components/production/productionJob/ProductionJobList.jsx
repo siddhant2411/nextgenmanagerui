@@ -10,6 +10,8 @@ import apiService from '../../../services/apiService';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import MuiAlert from '@mui/material/Alert';
+import { useAuth } from '../../../auth/AuthContext';
+import { PRODUCTION_MANAGE_ROLES } from '../../../auth/roles';
 
 const ProductionJobList = () => {
   const [productionJobs, setProductionJobs] = useState([]);
@@ -17,6 +19,8 @@ const ProductionJobList = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, id: null });
   const navigate = useNavigate();
+  const { hasAnyRole } = useAuth();
+  const canManageProductionJobs = hasAnyRole(PRODUCTION_MANAGE_ROLES);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -54,7 +58,11 @@ const ProductionJobList = () => {
         <CardContent>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
             <Typography variant="h5" fontWeight="bold">Production Jobs</Typography>
-            <Button variant="contained" onClick={() => navigate('/production/production-job/add')}>
+            <Button
+              variant="contained"
+              onClick={() => navigate('/production/production-job/add')}
+              disabled={!canManageProductionJobs}
+            >
               + Add Job
             </Button>
           </Box>
@@ -83,10 +91,20 @@ const ProductionJobList = () => {
                       <TableCell>₹{job.costPerHour}</TableCell>
                       <TableCell>{job.description}</TableCell>
                       <TableCell align="center">
-                        <IconButton onClick={() => navigate(`/production/production-job/edit/${job.id}`)} color="primary" size="small">
+                        <IconButton
+                          onClick={() => navigate(`/production/production-job/edit/${job.id}`)}
+                          color="primary"
+                          size="small"
+                          disabled={!canManageProductionJobs}
+                        >
                           <EditIcon fontSize="small" />
                         </IconButton>
-                        <IconButton onClick={() => setConfirmDialog({ open: true, id: job.id })} color="error" size="small">
+                        <IconButton
+                          onClick={() => setConfirmDialog({ open: true, id: job.id })}
+                          color="error"
+                          size="small"
+                          disabled={!canManageProductionJobs}
+                        >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </TableCell>
@@ -120,7 +138,13 @@ const ProductionJobList = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDialog({ open: false, id: null })}>Cancel</Button>
-          <Button onClick={() => { deleteJob(confirmDialog.id); setConfirmDialog({ open: false, id: null }); }} color="error">Delete</Button>
+          <Button
+            onClick={() => { deleteJob(confirmDialog.id); setConfirmDialog({ open: false, id: null }); }}
+            color="error"
+            disabled={!canManageProductionJobs}
+          >
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

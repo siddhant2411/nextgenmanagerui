@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogTitle, TextField, MenuItem, DialogActions, Button } from '@mui/material'
 import React from 'react'
 import apiService from '../../services/apiService';
+import { resolveApiErrorMessage } from '../../services/apiService';
 
 export default function AddItemQtyForm({
     openDialog,
@@ -8,7 +9,8 @@ export default function AddItemQtyForm({
     formData,
     setFormData,
     selectedItem,
-    setSelectedItem
+    setSelectedItem,
+    canManageInventory = false,
 
 }) {
     const handleFormChange = (e) => {
@@ -17,6 +19,9 @@ export default function AddItemQtyForm({
     };
 
     const handleSubmit = async () => {
+        if (!canManageInventory || !selectedItem?.inventoryItemId) {
+            return;
+        }
         const requestData = {
             inventoryItemId: selectedItem.inventoryItemId,
             ...formData
@@ -28,7 +33,7 @@ export default function AddItemQtyForm({
             console.log(res)
             handleCloseDialog()
         } catch (e) {
-            console.log(e)
+            console.log(resolveApiErrorMessage(e, "Failed to add item quantity."))
         }
 
 
@@ -86,7 +91,9 @@ export default function AddItemQtyForm({
             </DialogContent>
             <DialogActions>
                 <Button onClick={handleCloseDialog}>Cancel</Button>
-                <Button onClick={handleSubmit} variant="contained">Add</Button>
+                <Button onClick={handleSubmit} variant="contained" disabled={!canManageInventory}>
+                    Add
+                </Button>
             </DialogActions>
         </Dialog>
     )

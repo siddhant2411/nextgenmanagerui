@@ -1,9 +1,9 @@
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
-import InventoryItem from './components/inventoryitem/InventoryItem';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import { useState } from 'react';
-import { useMediaQuery } from '@mui/material';
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./App.css";
+import { useState } from "react";
+import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
+import { useMediaQuery } from "@mui/material";
+import InventoryItem from "./components/inventoryitem/InventoryItem";
 import Home from "./pages/Home";
 import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -11,16 +11,32 @@ import Sidebar from "./components/ui/sidebar/Sidebar";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
-import WorkOrderPage from './pages/WorkOrderPage';
-import ProductionJobPage from './pages/ProductionJobPage';
-import ItemCodeMappingPage from './pages/ItemCodeMappingPage';
-import SalesOrder from './components/sales/salesorder/SalesOrder';
-import Toolbar from './components/ui/toolbar/Toolbar';
-import ManufacturingPage from './pages/ManufacturingPage';
-import RoutingPage from './pages/RoutingPage';
+import WorkOrderPage from "./pages/WorkOrderPage";
+import ProductionJobPage from "./pages/ProductionJobPage";
+import ItemCodeMappingPage from "./pages/ItemCodeMappingPage";
+import SalesOrder from "./components/sales/salesorder/SalesOrder";
+import Toolbar from "./components/ui/toolbar/Toolbar";
+import ManufacturingPage from "./pages/ManufacturingPage";
+import RoutingPage from "./pages/RoutingPage";
+import LoginPage from "./pages/LoginPage";
+import { AuthProvider } from "./auth/AuthContext";
+import ProtectedRoute from "./auth/ProtectedRoute";
+import PublicOnlyRoute from "./auth/PublicOnlyRoute";
+import RoleProtectedRoute from "./auth/RoleProtectedRoute";
+import {
+    INVENTORY_ACCESS_ROLES,
+    ITEM_CODE_MAPPING_ACCESS_ROLES,
+    PRODUCTION_ACCESS_ROLES,
+    SALES_ACCESS_ROLES,
+    USER_MANAGEMENT_ACCESS_ROLES,
+} from "./auth/roles";
+import UserCreatePage from "./pages/UserCreatePage";
+import RoleManagementPage from "./pages/RoleManagementPage";
+import AccountSettingsPage from "./pages/AccountSettingsPage";
+import AuthStatusSnackbar from "./components/ui/feedback/AuthStatusSnackbar";
 
-function App() {
-    const isSmallScreen = useMediaQuery('(max-width:900px)');
+function AppShell() {
+    const isSmallScreen = useMediaQuery("(max-width:900px)");
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -37,38 +53,213 @@ function App() {
     };
 
     return (
-        <div className='app-class' style={{ fontFamily: 'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"' }}>
-            <Router>
-                <div style={{ display: 'flex' }}>
-                    <Sidebar
-                        isSmallScreen={isSmallScreen}
-                        mobileOpen={mobileSidebarOpen}
-                        onMobileClose={handleCloseSidebar}
-                        collapsed={isSidebarCollapsed}
-                        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+        <div style={{ display: "flex" }}>
+            <Sidebar
+                isSmallScreen={isSmallScreen}
+                mobileOpen={mobileSidebarOpen}
+                onMobileClose={handleCloseSidebar}
+                collapsed={isSidebarCollapsed}
+                onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+            />
+
+            <main style={{ flexGrow: 1 }}>
+                <Toolbar showMenuButton onMenuClick={handleToggleSidebar} />
+                <AuthStatusSnackbar />
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/dashboard" element={<Home />} />
+                    <Route
+                        path="/inventory-item/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={ITEM_CODE_MAPPING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for product master."
+                            >
+                                <InventoryItem />
+                            </RoleProtectedRoute>
+                        }
                     />
-                    <main style={{ flexGrow: 1 }}>
-                        <Toolbar
-                            showMenuButton
-                            onMenuClick={handleToggleSidebar}
+                    <Route
+                        path="/bom/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for BOM."
+                            >
+                                <BomPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/manufacturing/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for manufacturing."
+                            >
+                                <ManufacturingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for inventory."
+                            >
+                                <InventoryPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/contact/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for sales contacts."
+                            >
+                                <Contact />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/enquiry/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for enquiries."
+                            >
+                                <EnquiryPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/quotation/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for quotations."
+                            >
+                                <QuotationPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/work-order/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for work orders."
+                            >
+                                <WorkOrderPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/production-job/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for production jobs."
+                            >
+                                <ProductionJobPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/manufacturing/routing/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for routing."
+                            >
+                                <RoutingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/sales/sales-order/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for sales orders."
+                            >
+                                <SalesOrder />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/config/item-code-mapping/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={ITEM_CODE_MAPPING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for item code mapping."
+                            >
+                                <ItemCodeMappingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/superadmin/users"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={USER_MANAGEMENT_ACCESS_ROLES}
+                                deniedMessage="User management requires admin access."
+                            >
+                                <UserCreatePage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/superadmin/roles"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={USER_MANAGEMENT_ACCESS_ROLES}
+                                deniedMessage="Role management requires admin access."
+                            >
+                                <RoleManagementPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route path="/account/settings" element={<AccountSettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </main>
+        </div>
+    );
+}
+
+function App() {
+    return (
+        <div
+            className="app-class"
+            style={{
+                fontFamily:
+                    'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"',
+            }}
+        >
+            <Router>
+                <AuthProvider>
+                    <Routes>
+                        <Route
+                            path="/login"
+                            element={
+                                <PublicOnlyRoute>
+                                    <LoginPage />
+                                </PublicOnlyRoute>
+                            }
                         />
-                        <Routes>
-                            <Route path="/" element={<Home />} />
-                            <Route path="/inventory-item/*" element={<InventoryItem />} />
-                            <Route path="/bom/*" element={<BomPage />} />
-                            <Route path='/manufacturing/*' element={<ManufacturingPage />} />
-                            <Route path="/inventory/*" element={<InventoryPage />} />
-                            <Route path="/contact/*" element={<Contact />} />
-                            <Route path={'/enquiry/*'} element={<EnquiryPage />} />
-                            <Route path={'/quotation/*'} element={<QuotationPage />} />
-                            <Route path={'/production/work-order/*'} element={<WorkOrderPage />} />
-                            <Route path={'/production/production-job/*'} element={<ProductionJobPage />} />
-                            <Route path={'/manufacturing/routing/*'} element={<RoutingPage />} />
-                            <Route path={'/sales/sales-order/*'} element={<SalesOrder />} />
-                            <Route path={'/config/item-code-mapping/*'} element={<ItemCodeMappingPage />} />
-                        </Routes>
-                    </main>
-                </div>
+                        <Route
+                            path="*"
+                            element={
+                                <ProtectedRoute>
+                                    <AppShell />
+                                </ProtectedRoute>
+                            }
+                        />
+                    </Routes>
+                </AuthProvider>
             </Router>
         </div>
     );

@@ -1,19 +1,35 @@
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 import ProductionJobList from './ProductionJobList';
 import AddProductionJob from './AddProductionJob';
-import apiService from '../../../services/apiService';
+import RoleProtectedRoute from '../../../auth/RoleProtectedRoute';
+import { PRODUCTION_MANAGE_ROLES } from '../../../auth/roles';
 const ProductionJob = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-
-
   return (
     <Routes>
       <Route path="/" element={<ProductionJobList />} />
-      <Route path="/add" element={<AddProductionJob />} />
-       <Route path="/edit/:id" element={<AddProductionJob />} />
+      <Route
+        path="/add"
+        element={
+          <RoleProtectedRoute
+            allowedRoles={PRODUCTION_MANAGE_ROLES}
+            deniedMessage="You are not authorized to create production jobs."
+          >
+            <AddProductionJob />
+          </RoleProtectedRoute>
+        }
+      />
+      <Route
+        path="/edit/:id"
+        element={
+          <RoleProtectedRoute
+            allowedRoles={PRODUCTION_MANAGE_ROLES}
+            deniedMessage="You are not authorized to edit production jobs."
+          >
+            <AddProductionJob />
+          </RoleProtectedRoute>
+        }
+      />
     </Routes>
   );
 };

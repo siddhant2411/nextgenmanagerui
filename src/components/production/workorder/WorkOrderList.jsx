@@ -27,6 +27,8 @@ import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { useNavigate } from "react-router-dom";
 import { getWorkOrderList, getWorkOrderSummary } from "../../../services/workOrderService";
 import FilterBar from "../../ui/filterbar/FilterBar";
+import { useAuth } from "../../../auth/AuthContext";
+import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
 
 dayjs.extend(isSameOrBefore);
 
@@ -169,6 +171,8 @@ const DATE_FIELDS = new Set([
 
 export default function WorkOrderList({ setLoading, loading, setError }) {
   const navigate = useNavigate();
+  const { hasAnyRole } = useAuth();
+  const canManageWorkOrders = hasAnyRole(PRODUCTION_MANAGE_ROLES);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const isNarrowDesktop = useMediaQuery(theme.breakpoints.down("xl"));
@@ -285,7 +289,12 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
   }
 
 
-  const handleEditClick = (id) => navigate(`edit/${id}`);
+  const handleEditClick = (id) => {
+    if (!canManageWorkOrders) {
+      return;
+    }
+    navigate(`edit/${id}`);
+  };
 
   useEffect(() => {
     onPageChange(0)
@@ -497,6 +506,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
               size="small"
               variant="contained"
               onClick={() => navigate("add")}
+              disabled={!canManageWorkOrders}
               sx={{
                 alignSelf: { xs: "stretch", sm: "auto" },
                 textTransform: "none",
@@ -652,6 +662,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                       <Button
                         size="small"
                         onClick={() => handleEditClick(item.id)}
+                        disabled={!canManageWorkOrders}
                       >
                         View
                       </Button>
