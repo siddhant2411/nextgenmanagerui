@@ -103,6 +103,7 @@ const Sidebar = ({
                     icon: <FactoryOutlined />,
                     children: [
                         { text: "Work Orders", path: "/production/work-order" },
+                        { text: "Machine Assets", path: "/production/machine-assets" },
                     ],
                 },
                 {

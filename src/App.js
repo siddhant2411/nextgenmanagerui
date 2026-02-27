@@ -13,6 +13,7 @@ import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
 import WorkOrderPage from "./pages/WorkOrderPage";
 import ProductionJobPage from "./pages/ProductionJobPage";
+import MachineAssetsPage from "./pages/MachineAssetsPage";
 import ItemCodeMappingPage from "./pages/ItemCodeMappingPage";
 import SalesOrder from "./components/sales/salesorder/SalesOrder";
 import Toolbar from "./components/ui/toolbar/Toolbar";
@@ -164,6 +165,17 @@ function AppShell() {
                                 deniedMessage="You are not authorized for production jobs."
                             >
                                 <ProductionJobPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/machine-assets/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for machine assets."
+                            >
+                                <MachineAssetsPage />
                             </RoleProtectedRoute>
                         }
                     />
