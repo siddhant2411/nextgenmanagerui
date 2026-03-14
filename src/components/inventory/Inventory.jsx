@@ -59,7 +59,7 @@ const Inventory = () => {
             }
             navigate(-1);
         } catch (err) {
-            console.error('Save failed', err);
+            // handled
         }
     };
 

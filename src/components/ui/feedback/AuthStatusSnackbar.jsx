@@ -20,7 +20,7 @@ export default function AuthStatusSnackbar() {
     return (
         <Snackbar
             open={open}
-            autoHideDuration={3500}
+            autoHideDuration={6000}
             onClose={() => setOpen(false)}
             anchorOrigin={{ vertical: "top", horizontal: "right" }}
         >

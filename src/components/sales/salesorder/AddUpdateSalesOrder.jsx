@@ -149,7 +149,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
                 // items already included inside values.items
             };
-            console.log(payload)
             onSave(payload)
 
         }
@@ -232,7 +231,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const [taxCategory, setTaxCategory] = useState(null);
 
     useEffect(() => {
-        console.log(formik.values.deliveryAddress)
         if (!initialData?.deliveryAddress && formik.values.contact) {
             formik.setFieldValue("deliveryAddress", convertAddressToString(formik.values.contact?.addresses[0]))
         }
@@ -251,7 +249,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
 
     useEffect(() => {
-        console.log(formik.values.quotation?.gstPercentage)
         if (
             formik.values.quotation?.gstPercentage !== undefined &&
             formik.values.quotation?.gstPercentage !== null &&
@@ -376,7 +373,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             );
             setStatus(newStatus);
         } catch (error) {
-            console.error("Failed to update status:", error);
+            // handled
         }
     };
     const handleConfirm = () => {
@@ -401,7 +398,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                     action={
                         <FormControl fullWidth size="small">
                             <InputLabel id="status-label">Status</InputLabel>
-                            {console.log(status)}
                             <Select
                                 labelId="status-label"
                                 value={status || ""}

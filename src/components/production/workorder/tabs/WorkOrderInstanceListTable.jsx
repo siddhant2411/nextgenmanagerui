@@ -24,8 +24,8 @@ export default function WorkOrderInstanceListTable({ childInventoryInstanceList 
         instances?.filter(i => i.inventoryInstanceStatus === 'AVAILABLE')?.length || 0;
 
     return (
-        <TableContainer component={Paper} sx={{ mt: 3 }}>
-            <Table size="small">
+        <TableContainer component={Paper} sx={{ mt: 3, overflowX: 'auto', width: '100%' }}>
+            <Table size="small" sx={{ minWidth: 700 }}>
                 <TableHead>
                     <TableRow>
                         {['#', '', 'Item Code', 'Required Qty', 'Requested Qty', 'Available Qty', 'Consumed Qty'].map((col, i) => (

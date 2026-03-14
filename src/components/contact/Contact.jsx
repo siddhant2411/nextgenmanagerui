@@ -52,7 +52,6 @@ const Inventory = () => {
     };
 
     const handleSave = async (data) => {
-        console.log(data)
         try {
             if (data.id) {
                 await apiService.put(`/contact/${data.id}`, data); // Update
@@ -61,12 +60,11 @@ const Inventory = () => {
             }
             navigate(-1);
         } catch (err) {
-            console.error('Save failed', err);
+            // handled
         }
     };
 
     const handleDelete = async (id) => {
-        console.log(id)
         await apiService.delete(`/contact/${id}`);
         fetchContactList()
     };

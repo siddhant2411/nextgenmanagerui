@@ -14,11 +14,17 @@ import QuotationPage from "./pages/QuotationPage";
 import WorkOrderPage from "./pages/WorkOrderPage";
 import ProductionJobPage from "./pages/ProductionJobPage";
 import MachineAssetsPage from "./pages/MachineAssetsPage";
+import ShopFloorPage from "./pages/ShopFloorPage";
+import LaborRolePage from "./pages/LaborRolePage";
+import HolidayCalendarPage from "./pages/HolidayCalendarPage";
 import ItemCodeMappingPage from "./pages/ItemCodeMappingPage";
 import SalesOrder from "./components/sales/salesorder/SalesOrder";
 import Toolbar from "./components/ui/toolbar/Toolbar";
 import ManufacturingPage from "./pages/ManufacturingPage";
 import RoutingPage from "./pages/RoutingPage";
+import ProductionSchedulePage from "./pages/ProductionSchedulePage";
+import MakeBuyAnalysisPage from "./pages/MakeBuyAnalysisPage";
+import JobWorkChallanPage from "./pages/JobWorkChallanPage";
 import LoginPage from "./pages/LoginPage";
 import { AuthProvider } from "./auth/AuthContext";
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -39,14 +45,20 @@ import AuthStatusSnackbar from "./components/ui/feedback/AuthStatusSnackbar";
 function AppShell() {
     const isSmallScreen = useMediaQuery("(max-width:900px)");
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
+        () => localStorage.getItem("ngm.sidebar.collapsed") === "true"
+    );
 
     const handleToggleSidebar = () => {
         if (isSmallScreen) {
             setMobileSidebarOpen(true);
             return;
         }
-        setIsSidebarCollapsed((prev) => !prev);
+        setIsSidebarCollapsed((prev) => {
+            const next = !prev;
+            localStorage.setItem("ngm.sidebar.collapsed", next);
+            return next;
+        });
     };
 
     const handleCloseSidebar = () => {
@@ -60,7 +72,11 @@ function AppShell() {
                 mobileOpen={mobileSidebarOpen}
                 onMobileClose={handleCloseSidebar}
                 collapsed={isSidebarCollapsed}
-                onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+                onToggleCollapse={() => setIsSidebarCollapsed((prev) => {
+                    const next = !prev;
+                    localStorage.setItem("ngm.sidebar.collapsed", next);
+                    return next;
+                })}
             />
 
             <main style={{ flexGrow: 1 }}>
@@ -158,6 +174,17 @@ function AppShell() {
                         }
                     />
                     <Route
+                        path="/production/make-or-buy/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for make or buy analysis."
+                            >
+                                <MakeBuyAnalysisPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
                         path="/production/production-job/*"
                         element={
                             <RoleProtectedRoute
@@ -169,6 +196,17 @@ function AppShell() {
                         }
                     />
                     <Route
+                        path="/production/shop-floor/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for the shop floor."
+                            >
+                                <ShopFloorPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
                         path="/production/machine-assets/*"
                         element={
                             <RoleProtectedRoute
@@ -176,6 +214,50 @@ function AppShell() {
                                 deniedMessage="You are not authorized for machine assets."
                             >
                                 <MachineAssetsPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/labor-role/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for labor roles."
+                            >
+                                <LaborRolePage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/schedule/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for production schedules."
+                            >
+                                <ProductionSchedulePage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/calendar/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for holiday calendars."
+                            >
+                                <HolidayCalendarPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/production/job-work-challan/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for job work challans."
+                            >
+                                <JobWorkChallanPage />
                             </RoleProtectedRoute>
                         }
                     />

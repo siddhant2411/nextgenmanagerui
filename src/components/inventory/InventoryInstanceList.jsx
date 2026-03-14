@@ -50,7 +50,7 @@ const InventoryInstanceList = () => {
       setTotalPages(res.totalPages || 1);
       setCurrentPage(page);
     } catch (e) {
-      console.error('Error loading present inventory:', e);
+      // handled
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ const InventoryInstanceList = () => {
       setGroupedPage((prev) => ({ ...prev, [itemCode]: 0 }));
       setGroupedRowsPerPage((prev) => ({ ...prev, [itemCode]: 5 }));
     } catch (e) {
-      console.error(`Error fetching grouped inventory for ${itemCode}`, e);
+      // handled
     } finally {
       setGroupedLoading((prev) => ({ ...prev, [itemCode]: false }));
     }

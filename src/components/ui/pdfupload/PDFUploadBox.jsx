@@ -17,7 +17,6 @@ const PDFUploadBox = ({handleChange,pdfFiles,setPdfFiles}) => {
     const handleFileChange = (e) => {
         const files = Array.from(e.target.files || []);
         const validFiles = files.filter((f) => f.type === "application/pdf");
-        console.log(validFiles)
         const newFiles = validFiles.map((file) => ({
             name: file.name,
             url: URL.createObjectURL(file),

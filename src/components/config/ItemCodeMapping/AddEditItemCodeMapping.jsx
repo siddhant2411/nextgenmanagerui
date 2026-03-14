@@ -34,7 +34,6 @@ const AddEditItemCodeMapping = ({ mapping, onClose, canWrite = false }) => {
       setError("");
       onClose();
     } catch (error) {
-      console.error("Error saving mapping:", error);
       setError(resolveApiErrorMessage(error, "Error saving item code mapping."));
     }
   };

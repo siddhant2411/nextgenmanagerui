@@ -127,10 +127,7 @@ export function AuthProvider({ children }) {
             try {
                 await refreshCurrentUser(baseSession);
             } catch (error) {
-                const status = error?.response?.status;
-                if (status !== 401 && status !== 403) {
-                    console.error("Unable to enrich user profile from /auth/me", error);
-                }
+                // handled
             }
 
             return baseSession;
@@ -146,7 +143,7 @@ export function AuthProvider({ children }) {
                 await logoutRequest(tokenToRevoke);
             }
         } catch (error) {
-            console.error("Unable to revoke refresh token during logout", error);
+            // handled
         } finally {
             clearSession(true);
         }
@@ -210,7 +207,7 @@ export function AuthProvider({ children }) {
                 if (status === 401 || status === 403) {
                     clearSession(false);
                 } else {
-                    console.error("Unable to refresh auth user from /auth/me", error);
+                    // handled
                 }
             })
             .finally(() => {

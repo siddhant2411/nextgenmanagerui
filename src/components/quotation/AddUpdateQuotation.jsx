@@ -86,19 +86,15 @@ const AddUpdateQuotation = ({ onSave }) => {
         }),
         onSubmit: (values) => {
             const updatedValues = { ...values };
-            console.log("INSIDE");
 
             if (values.id === 0) {
 
 
                 delete updatedValues.enqNo;
                 delete updatedValues.id;
-                console.log(updatedValues);
 
             }
 
-
-            console.log(updatedValues)
 
             onSave(updatedValues)
         },
@@ -144,7 +140,6 @@ const AddUpdateQuotation = ({ onSave }) => {
     }, [formik.values.gstPercentage, formik.values.taxableAmount]);
 
     const fetchQuotationDetails = useCallback(async () => {
-        console.log("Enquiry" + quotationId)
         if (!quotationId) return;
 
         try {
@@ -217,7 +212,6 @@ const AddUpdateQuotation = ({ onSave }) => {
             // setSearchQuery('')
             return
         }
-        console.log(index)
         // formik.setFieldValue(`enquiredProducts[${index}].searchQuery`, value);
 
         setLoading(true)
@@ -685,7 +679,6 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                             }
                                                             onChange={(event) => {
                                                                 const { value } = event.target;
-                                                                console.log(value)
                                                                 if (/^\d*\.?\d*$/.test(value)) {
                                                                     formik.handleChange(event);
 
@@ -746,7 +739,6 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                     <TableCell align="center">
                                                         {(() => {
 
-                                                            console.log(formik.values.quotationProducts[index])
                                                             const prod = formik.values.quotationProducts[index];
                                                             const qty = prod.qty || 0;
                                                             // fallback price: inventoryItem.sellingPrice or pricePerUnit

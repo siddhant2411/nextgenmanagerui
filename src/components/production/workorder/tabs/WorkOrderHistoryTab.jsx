@@ -87,8 +87,8 @@ export default function WorkOrderHistoryTab({
       variant="outlined"
       sx={{ borderRadius: 1.5, borderColor: "#e5e9f2", overflow: "hidden" }}
     >
-      <TableContainer>
-        <Table size="small">
+      <TableContainer sx={{ width: '100%', overflowX: 'auto' }}>
+        <Table size="small" sx={{ minWidth: 600 }}>
           <TableHead>
             <TableRow>
               <TableCell>Event</TableCell>

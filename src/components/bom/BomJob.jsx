@@ -21,10 +21,8 @@ export default function BomJob({ formik }) {
         try {
             const res = await searchJobs(query);
             setJobOptions(res || []);
-
-            console.log(res)
         } catch (e) {
-            console.error('Failed to fetch production jobs');
+            // handled
         }
     };
 
@@ -49,7 +47,6 @@ export default function BomJob({ formik }) {
                     option?.jobName ? `${option.jobName} (${option.roleRequired || ''})` : ''
                 }
                 onChange={(e, selectedJob) => {
-                    console.log(selectedJob)
                     if (selectedJob) {
                         const updatedList = [
                             ...(formik.values.productionTemplate?.workOrderJobLists || []),
@@ -91,10 +88,8 @@ export default function BomJob({ formik }) {
                                         size="small"
                                         value={job.numberOfHours}
                                         onChange={(e) => {
-                                            console.log(e.target.value)
                                             const updated = [...formik.values.productionTemplate?.workOrderJobLists];
                                             updated[index].numberOfHours = e.target.value;
-                                            console.log(updated)
                                             formik.setFieldValue('productionTemplate.workOrderJobLists', updated);
                                         }}
                                     />

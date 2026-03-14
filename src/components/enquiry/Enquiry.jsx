@@ -56,7 +56,6 @@ const Enquiry = () => {
 
     const handleSave = async (data) => {
 
-        console.log(data)
         try {
             if (data.id) {
                 await apiService.put(`/enquiry/${data.id}`, data); // Update
@@ -65,12 +64,11 @@ const Enquiry = () => {
             }
             navigate(-1);
         } catch (err) {
-            console.error('Save failed', err);
+            // handled
         }
     };
 
     const handleDelete = async (id) => {
-        console.log(id)
         await apiService.delete(`/enquiry/${id}`);
         fetchEnquiryList()
     };

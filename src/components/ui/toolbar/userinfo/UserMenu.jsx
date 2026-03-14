@@ -10,7 +10,6 @@ import {
     Typography,
 } from "@mui/material";
 import Logout from "@mui/icons-material/Logout";
-import Person from "@mui/icons-material/Person";
 import Settings from "@mui/icons-material/Settings";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../../auth/AuthContext";
@@ -56,7 +55,7 @@ export default function UserMenu() {
                     textTransform: "none",
                 }}
             >
-                <Avatar sx={{ width: 34, height: 34, bgcolor: "#0f5f4d" }}>{avatarLetter}</Avatar>
+                <Avatar sx={{ width: 34, height: 34, bgcolor: "#0f2744" }}>{avatarLetter}</Avatar>
                 <Typography variant="body2" fontWeight={700}>
                     {username}
                 </Typography>
@@ -88,13 +87,6 @@ export default function UserMenu() {
                 </Box>
 
                 <Divider sx={{ my: 0.5 }} />
-
-                <MenuItem disabled>
-                    <ListItemIcon>
-                        <Person fontSize="small" />
-                    </ListItemIcon>
-                    Profile
-                </MenuItem>
 
                 <MenuItem onClick={handleAccountSettings}>
                     <ListItemIcon>

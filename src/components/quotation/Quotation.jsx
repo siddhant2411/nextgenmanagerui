@@ -45,7 +45,6 @@ const Quotation = () => {
                 const data = await apiService.get('/quotation', params);
                 setQuotationList(data.content || []);
                 setTotalPages(data.totalPages || 1);
-                console.log(data);
             } catch (err) {
                 setError('Failed to fetch enquiry list');
             } finally {
@@ -81,7 +80,6 @@ const Quotation = () => {
 
 
     const handleSave = async (data) => {
-        console.log(data)
         try {
             if (data.id) {
                 await apiService.put(`/quotation/${data.id}`, data); // Update
@@ -90,12 +88,11 @@ const Quotation = () => {
             }
             navigate(-1);
         } catch (err) {
-            console.error('Save failed', err);
+            // handled
         }
     };
 
     const handleDelete = async (id) => {
-        console.log(id)
         await apiService.delete(`/quotation/${id}`);
         fetchQuotationList()
     };

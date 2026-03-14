@@ -1,45 +1,51 @@
+/* ============================================
+   BOM - Enterprise Professional Theme
+   ============================================ */
+
 .bom {
-    padding: 1rem; /* Using rem for relative spacing */
+  padding: 1rem;
 }
 
-.search-bar-section{
-    height: 5vh;
-    width: 10vw;
+.search-bar-section {
+  height: auto;
+  min-width: 200px;
 }
 
-.input-group{
-    width: 30vw;
+.input-group {
+  width: 100%;
+  max-width: 400px;
 }
 
-.dropdown-section{
-    width: 30vw;
-    font: .7rem "Helvetica Neue", Helvetica, Arial, sans-serif;
+.dropdown-section {
+  width: 100%;
+  max-width: 400px;
+  font-size: 0.875rem;
 }
-.list-group-item{
-    height: 2.5rem;
+
+.list-group-item {
+  height: 2.5rem;
 }
+
 .my-search-section {
-    width: 30vw;
+  width: 100%;
+  max-width: 400px;
 }
 
 .item-label {
-    flex-shrink: 0; /* Ensure the label doesn't shrink */
-    font-weight:  500;
+  flex-shrink: 0;
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #374151;
 }
 
-.left-input{
-    float: left;
-}
-.right-input{
-    margin-left: 20vw;
-}
 .dropdown-menu {
-    max-height: 200px;
-    overflow-y: auto;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-.dropdown-toggle{
-    width: 80%;
-    height: 2rem;
-    margin-left: 1rem;
+.dropdown-toggle {
+  width: 100%;
+  max-width: 300px;
+  height: 2.25rem;
+  margin-left: 0;
 }

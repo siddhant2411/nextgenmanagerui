@@ -8,11 +8,11 @@ export default function WorkOrderBomItems({ formik }) {
 
   const jobLists = formik.values?.workOrderJobLists || [];
   return (
-    
+
     <>
       <Typography variant="h6" gutterBottom>Required Items</Typography>
-      <TableContainer component={Paper}>
-        <Table size="small">
+      <TableContainer component={Paper} sx={{ overflowX: 'auto', width: '100%' }}>
+        <Table size="small" sx={{ minWidth: 500 }}>
           <TableHead>
             <TableRow>
               {['#', 'Item Code', 'Required Qty', 'Available Qty'].map((col, i) => (
@@ -43,21 +43,21 @@ export default function WorkOrderBomItems({ formik }) {
       {jobLists.length > 0 && (
         <>
           <Typography variant="h6" gutterBottom sx={{ mt: 4 }}>Operations</Typography>
-          <TableContainer component={Paper}>
-            <Table size="small">
+          <TableContainer component={Paper} sx={{ overflowX: 'auto', width: '100%' }}>
+            <Table size="small" sx={{ minWidth: 400 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell  align="center">#</TableCell>
-                  <TableCell  align="center">Job Name</TableCell>
+                  <TableCell align="center">#</TableCell>
+                  <TableCell align="center">Job Name</TableCell>
                   <TableCell align="center">Estimated Hours</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {jobLists.map((job, index) => (
                   <TableRow key={index}>
-                    <TableCell  align="center">{index + 1}</TableCell>
-                    <TableCell  align="center">{job.productionJob?.jobName || 'N/A'}</TableCell>
-                    <TableCell align="center">{job.numberOfHours* quantity}</TableCell>
+                    <TableCell align="center">{index + 1}</TableCell>
+                    <TableCell align="center">{job.productionJob?.jobName || 'N/A'}</TableCell>
+                    <TableCell align="center">{job.numberOfHours * quantity}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

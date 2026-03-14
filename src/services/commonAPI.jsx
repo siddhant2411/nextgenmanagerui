@@ -15,7 +15,6 @@ export const searchContacts = async (search='') => {
         const response = await apiClient.get('/contact',params);
         return response.content;
     } catch (error) {
-        console.error('Error fetching contacts:', error);
         throw error;
     }
 };
@@ -32,7 +31,6 @@ export const inventoryItemSearch = async (search='') => {
         const response = await apiClient.get('/inventory_item/search',params);
         return response.content;
     } catch (error) {
-        console.error('Error fetching contacts:', error);
         throw error;
     }
 };
@@ -49,7 +47,6 @@ export const searchEnquiry = async (search='') => {
         const response = await apiService.get('/enquiry', params);
         return response.content;
     } catch (error) {
-        console.error('Error fetching Enquiry:', error);
         throw error;
     }
 };
@@ -67,7 +64,6 @@ export const searchQuotations = async (search='') => {
         const response = await apiClient.get('/quotation',params);
         return response.content;
     } catch (error) {
-        console.error('Error fetching contacts:', error);
         throw error;
     }
 };
@@ -85,7 +81,31 @@ export const searchJobs = async (search='') => {
         const response = await apiClient.get('/production/production-job',params);
         return response.content;
     } catch (error) {
-        console.error('Error fetching contacts:', error);
+        throw error;
+    }
+};
+
+export const searchLaborRoles = async (search='') => {
+    try {
+        const params = {
+            page: 0,
+            size: 100,
+            sortBy: "roleName",
+            sortDir: "asc",
+            search: search,
+        };
+        const response = await apiClient.get('/production/labor-role', params);
+        return response.content;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const searchMachines = async (search='') => {
+    try {
+        const response = await apiClient.get('/machine-details');
+        return response;
+    } catch (error) {
         throw error;
     }
 };

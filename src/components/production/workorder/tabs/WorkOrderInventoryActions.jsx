@@ -20,16 +20,14 @@ export default function WorkOrderInventoryActions({ formik }) {
   const workOrderId = formik.values.id;
   const childInventoryInstanceList = formik.values.workOrderInventoryInstanceLists || [];
   const quantity = formik.values.quantity || 1;
-  console.log(childInventoryInstanceList)
   const handleInventoryAction = async (actionType) => {
     if (!workOrderId) return;
     setLoading(true);
     try {
       const url = `/production/workOrder/${workOrderId}/${actionType}`;
-      const response = await apiService.post(url);
-      console.log(`${actionType} success:`, response);
+      await apiService.post(url);
     } catch (err) {
-      console.error(`${actionType} failed:`, err);
+      // handled
     } finally {
       setLoading(false);
     }

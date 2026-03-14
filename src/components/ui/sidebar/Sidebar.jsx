@@ -41,9 +41,9 @@ const COLLAPSED_WIDTH = 72;
 const Sidebar = ({
     isSmallScreen = false,
     mobileOpen = false,
-    onMobileClose = () => {},
+    onMobileClose = () => { },
     collapsed = false,
-    onToggleCollapse = () => {},
+    onToggleCollapse = () => { },
 }) => {
     const location = useLocation();
     const navigate = useNavigate();
@@ -67,10 +67,11 @@ const Sidebar = ({
         "& .MuiDrawer-paper": {
             width: drawerWidth,
             boxSizing: "border-box",
-            background: "#00162cff",
-            color: "#fff",
+            background: "#0f172a",
+            color: "#f8fafc",
             overflowX: "hidden",
-            transition: "width 180ms ease",
+            transition: "width 240ms cubic-bezier(0.4, 0, 0.2, 1)",
+            borderRight: "1px solid rgba(255, 255, 255, 0.05)",
         },
     };
 
@@ -102,7 +103,11 @@ const Sidebar = ({
                     text: "Production",
                     icon: <FactoryOutlined />,
                     children: [
+                        { text: "Schedule Views", path: "/production/schedule" },
+                        { text: "Shop Floor", path: "/production/shop-floor" },
                         { text: "Work Orders", path: "/production/work-order" },
+                        { text: "Job Work Challan", path: "/production/job-work-challan" },
+                        { text: "Make or Buy", path: "/production/make-or-buy" },
                         { text: "Machine Assets", path: "/production/machine-assets" },
                     ],
                 },
@@ -113,6 +118,8 @@ const Sidebar = ({
                         { text: "Work Center", path: "/manufacturing/work-center" },
                         { text: "Routing", path: "/manufacturing/routing" },
                         { text: "Production Job", path: "/production/production-job" },
+                        { text: "Labor Roles", path: "/production/labor-role" },
+                        { text: "Holiday Calendar", path: "/production/calendar" },
                     ],
                 },
             ]
@@ -120,9 +127,9 @@ const Sidebar = ({
         ...(canAccessSales
             ? [
                 {
-                    text: "Sells",
+                    text: "Sales",
                     icon: <SellOutlined />,
-                    children: [{ text: "Sells Orders", path: "/sales/sales-order" }],
+                    children: [{ text: "Sales Orders", path: "/sales/sales-order" }],
                 },
                 { text: "Company", icon: <Contact />, path: "/contact" },
                 { text: "Enquiry", icon: <RequestQuote />, path: "/enquiry" },
@@ -162,9 +169,9 @@ const Sidebar = ({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    p: 1.25,
-                    borderBottom: "1px solid rgba(44, 73, 110, 0.5)",
-                    minHeight: 56,
+                    p: 2,
+                    borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+                    minHeight: 64,
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
@@ -193,20 +200,47 @@ const Sidebar = ({
                         <ListItemButton
                             onClick={() => (item.children ? toggleSubMenu(item.text) : handleNavigate(item.path))}
                             sx={{
-                                "&:hover": { backgroundColor: "#53535f8e" },
-                                backgroundColor: isActive ? "rgba(255,255,255,0.12)" : "transparent",
+                                m: "4px 12px",
+                                borderRadius: 1.5,
+                                transition: "all 0.2s ease-in-out",
+                                backgroundColor: isActive ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                                color: isActive ? "#ffffff" : "#94a3b8",
+                                "&:hover": { 
+                                    backgroundColor: isActive ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                                    color: "#ffffff"
+                                },
                                 justifyContent: showText ? "flex-start" : "center",
                                 px: showText ? 2 : 1,
+                                position: "relative",
+                                ...(isActive && {
+                                    "&::before": {
+                                        content: '""',
+                                        position: "absolute",
+                                        left: -12,
+                                        top: '15%',
+                                        height: '70%',
+                                        width: 4,
+                                        backgroundColor: "#3b82f6",
+                                        borderRadius: "0 4px 4px 0",
+                                    }
+                                })
                             }}
                         >
-                            <ListItemIcon sx={{ color: "#fff", minWidth: showText ? 36 : 24 }}>{item.icon}</ListItemIcon>
+                            <ListItemIcon sx={{ 
+                                color: "inherit", 
+                                minWidth: showText ? 36 : 24,
+                                "& svg": { fontSize: 20, transition: "color 0.2s ease-in-out" }
+                             }}>
+                                {item.icon}
+                            </ListItemIcon>
                             {showText && (
                                 <ListItemText
                                     primary={item.text}
-                                    slotProps={{ primary: { fontSize: "0.875rem", color: "#fff" } }}
+                                    sx={{ my: 0 }}
+                                    slotProps={{ primary: { fontSize: "0.875rem", fontWeight: isActive ? 600 : 500, color: "inherit", letterSpacing: 0.2 } }}
                                 />
                             )}
-                            {item.children && showText && (openSubMenus[item.text] ? <ExpandLess /> : <ExpandMore />)}
+                            {item.children && showText && (openSubMenus[item.text] ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />)}
                         </ListItemButton>
                     );
 
@@ -224,15 +258,23 @@ const Sidebar = ({
                                                 key={childIndex}
                                                 onClick={() => handleNavigate(child.path)}
                                                 sx={{
-                                                    pl: 4,
-                                                    "&:hover": { backgroundColor: "#53535f8e" },
-                                                    backgroundColor: location.pathname === child.path ? "rgba(255,255,255,0.12)" : "transparent",
+                                                    m: "2px 12px 2px 32px",
+                                                    borderRadius: 1.5,
+                                                    transition: "all 0.2s ease",
+                                                    backgroundColor: location.pathname === child.path ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                                                    color: location.pathname === child.path ? "#ffffff" : "#94a3b8",
+                                                    "&:hover": { 
+                                                        backgroundColor: location.pathname === child.path ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                                                        color: "#ffffff"
+                                                    },
+                                                    px: 2,
+                                                    py: 0.75
                                                 }}
                                             >
                                                 <ListItemText
                                                     primary={child.text}
-                                                    sx={{ color: "#fff" }}
-                                                    slotProps={{ primary: { fontSize: "0.875rem", color: "#fff" } }}
+                                                    sx={{ my: 0 }}
+                                                    slotProps={{ primary: { fontSize: "0.8125rem", fontWeight: location.pathname === child.path ? 600 : 500, color: "inherit" } }}
                                                 />
                                             </ListItemButton>
                                         ))}

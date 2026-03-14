@@ -68,15 +68,12 @@ const AddOrUpdateContact = ({onSave }) => {
     });
 
     const fetchContactDetails = useCallback(async () => {
-        console.log(contactId)
         if (!contactId) return;
 
         try {
-            console.log("contactId")
             setLoading(true);
             const data = await apiService.get(`/contact/${contactId}`);
             setInitialData(data)
-            console.log(data)
         } catch (err) {
             setError("Failed to fetch BOM details");
         } finally {
