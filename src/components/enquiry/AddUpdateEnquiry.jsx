@@ -297,7 +297,6 @@ const AddUpdateEnquiry = ({ onSave }) => {
                     if (reason === 'input') {
                       formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, val);
                       handleSearchProducts(val);
-                      console.log('User typed:', val);
                     }
                   }}
                   onChange={(e, val) => {

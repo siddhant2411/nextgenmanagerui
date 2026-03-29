@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box, Button, DialogTitle, DialogContent, DialogActions,
+  Alert, Box, Button, DialogTitle, DialogContent, DialogActions,
   FormControl, InputLabel, Select, MenuItem, TextField
 } from '@mui/material';
 import apiService from '../../../services/apiService';
+import { resolveApiErrorMessage } from '../../../services/apiService';
 
-const AddEditItemCodeMapping = ({ mapping, onClose }) => {
+const AddEditItemCodeMapping = ({ mapping, onClose, canWrite = false }) => {
   const [formData, setFormData] = useState({ category: '', keyword: '', code: '' });
+  const [error, setError] = useState("");
 
   const categoryOptions = ['PRODUCT_TYPE', 'MODEL_CODE', 'GROUP'];
 
@@ -20,15 +22,19 @@ const AddEditItemCodeMapping = ({ mapping, onClose }) => {
   };
 
   const handleSubmit = async () => {
+    if (!canWrite) {
+      return;
+    }
     try {
       if (mapping) {
         await apiService.put(`/item-code-mapping/${mapping.id}`, formData);
       } else {
         await apiService.post('/item-code-mapping', formData);
       }
+      setError("");
       onClose();
     } catch (error) {
-      console.error("Error saving mapping:", error);
+      setError(resolveApiErrorMessage(error, "Error saving item code mapping."));
     }
   };
 
@@ -36,10 +42,27 @@ const AddEditItemCodeMapping = ({ mapping, onClose }) => {
     <>
       <DialogTitle>{mapping ? 'Edit' : 'Add'} Item Code Mapping</DialogTitle>
       <DialogContent>
+        {!canWrite ? (
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            You are not authorized to modify item code mappings.
+          </Alert>
+        ) : null}
+        {error ? (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {error}
+          </Alert>
+        ) : null}
         <Box mt={1} display="flex" flexDirection="column" gap={2}>
           <FormControl fullWidth size="small">
             <InputLabel>Category</InputLabel>
-            <Select name="category" value={formData.category} onChange={handleChange} label="Category" required>
+            <Select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              label="Category"
+              required
+              disabled={!canWrite}
+            >
               {categoryOptions.map(option => (
                 <MenuItem key={option} value={option}>{option}</MenuItem>
               ))}
@@ -54,6 +77,7 @@ const AddEditItemCodeMapping = ({ mapping, onClose }) => {
             fullWidth
             size="small"
             required
+            disabled={!canWrite}
           />
 
           <TextField
@@ -64,12 +88,15 @@ const AddEditItemCodeMapping = ({ mapping, onClose }) => {
             fullWidth
             size="small"
             required
+            disabled={!canWrite}
           />
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained">{mapping ? 'Update' : 'Add'}</Button>
+        <Button onClick={handleSubmit} variant="contained" disabled={!canWrite}>
+          {mapping ? 'Update' : 'Add'}
+        </Button>
       </DialogActions>
     </>
   );

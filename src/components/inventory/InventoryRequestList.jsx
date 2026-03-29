@@ -17,11 +17,13 @@ import {
   MenuItem
 } from '@mui/material';
 import { Search, CheckCircle } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/apiService';
 import { format } from 'date-fns';
 import { Snackbar, Alert } from '@mui/material';
 import CreateInventoryRequestForm from './CreateInventoryRequestForm';
+import { useAuth } from '../../auth/AuthContext';
+import { ACTION_KEYS } from '../../auth/roles';
+import { resolveApiErrorMessage } from '../../services/apiService';
 const InventoryRequestList = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,8 @@ const InventoryRequestList = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const debounceTimeout = useRef(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const navigate = useNavigate();
+  const { canAction } = useAuth();
+  const canManageInventory = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
 
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -71,8 +74,7 @@ const InventoryRequestList = () => {
       setRequests(res.content || []);
       setTotalRequests(res.totalElements || 0);
     } catch (err) {
-      console.error('Failed to fetch grouped requests:', err);
-      showSnackbar('Failed to load requests. Please try again later.', 'error');
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to load requests. Please try again later.'), 'error');
     } finally {
       setLoading(false);
     }
@@ -107,6 +109,7 @@ const InventoryRequestList = () => {
   };
 
   const handleApprove = async (id) => {
+    if (!canManageInventory) return;
     try {
       const approvedBy = 'managerUser';
       const approvalRemarks = 'Approved by manager';
@@ -118,12 +121,12 @@ const InventoryRequestList = () => {
       showSnackbar('Request approved successfully!', 'success');
       fetchRequests();
     } catch (err) {
-      console.error('Failed to approve request:', err);
-      showSnackbar(err.response.data, 'error');
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to approve request.'), 'error');
     }
   };
 
   const handleReject = async (id) => {
+    if (!canManageInventory) return;
     try {
       const approvedBy = 'managerUser';
       const approvalRemarks = 'Rejected by manager';
@@ -135,8 +138,7 @@ const InventoryRequestList = () => {
       showSnackbar('Request rejected successfully!', 'info');
       fetchRequests();
     } catch (err) {
-      console.error('Failed to reject request:', err);
-      showSnackbar('Failed to reject the request. Please try again.', 'error');
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to reject the request. Please try again.'), 'error');
     }
   };
   const statusColor = (status) => {
@@ -226,7 +228,13 @@ const InventoryRequestList = () => {
           <MenuItem value="REJECTED">Rejected</MenuItem>
         </TextField>
 
-        <Button variant="contained" onClick={() => setOpenDialog(true)}>Create Request</Button>
+        <Button
+          variant="contained"
+          onClick={() => setOpenDialog(true)}
+          disabled={!canManageInventory}
+        >
+          Create Request
+        </Button>
       </Box>
 
 
@@ -280,6 +288,7 @@ const InventoryRequestList = () => {
                             size="small"
                             color="success"
                             onClick={() => handleApprove(req.id)}
+                            disabled={!canManageInventory}
                           >
                             <CheckCircle />
                           </IconButton>
@@ -289,6 +298,7 @@ const InventoryRequestList = () => {
                             size="small"
                             color="error"
                             onClick={() => handleReject(req.id)}
+                            disabled={!canManageInventory}
                           >
                             ✖️
                           </IconButton>
@@ -327,6 +337,7 @@ const InventoryRequestList = () => {
         setOpenDialog={setOpenDialog}
         selectedItem={selectedItem}
         setSelectedItem={setSelectedItem}
+        canManageInventory={canManageInventory}
       />
     </Box>
   );

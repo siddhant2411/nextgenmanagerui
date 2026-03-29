@@ -7,7 +7,7 @@ import SalesOrderSummary from './SalesOrderSummary';      // see below
 import { useFormik } from 'formik';
 import { useEffect, useRef, useState } from 'react';
 import * as Yup from 'yup';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { searchContacts, searchQuotations } from '../../../services/commonAPI';
 import apiService from '../../../services/apiService';
 import TaxAndDiscountCard from './TaxAndDiscountCard';
@@ -41,6 +41,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const customerDebounce = useRef();
     const quotationDebounce = useRef();
     const { orderId } = useParams();
+    const location = useLocation();
 
     const currencyMapping = {
         INR: "₹",
@@ -56,6 +57,17 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     useEffect(() => {
         if (orderId) fetchSalesOrderDetails(orderId);
     }, [orderId]);
+
+    useEffect(() => {
+        const prefillQuotationId = location.state?.prefillQuotationId;
+        if (!prefillQuotationId || orderId) return;
+        apiService.get(`/quotation/${prefillQuotationId}`).then((quotation) => {
+            formik.setFieldValue('quotation', quotation);
+            if (quotation?.enquiry?.contact) {
+                formik.setFieldValue('contact', quotation.enquiry.contact);
+            }
+        });
+    }, []);
 
 
     const fetchSalesOrderDetails = async (id) => {
@@ -114,6 +126,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             deliveryDate: initialData?.deliveryDate || '',
             packagingInstructions: initialData?.packagingInstructions || '',
             shippingMethod: initialData?.shippingMethod || '',
+            ewayBillNumber: initialData?.ewayBillNumber || '',
             poNumber: initialData?.poNumber || '',
             poDate: initialData?.poDate || '',
             reference: initialData?.reference || '',
@@ -149,7 +162,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
                 // items already included inside values.items
             };
-            console.log(payload)
             onSave(payload)
 
         }
@@ -232,7 +244,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const [taxCategory, setTaxCategory] = useState(null);
 
     useEffect(() => {
-        console.log(formik.values.deliveryAddress)
         if (!initialData?.deliveryAddress && formik.values.contact) {
             formik.setFieldValue("deliveryAddress", convertAddressToString(formik.values.contact?.addresses[0]))
         }
@@ -251,7 +262,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
 
     useEffect(() => {
-        console.log(formik.values.quotation?.gstPercentage)
         if (
             formik.values.quotation?.gstPercentage !== undefined &&
             formik.values.quotation?.gstPercentage !== null &&
@@ -376,7 +386,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             );
             setStatus(newStatus);
         } catch (error) {
-            console.error("Failed to update status:", error);
+            // handled
         }
     };
     const handleConfirm = () => {
@@ -401,7 +411,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                     action={
                         <FormControl fullWidth size="small">
                             <InputLabel id="status-label">Status</InputLabel>
-                            {console.log(status)}
                             <Select
                                 labelId="status-label"
                                 value={status || ""}
@@ -592,9 +601,10 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                         </Grid>
                         <Grid item xs={3}><TextField name="dispatchThrough" label="Dispatch Through" value={formik.values.dispatchThrough} onChange={formik.handleChange} fullWidth size="small" /></Grid>
                         <Grid item xs={3}><TextField name="transportMode" label="Transport Mode" value={formik.values.transportMode} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        {/* ... more logistics fields (deliveryDate, packaging, shipping) */}
                         <Grid item xs={2}><TextField name="deliveryDate" label="Delivery Date" type="date" InputLabelProps={{ shrink: true }} value={formik.values.deliveryDate || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
                         <Grid item xs={2}><TextField name="packagingInstructions" label="Packaging Instructions" value={formik.values.packagingInstructions || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
+                        <Grid item xs={2}><TextField name="shippingMethod" label="Shipping Method" value={formik.values.shippingMethod || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
+                        <Grid item xs={2}><TextField name="ewayBillNumber" label="E-Way Bill No." value={formik.values.ewayBillNumber || ''} onChange={formik.handleChange} fullWidth size="small" helperText="Required for goods > ₹50,000" /></Grid>
 
                         <Grid item xs={2}><TextField name="reference" label="Reference" value={formik.values.reference || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
                         <Grid item xs={2}><TextField name="remarks" label="Remarks" value={formik.values.remarks || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
@@ -605,11 +615,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
 
             <Dialog open={openInventoryConsumeDialog} onClose={handleCancel}>
-                <DialogTitle>Confirm Status Change</DialogTitle>
+                <DialogTitle>Approve Sales Order</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Required items will be requested from inventory.
-                        Do you want to continue changing status to <b>Approved</b>?
+                        Approving this order will reserve the listed items in inventory.
+                        Do you want to proceed?
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions>
@@ -617,7 +627,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                         Cancel
                     </Button>
                     <Button onClick={handleConfirm} color="primary" variant="contained">
-                        Confirm
+                        Reserve Inventory &amp; Approve
                     </Button>
                 </DialogActions>
             </Dialog>

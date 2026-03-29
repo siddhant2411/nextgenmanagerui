@@ -1,10 +1,13 @@
-.inventory-item {
-  padding: 2rem;
-  background-color: #ffffff; /* <-- Ensure white background */
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-}
+/* ============================================
+   Inventory Item - Enterprise Professional Theme
+   ============================================ */
 
+.inventory-item {
+  padding: 1.5rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
 
 /* --- Buttons --- */
 .add-item-btn,
@@ -12,20 +15,21 @@
 .submit-btn {
   height: 36px;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   padding: 0 16px;
   border-radius: 6px;
   text-transform: none;
+  letter-spacing: 0.2px;
 }
 
 .add-item-btn {
   float: right;
-  margin: 0 1vw 3vh auto;
+  margin: 0 1rem 1.5rem auto;
 }
 
 .assign-button {
   margin-left: 10px;
-  background-color: #1976d2;
+  background-color: #1565c0;
   color: white;
   border: none;
 }
@@ -35,12 +39,21 @@
 .form-container select,
 .item-input {
   height: 2.5rem;
-  border: 1px solid #d1d1d1;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
   padding: 0 12px;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   box-sizing: border-box;
   width: 100%;
+  transition: border-color 0.2s ease;
+}
+
+.form-container input:focus,
+.form-container select:focus,
+.item-input:focus {
+  border-color: #1565c0;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.1);
 }
 
 .input-label {
@@ -48,8 +61,8 @@
   top: 50%;
   left: 12px;
   transform: translateY(-50%);
-  font-size: 14px;
-  color: #888;
+  font-size: 13px;
+  color: #6b7280;
   transition: all 0.2s ease;
   background: #fff;
   pointer-events: none;
@@ -60,40 +73,41 @@
 .item-input:not(:placeholder-shown) ~ .input-label {
   top: -10px;
   left: 10px;
-  font-size: 12px;
-  color: #333;
+  font-size: 11px;
+  color: #1565c0;
 }
 
 /* --- Section Styling --- */
 .section-heading {
-  background-color: rgba(25, 118, 210, 0.1);
-  padding: 10px 15px;
+  background-color: rgba(21, 101, 192, 0.06);
+  padding: 10px 16px;
   font-weight: 600;
-  font-size: 1rem;
-  margin-bottom: 10px;
-  border-left: 4px solid #1976d2;
+  font-size: 0.875rem;
+  margin-bottom: 12px;
+  border-left: 3px solid #1565c0;
+  border-radius: 0 4px 4px 0;
+  color: #1a1a2e;
 }
 
-/* Also update basic-item-details background */
 .basic-item-details {
-  background-color: #ffffff; /* <-- White background */
-  border: 1px solid #e0e0e0;
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
   padding: 20px;
   border-radius: 8px;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
 }
 
 /* --- Layout Helpers --- */
 .basic-info-input {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .basic-info-input-1,
 .basic-info-input-2 {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   flex-wrap: wrap;
 }
 
@@ -105,31 +119,37 @@
 
 /* --- Attachment Section --- */
 .attachment-box {
-  border: 1px solid #ccc;
-  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 14px;
   border-radius: 6px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #f9f9f9;
+  background: #fafbfc;
+  transition: background 0.15s ease;
+}
+
+.attachment-box:hover {
+  background: #f0f4f8;
 }
 
 .file-link {
-  color: #1976d2;
+  color: #1565c0;
   font-weight: 500;
   cursor: pointer;
+  font-size: 0.875rem;
 }
 
 .file-link:hover {
-  color: #125ea5;
+  color: #0d47a1;
   text-decoration: underline;
 }
 
 /* --- Search Bar --- */
 .search-bar-section {
   width: 60%;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .inventory-item-table-cell {
@@ -137,7 +157,7 @@
   min-width: 100px;
 }
 
-/* --- Responsive Table Adjustments --- */
+/* --- Responsive --- */
 @media (max-width: 768px) {
   .inventory-item-table-cell {
     width: 100%;

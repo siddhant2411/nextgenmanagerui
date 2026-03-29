@@ -18,7 +18,9 @@ import {
 } from "@mui/material";
 import { Search } from "@mui/icons-material";
 import InputAdornment from "@mui/material/InputAdornment";
-import apiService from "../../services/apiService";
+import apiService, { resolveApiErrorMessage } from "../../services/apiService";
+import { useAuth } from "../../auth/AuthContext";
+import { ACTION_KEYS } from "../../auth/roles";
 
 const ProcurementOrdersTabContent = () => {
     const [orders, setOrders] = useState([]);
@@ -37,6 +39,8 @@ const ProcurementOrdersTabContent = () => {
     // Snackbar
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
     const debounceTimeout = useRef(null);
+    const { canAction } = useAuth();
+    const canManageProcurement = canAction(ACTION_KEYS.INVENTORY_PROCUREMENT_WRITE);
 
     const showSnackbar = (message, severity = "success") => {
         setSnackbar({ open: true, message, severity });
@@ -60,8 +64,7 @@ const ProcurementOrdersTabContent = () => {
             setOrders(res.content || []);
             setTotalElements(res.totalElements || 0);
         } catch (err) {
-            console.error("Failed to load procurement orders:", err);
-            showSnackbar("Failed to load procurement orders", "error");
+            showSnackbar(resolveApiErrorMessage(err, "Failed to load procurement orders"), "error");
         } finally {
             setLoading(false);
         }
@@ -88,6 +91,9 @@ const ProcurementOrdersTabContent = () => {
     }, [page, rowsPerPage]);
 
     const handleComplete = async (id) => {
+        if (!canManageProcurement) {
+            return;
+        }
         try {
             const completedBy = "managerUser"; // replace with logged in user
             await apiService.put(`/inventory/inventory-procurement-orders/${id}/complete`, null, {
@@ -96,8 +102,7 @@ const ProcurementOrdersTabContent = () => {
             showSnackbar("Procurement order marked as completed!", "success");
             fetchOrders();
         } catch (err) {
-            console.error("Failed to complete order:", err);
-            showSnackbar("Failed to complete order", "error");
+            showSnackbar(resolveApiErrorMessage(err, "Failed to complete order"), "error");
         }
     };
 
@@ -211,12 +216,13 @@ const ProcurementOrdersTabContent = () => {
                                             {order.creationDate ? new Date(order.creationDate).toLocaleDateString() : ""}
                                         </TableCell>
                                         <TableCell align="center">
-                                            {order.status === "IN_PROGRESS" || order.status ==="CREATED" && (
+                                            {(order.status === "IN_PROGRESS" || order.status === "CREATED") && (
                                                 <Button
                                                     variant="contained"
                                                     size="small"
                                                     color="success"
                                                     onClick={() => handleComplete(order.id)}
+                                                    disabled={!canManageProcurement}
                                                 >
                                                     Complete
                                                 </Button>

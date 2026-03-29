@@ -1,23 +1,37 @@
 import React from 'react';
 import {
-    Box,
-    Paper,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    TextField,
-    Typography,
-    Table, MenuItem, Select, FormControl, InputLabel,
-    Pagination
+    Box, Paper, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    TextField, Typography, Table, MenuItem, Select, FormControl, InputLabel,
+    Pagination, Button
 } from '@mui/material';
-import {Button} from "react-bootstrap";
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+
+const HEADER_BG = '#0f2744';
+const BORDER_COLOR = '#e5e7eb';
+const ROW_HOVER = '#e3f2fd';
+
+const headerCellSx = {
+    background: HEADER_BG,
+    color: '#e8edf3',
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    letterSpacing: 0.3,
+    py: 1.25,
+    whiteSpace: 'nowrap',
+    borderBottom: '2px solid rgba(255,255,255,0.15)',
+    cursor: 'pointer',
+};
+
+const filterCellSx = {
+    py: 0.75,
+    bgcolor: '#fafbfc',
+    borderBottom: `1px solid ${BORDER_COLOR}`,
+};
 
 const InventoryList = ({
-                           inventoryList, setSortBy, setSortDir, filters, handleSort, onFilterChange,
-                           handleAdd, currentPage, totalPages, handlePageChange
-                       }) => {
+    inventoryList, setSortBy, setSortDir, filters, handleSort, onFilterChange,
+    handleAdd, currentPage, totalPages, handlePageChange
+}) => {
     const columnMapping = {
         itemCode: 'Item Code',
         name: 'Item Name',
@@ -28,42 +42,56 @@ const InventoryList = ({
         averageCost: 'Average Cost/Unit',
     };
 
-    const columns = Object.keys(columnMapping); // Extract column keys dynamically
-
-    const handleFilterChange = (key, value) => {
-        onFilterChange(key, value);
-    };
-
-    const itemTypeOptions = ["RAW_MATERIAL", "ASSEMBLY", "FINISHED_GOOD"];
-    const uomOptions = ['NOS', 'KG', 'METER', 'INCH'];
+    const columns = Object.keys(columnMapping);
+    const itemTypeOptions = ["RAW_MATERIAL", "SEMI_FINISHED", "FINISHED_GOOD", "SUB_CONTRACTED", "CONSUMABLE"];
+    const uomOptions = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 'LITER', 'SET'];
 
     return (
-        <Box sx={{ width: '100%', mt: 3 }}>
-            <Typography variant="h4" sx={{ mb: 2, textAlign: 'center', fontWeight: 'bold' }}>
-                Inventory Products
-            </Typography>
-            <Button variant="primary" color="primary" onClick={handleAdd} sx={{ mb: 2 }} style={{"float": "right","marginBottom":"2rem"}}>
-                Add Product
-            </Button>
-            <Paper sx={{ width: '100%', overflow: 'hidden', boxShadow: 3 }}>
-                <TableContainer>
-                    <Table sx={{ minWidth: 750 }} aria-labelledby="tableTitle">
+        <Box sx={{ width: '100%', p: { xs: 1.5, sm: 2, md: 3 } }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: { xs: 1.5, sm: 2, md: 2.5 },
+                    borderRadius: 2,
+                    border: `1px solid ${BORDER_COLOR}`,
+                }}
+            >
+                {/* Header */}
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexDirection={{ xs: 'column', sm: 'row' }} gap={1}>
+                    <Box>
+                        <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.2rem', md: '1.4rem' } }}>
+                            Inventory Products
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                            View and filter inventory product records
+                        </Typography>
+                    </Box>
+                    <Button
+                        variant="contained"
+                        onClick={handleAdd}
+                        startIcon={<AddCircleOutlineIcon />}
+                        sx={{
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            borderRadius: 1.5,
+                            px: 2.5,
+                            bgcolor: '#1565c0',
+                            boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
+                            '&:hover': { bgcolor: '#0d47a1' },
+                        }}
+                    >
+                        Add Product
+                    </Button>
+                </Box>
+
+                {/* Table */}
+                <TableContainer sx={{ borderRadius: 1.5, border: `1px solid ${BORDER_COLOR}`, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+                    <Table sx={{ minWidth: 750 }} size="small" stickyHeader>
+                        {/* Column Headers */}
                         <TableHead>
                             <TableRow>
-                                {columns.map((column, index) => (
-                                    <TableCell
-                                        key={index}
-                                        align="center"
-                                        sx={{
-                                            fontWeight: 'bold',
-                                            backgroundColor: '#f5f5f5',
-                                            color: '#333',
-                                            fontSize: '1rem',
-                                            borderBottom: '2px solid #ccc',
-                                            cursor: 'pointer',
-                                        }}
-                                        onClick={() => handleSort(column)}
-                                    >
+                                {columns.map((column) => (
+                                    <TableCell key={column} align="center" sx={headerCellSx} onClick={() => handleSort(column)}>
                                         {columnMapping[column]}
                                     </TableCell>
                                 ))}
@@ -73,112 +101,105 @@ const InventoryList = ({
                         {/* Filter Row */}
                         <TableHead>
                             <TableRow>
-                                {columns.map((key, index) => (
-                                    <TableCell key={index} align="center">
-                                        {['itemCode', 'name', 'hsnCode'].includes(key) &&
+                                {columns.map((key) => (
+                                    <TableCell key={key} align="center" sx={filterCellSx}>
+                                        {['itemCode', 'name', 'hsnCode'].includes(key) && (
                                             <TextField
                                                 variant="outlined"
                                                 size="small"
-                                                placeholder={`Filter by ${columnMapping[key]}`}
+                                                placeholder={`Filter...`}
                                                 value={filters[key]}
-                                                onChange={(e) => handleFilterChange(key, e.target.value)}
-                                                sx={{ width: '100%' }}
+                                                onChange={(e) => onFilterChange(key, e.target.value)}
+                                                sx={{
+                                                    width: '100%',
+                                                    '& .MuiOutlinedInput-root': { borderRadius: 1, fontSize: '0.8rem' },
+                                                    '& .MuiOutlinedInput-input': { py: 0.5 },
+                                                }}
                                             />
-                                        }
-                                        {('itemType' === key) &&
+                                        )}
+                                        {key === 'itemType' && (
                                             <FormControl fullWidth variant="outlined" size="small">
-                                                <InputLabel id="item-type-label">Item Type</InputLabel>
                                                 <Select
-                                                    labelId="item-type-label"
                                                     value={filters.itemType}
                                                     onChange={(e) => onFilterChange('itemType', e.target.value)}
-                                                    sx={{ width: '100%' }}
-                                                    size='small'
+                                                    displayEmpty
+                                                    sx={{ borderRadius: 1, fontSize: '0.8rem', '& .MuiSelect-select': { py: 0.5 } }}
                                                 >
-                                                    <MenuItem value="">All</MenuItem>
+                                                    <MenuItem value="" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
                                                     {itemTypeOptions.map((type) => (
-                                                        <MenuItem key={type} value={type}>
-                                                            {type}
-                                                        </MenuItem>
+                                                        <MenuItem key={type} value={type} sx={{ fontSize: '0.8rem' }}>{type.replace(/_/g, ' ')}</MenuItem>
                                                     ))}
                                                 </Select>
                                             </FormControl>
-                                        }
-                                        {('uom' === key) &&
+                                        )}
+                                        {key === 'uom' && (
                                             <FormControl fullWidth variant="outlined" size="small">
-                                                <InputLabel id="uom-label">UOM</InputLabel>
                                                 <Select
-                                                    labelId="uom-label"
                                                     value={filters.uom}
                                                     onChange={(e) => onFilterChange('uom', e.target.value)}
-                                                    sx={{ width: '100%' }}
-                                                    size='small'
+                                                    displayEmpty
+                                                    sx={{ borderRadius: 1, fontSize: '0.8rem', '& .MuiSelect-select': { py: 0.5 } }}
                                                 >
-                                                    <MenuItem value="">All</MenuItem>
+                                                    <MenuItem value="" sx={{ fontSize: '0.8rem' }}>All</MenuItem>
                                                     {uomOptions.map((type) => (
-                                                        <MenuItem key={type} value={type}>
-                                                            {type}
-                                                        </MenuItem>
+                                                        <MenuItem key={type} value={type} sx={{ fontSize: '0.8rem' }}>{type}</MenuItem>
                                                     ))}
                                                 </Select>
                                             </FormControl>
-                                        }
+                                        )}
                                     </TableCell>
                                 ))}
                             </TableRow>
                         </TableHead>
+
+                        {/* Body */}
                         <TableBody>
                             {inventoryList.length > 0 ? (
                                 inventoryList.map((inventory, rowIndex) => (
                                     <TableRow
                                         key={inventory.inventoryItemId}
                                         sx={{
-                                            backgroundColor: rowIndex % 2 === 0 ? '#fafafa' : '#fff',
-                                            '&:hover': {
-                                                backgroundColor: '#f1f1f1',
-                                            },
+                                            bgcolor: rowIndex % 2 === 0 ? '#fafbfc' : '#fff',
+                                            transition: 'background 0.15s',
+                                            '&:hover': { bgcolor: ROW_HOVER },
+                                            '& td': { fontSize: '0.8125rem', py: 0.75, borderBottom: `1px solid ${BORDER_COLOR}` },
                                         }}
                                     >
-                                        {columns.map((key, index) => (
-                                            <TableCell
-                                                key={index}
-                                                align="center"
-                                                sx={{
-                                                    fontSize: '0.9rem',
-                                                    color: '#555',
-                                                    borderBottom: '1px solid #eee',
-                                                }}
-                                            >
-                                                {typeof inventory[key] === 'number'
+                                        {columns.map((key) => (
+                                            <TableCell key={key} align="center">
+                                                {key === 'itemCode' ? (
+                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>
+                                                        {inventory[key] ?? '-'}
+                                                    </Typography>
+                                                ) : typeof inventory[key] === 'number'
                                                     ? inventory[key].toFixed(2)
-                                                    : inventory[key] ?? 'N/A'}
+                                                    : inventory[key] ?? '-'}
                                             </TableCell>
                                         ))}
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={columns.length} align="center" sx={{ padding: '16px' }}>
-                                        <Typography variant="body1" sx={{ color: '#888' }}>
-                                            No Inventory Items Found
-                                        </Typography>
+                                    <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
+                                        <Typography variant="body2" color="text.secondary">No inventory items found.</Typography>
                                     </TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </TableContainer>
-            </Paper>
 
-            {/* Pagination */}
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}>
-                <Pagination
-                    count={totalPages}
-                    page={currentPage}
-                    onChange={handlePageChange}
-                    color="primary"
-                />
-            </Box>
+                {/* Pagination */}
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+                    <Pagination
+                        count={totalPages}
+                        page={currentPage}
+                        onChange={handlePageChange}
+                        color="primary"
+                        size="small"
+                    />
+                </Box>
+            </Paper>
         </Box>
     );
 };

@@ -1,183 +1,1514 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, Tabs, Tab, Typography, Divider, Grid, TextField, MenuItem, Button
+  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip
 } from '@mui/material';
-import { useParams, useLocation } from 'react-router-dom';
-import apiService from '../../../services/apiService';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
-import WorkOrderBomItems from './tabs/WorkOrderBomItems';
-import { Formik } from 'formik';
-import WorkOrderInventoryActions from './tabs/WorkOrderInventoryActions';
-import WorkOrderCostDetails from './tabs/WorkOrderCostDetails';
+import WorkOrderMaterialsTab from './tabs/WorkOrderMaterialsTab';
+import WorkOrderOperationsTab from './tabs/WorkOrderOperationsTab';
+import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
+import WorkOrderQCTab from './tabs/WorkOrderQCTab';
+import WorkOrderAttachmentsTab from './tabs/WorkOrderAttachmentsTab';
+import ScheduleDialog from './ScheduleDialog';
+import { useFormik } from 'formik';
 import dayjs from 'dayjs';
+import { FileDownload, Schedule, EventRepeat } from '@mui/icons-material';
+import {
+  cancelWorkOrder,
+  closeWorkOrder,
+  completeOperationPartial,
+  completeWorkOrder,
+  createWorkOrder,
+  getWorkOrder,
+  getWorkOrderHistory,
+  issueWorkOrderMaterials,
+  releaseWorkOrder,
+  startOperation,
+  updateWorkOrder,
+  scheduleWorkOrder,
+  rescheduleWorkOrder,
+} from '../../../services/workOrderService';
+import { getBomPositisions } from '../../../services/bomService';
+import { useAuth } from '../../../auth/AuthContext';
+import { ACTION_KEYS } from '../../../auth/roles';
 
-export default function AddUpdateWorkOrder() {
-  const [currentTab, setCurrentTab] = useState(0);
-  const [initialValues, setInitialValues] = useState(null);
-  const { workOrderId } = useParams();
+const getDefaultValues = () => ({
+  inventoryItem: {},
+  workOrderNumber: '',
+  parentWorkOrderNumber: '',
+  salesOrderNumber: '',
+  plannedQuantity: 0,
+  completedQuantity: 0,
+  scrappedQuantity: 0,
+  sourceType: 'SALES_ORDER',
+  materials: [],
+  operations: [],
+  workCenter: '',
+  dueDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
+  plannedStartDate: dayjs().format('YYYY-MM-DD'),
+  plannedEndDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
+  actualStartDate: '',
+  actualEndDate: '',
+  status: 'CREATED',
+  priority: 'NORMAL',
+  remarks: '',
+  referenceDocument: '',
+  selectedItem: null,
+  bom: null,
+});
+
+const PRIORITY_COLORS = { URGENT: '#ef4444', HIGH: '#f97316', NORMAL: '#3b82f6', LOW: '#9ca3af' };
+
+export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
+  const { canAction } = useAuth();
+  const navigate = useNavigate();
   const location = useLocation();
+  const canManageWorkOrderAdminActions = canAction(ACTION_KEYS.WORK_ORDER_ADMIN_WRITE);
+  const [initialValues, setInitialValues] = useState(getDefaultValues());
+  const [isCreateConfirmOpen, setIsCreateConfirmOpen] = useState(false);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const leaveConfirmedRef = useRef(false);
+  const pendingNavRef = useRef(null);
+  const { workOrderId } = useParams();
+  const [selectedTab, setSelectedTab] = useState(0);
+  const [isMaterialsLoading, setIsMaterialsLoading] = useState(false);
+  const [isReleaseLoading, setIsReleaseLoading] = useState(false);
+  const [isReleaseConfirmOpen, setIsReleaseConfirmOpen] = useState(false);
+  const [operationActionState, setOperationActionState] = useState({
+    loading: false,
+    operationId: null,
+    action: '',
+  });
+  const [materialIssueState, setMaterialIssueState] = useState({
+    loading: false,
+  });
+  const [workOrderActionDialog, setWorkOrderActionDialog] = useState({
+    open: false,
+    action: '',
+  });
+  const [isWorkOrderActionLoading, setIsWorkOrderActionLoading] = useState(false);
+  const [hasFetchedAddMaterials, setHasFetchedAddMaterials] = useState(false);
+  const [hasFetchedAddOperations, setHasFetchedAddOperations] = useState(false);
+  const [baseMaterialRequirements, setBaseMaterialRequirements] = useState([]);
+  const [basePlannedQuantityForMaterials, setBasePlannedQuantityForMaterials] = useState(1);
+  const [workOrderHistory, setWorkOrderHistory] = useState([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const [scheduleResult, setScheduleResult] = useState(null);
+  const [isScheduleLoading, setIsScheduleLoading] = useState(false);
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState(dayjs().format('YYYY-MM-DD'));
+  // Parallel operation dialogs
+  const [blockedOpDialog, setBlockedOpDialog] = useState({ open: false, blockingNames: [] });
+  const [startConfirmDialog, setStartConfirmDialog] = useState({ open: false, operationId: null, opName: '', parallelOps: [] });
+  const [pendingStartOperationId, setPendingStartOperationId] = useState(null);
+  // Release summary dialog
+  const [releaseResultDialog, setReleaseResultDialog] = useState({ open: false, readyOps: [], waitingOps: [] });
+  const statusColorMap = {
+    DRAFT: "default",
+    CREATED: "default",
+    SCHEDULED: "info",
+    RELEASED: "primary",
+    IN_PROGRESS: "primary",
+    READY: "warning",
+    COMPLETED: "success",
+    CLOSED: "default",
+    CANCELLED: "error",
+  };
+  const formik = useFormik({
+    initialValues,
+    enableReinitialize: true,
+    onSubmit: async (values) => {
+      if (workOrderId && !['DRAFT', 'CREATED'].includes(values?.status)) {
+        setError('Core work order fields are locked after issue. Use Operations actions to record execution.');
+        return;
+      }
+      const mapReferencePayload = (payloadValues) => {
+        // Extract ID-based fields for the new DTO contract
+        const bomId = payloadValues.bom?.id || null;
+        const routingId = payloadValues.bom?.routing?.id || null;
+        const workCenterId = payloadValues.workCenter?.id || null; // Assuming workCenter is an object with an ID
+        const enriched = { ...payloadValues, bomId, routingId, workCenterId };
+        delete enriched.bom;
+        delete enriched.workCenter; // Remove the object, keep the ID
 
-  const handleTabChange = (event, newValue) => {
-    setCurrentTab(newValue);
+        if (enriched.sourceType === 'SALES_ORDER') {
+          const salesOrderId = enriched.referenceDocument?.id;
+          return {
+            ...enriched,
+            salesOrderId: salesOrderId || null,
+            salesOrder: undefined,
+            referenceDocument: undefined,
+            parentWorkOrder: undefined,
+          };
+        }
+        if (enriched.sourceType === 'PARENT_WORK_ORDER') {
+          const workOrderIdValue = enriched.referenceDocument?.id;
+          return {
+            ...enriched,
+            parentWorkOrderId: workOrderIdValue ? workOrderIdValue : null,
+            salesOrderId: null,
+            salesOrder: undefined,
+            referenceDocument: undefined,
+          };
+        }
+        return {
+          ...enriched,
+          referenceDocument:
+            typeof enriched.referenceDocument === 'string'
+              ? enriched.referenceDocument
+              : '',
+          salesOrderId: null,
+          salesOrder: undefined,
+          parentWorkOrder: undefined,
+        };
+      };
+
+      const mapDateToIso = (value) => (value ? dayjs(value).toISOString() : null);
+      const mapSelectedItemToInventoryItem = (selectedItem) => {
+        if (!selectedItem?.id) return null;
+        return {
+          inventoryItemId: selectedItem.id,
+          itemCode: selectedItem.itemCode,
+          name: selectedItem.name,
+          hsnCode: selectedItem.hsnCode,
+        };
+      };
+
+      const payload = mapReferencePayload({
+        ...values,
+        dueDate: mapDateToIso(values.dueDate),
+        plannedStartDate: mapDateToIso(values.plannedStartDate),
+        plannedEndDate: mapDateToIso(values.plannedEndDate),
+        actualStartDate: mapDateToIso(values.actualStartDate),
+        actualEndDate: mapDateToIso(values.actualEndDate),
+        inventoryItem: mapSelectedItemToInventoryItem(values.selectedItem) || values.inventoryItem,
+      });
+      delete payload.selectedItem;
+
+      // Helper: convert empty strings to null or remove empty fields
+      const cleanPayload = (obj) => {
+        const cleaned = {};
+        Object.keys(obj).forEach(key => {
+          const value = obj[key];
+          // Remove fields with empty strings, keep other values (null, 0, false, arrays, objects)
+          if (value !== '' && value !== undefined) {
+            cleaned[key] = value;
+          }
+        });
+        return cleaned;
+      };
+
+      const cleanedValues = cleanPayload(payload);
+      if (workOrderId) {
+        updateWorkOrder(workOrderId, cleanedValues)
+          .then((response) => {
+            if (setSnackbar) setSnackbar('Work order updated successfully.', 'success');
+          })
+          .catch((error) => {
+            setError(error.response?.data?.error || 'Failed to update work order. Please try again.', "error");
+          });
+      } else {
+        createWorkOrder(cleanedValues)
+          .then((response) => {
+            if (setSnackbar) setSnackbar('Work order created successfully.', 'success');
+            const newId = response?.id || response?.workOrderId;
+            if (newId) navigate(`../edit/${newId}`, { relative: 'path' });
+          })
+          .catch((error) => {
+            setError(error.response?.data?.error || 'Failed to create work order. Please try again.');
+          });
+      }
+    }
+
+  });
+
+  useEffect(() => {
+    if (!formik.dirty) {
+      leaveConfirmedRef.current = false;
+      return;
+    }
+    const savedPath = window.location.pathname + window.location.search + window.location.hash;
+    // Push a sentinel so the back button has somewhere to land before leaving
+    window.history.pushState(null, '', savedPath);
+
+    const handleBeforeUnload = (e) => { e.preventDefault(); };
+
+    // capture:true fires before React Router's own popstate listener,
+    // letting us restore the URL before React Router processes the navigation
+    const handlePopState = () => {
+      if (leaveConfirmedRef.current) return;
+      const targetPath = window.location.pathname + window.location.search + window.location.hash;
+      pendingNavRef.current = targetPath;
+      window.history.pushState(null, '', savedPath); // restore our URL
+      setShowLeaveWarning(true);
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState, { capture: true });
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState, { capture: true });
+    };
+  }, [formik.dirty]);
+
+  const handleLeaveAnyway = () => {
+    leaveConfirmedRef.current = true;
+    setShowLeaveWarning(false);
+    const target = pendingNavRef.current;
+    pendingNavRef.current = null;
+    navigate(target ?? -1);
   };
 
-  const fetchWorkOrderDetails = useCallback(async () => {
-    if (!workOrderId) return;
-    try {
-      const data = await apiService.get(`/production/workOrder?id=${workOrderId}`);
-      console.log(data)
-      setInitialValues({
-        id: data.id || '',
-        workOrderNumber: data.workOrderNumber || '',
-        company: data.company || '',
-        quantity: data.quantity || 1,
-        selectedItem: data.workOrderProductionTemplate?.bom?.parentInventoryItem || null,
-        bom: data.workOrderProductionTemplate?.bom || '',
-        workOrderProductionTemplate: data.workOrderProductionTemplate || null,
-        workOrderJobLists: data.workOrderProductionTemplate?.workOrderJobLists || [],
-        salesOrder: data.salesOrder?.id || null,
-        parentWorkOrder: data.parentWorkOrder?.id || null,
-        dueDate: data.dueDate ? dayjs(data.dueDate).format('YYYY-MM-DD') : '',
-        startDate: data.startDate ? dayjs(data.startDate).format('YYYY-MM-DD') : '',
-        isCreateChildItems: data.isCreateChildItems || false,
-        workOrderStatus: data.workOrderStatus || 'DRAFT',
-        remarks: data.remarks || '',
-        actualWorkHours: data.actualWorkHours || '',
-        actualCostOfLabour: data.actualCostOfLabour || '',
-        actualCostOfBom: data.actualCostOfBom || '',
-        actualTotalCostOfWorkOrder: data.actualTotalCostOfWorkOrder || '',
-        estimatedCostOfLabour: data.estimatedCostOfLabour || data.workOrderProductionTemplate?.estimatedCostOfLabour || '',
-        estimatedCostOfBom: data.estimatedCostOfBom || data.workOrderProductionTemplate?.estimatedCostOfBom || '',
-        overheadCostPercentage: data.overheadCostPercentage || data.workOrderProductionTemplate?.overheadCostPercentage || '',
-        totalEstimatedCostOfWorkOrder: data.totalEstimatedCostOfWorkOrder || data.workOrderProductionTemplate?.totalCostOfWorkOrder || '',
-        workOrderInventoryInstanceLists: data.workOrderInventoryInstanceLists || []
-      });
-    } catch (err) {
-      console.error('Error fetching work order details:', err);
+  const mapWorkOrderToInitialValues = useCallback((response) => {
+    const salesOrderRef = response?.salesOrder?.id
+      ? {
+        id: response.salesOrder.id,
+        label:
+          response.salesOrder.orderNumber ||
+          response.salesOrderNumber ||
+          response.salesOrder?.orderNumber ||
+          '',
+      }
+      : null;
+    const parentWorkOrderRef = response?.parentWorkOrder?.id
+      ? {
+        id: response.parentWorkOrder.id,
+        label:
+          response.parentWorkOrder.workOrderNumber ||
+          response.parentWorkOrderNumber ||
+          response.workOrderNumber ||
+          '',
+      }
+      : null;
+    const selectedItemFromInventory = response?.inventoryItem
+      ? {
+        id: response.inventoryItem.inventoryItemId,
+        name: response.inventoryItem.name,
+        itemCode: response.inventoryItem.itemCode,
+        hsnCode: response.inventoryItem.hsnCode,
+        uom: response.inventoryItem.uom,
+      }
+      : null;
+
+    return {
+      ...getDefaultValues(),
+      ...response,
+      remarks: response?.remarks || '',
+      referenceDocument: response?.referenceDocument || '',
+      plannedQuantity: response?.plannedQuantity ?? 0,
+      completedQuantity: response?.completedQuantity ?? 0,
+      scrappedQuantity: response?.scrappedQuantity ?? 0,
+      dueDate: response?.dueDate ? dayjs(response.dueDate).format('YYYY-MM-DD') : '',
+      plannedStartDate: response?.plannedStartDate ? dayjs(response.plannedStartDate).format('YYYY-MM-DD') : '',
+      plannedEndDate: response?.plannedEndDate ? dayjs(response.plannedEndDate).format('YYYY-MM-DD') : '',
+      actualStartDate: response?.actualStartDate ? dayjs(response.actualStartDate).format('YYYY-MM-DD') : '',
+      actualEndDate: response?.actualEndDate ? dayjs(response.actualEndDate).format('YYYY-MM-DD') : '',
+      materials: response?.materials || response?.workOrderMaterials || [],
+      operations: response?.operations || [],
+      bom: response?.bom || null,
+      selectedItem: selectedItemFromInventory,
+      sourceType:
+        response?.sourceType ||
+        (salesOrderRef ? 'SALES_ORDER' : parentWorkOrderRef ? 'PARENT_WORK_ORDER' : 'MANUAL'),
+      referenceDocument:
+        salesOrderRef ||
+        parentWorkOrderRef ||
+        response?.referenceDocument ||
+        '',
+      priority: response?.priority || 'NORMAL',
+      autoScheduled: response?.autoScheduled || false,
+    };
+  }, []);
+
+  const reloadWorkOrder = useCallback(async () => {
+    if (!workOrderId) {
+      const stateBom = location.state?.bom;
+      if (stateBom) {
+        const itemInfo = stateBom.parentInventoryItem;
+        const mappedItem = itemInfo ? {
+          id: itemInfo.inventoryItemId,
+          name: itemInfo.name,
+          itemCode: itemInfo.itemCode,
+          hsnCode: itemInfo.hsnCode,
+          uom: itemInfo.uom,
+        } : null;
+        
+        setInitialValues(prev => ({
+          ...prev,
+          bom: stateBom,
+          selectedItem: mappedItem,
+          inventoryItem: itemInfo
+        }));
+      }
+      return;
     }
+    try {
+      const response = await getWorkOrder(workOrderId);
+      setInitialValues(mapWorkOrderToInitialValues(response));
+    } catch (error) {
+      setError('Failed to fetch work order. Please try again.');
+    }
+  }, [mapWorkOrderToInitialValues, setError, workOrderId]);
+
+  useEffect(() => {
+    reloadWorkOrder();
+  }, [reloadWorkOrder]);
+
+  useEffect(() => {
+    setWorkOrderHistory([]);
+    setHasFetchedHistory(false);
+    setIsHistoryLoading(false);
   }, [workOrderId]);
 
   useEffect(() => {
-    if (location.pathname.includes('/edit')) {
-      fetchWorkOrderDetails();
-    }
-  }, [location]);
+    if (workOrderId) return;
+    setHasFetchedAddMaterials(false);
+    setHasFetchedAddOperations(false);
+    setBaseMaterialRequirements([]);
+    setBasePlannedQuantityForMaterials(1);
+    formik.setFieldValue('materials', []);
+    formik.setFieldValue('operations', []);
 
-  const defaultValues = {
-    company: 'Process Equipment Corporation',
-    workOrderNumber: null,
-    quantity: 1,
-    selectedItem: null,
-    bom: null,
-    workOrderProductionTemplate: null,
-    workOrderJobLists: [],
-    salesOrder: null,
-    parentWorkOrder: null,
-    dueDate: '',
-    startDate: '',
-    isCreateChildItems: false,
-    workOrderStatus: 'DRAFT',
-    remarks: '',
-    actualWorkHours: 0,
-    actualCostOfLabour: 0,
-    actualCostOfBom: 0,
-    actualTotalCostOfWorkOrder: 0,
-    estimatedCostOfLabour: 0,
-    estimatedCostOfBom: 0,
-    overheadCostPercentage: 0,
-    totalEstimatedCostOfWorkOrder: 0,
-    workOrderInventoryInstanceLists: []
-  };
+    const bomId = formik.values.bom?.id;
+    if (!bomId) return;
 
-  const STATUS_OPTIONS = ['DRAFT', 'IN_PROGRESS', 'READY', 'COMPLETED', 'CANCELLED'];
+    // Auto-load operations from BOM routing (sync)
+    loadOperationsFromBom({ force: true });
+    // Auto-load materials from BOM API (async)
+    loadMaterialsFromBom({ force: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formik.values.bom?.id, workOrderId]);
 
-  const handleSubmit = async (values, { setSubmitting }) => {
-    try {
-      const payload = {
-        ...values,
-        inventoryItem: values.selectedItem,
-        workOrderProductionTemplate: values.workOrderProductionTemplate,
-        workOrderJobLists: values.workOrderJobLists,
-        workOrderInventoryInstanceLists: values.workOrderInventoryInstanceLists,
+  useEffect(() => {
+    if (workOrderId || !hasFetchedAddMaterials || baseMaterialRequirements.length === 0) return;
+    const plannedQty = Number(formik.values?.plannedQuantity ?? 0);
+    const safePlannedQty = Number.isNaN(plannedQty) || plannedQty <= 0 ? 0 : plannedQty;
+    const baseQty =
+      Number(basePlannedQuantityForMaterials) > 0 ? Number(basePlannedQuantityForMaterials) : 1;
+    const factor = safePlannedQty / baseQty;
+
+    const scaledMaterials = (formik.values.materials || []).map((material, index) => {
+      const baseRequired = Number(baseMaterialRequirements[index]?.requiredQuantity ?? material?.requiredQuantity ?? 0);
+      const nextRequired = Number((baseRequired * factor).toFixed(5));
+      return {
+        ...material,
+        requiredQuantity: Number.isNaN(nextRequired) ? 0 : nextRequired,
       };
+    });
 
-      if (workOrderId) {
-        await apiService.put(`/production/workOrder/${workOrderId}`, payload);
-        alert('Work Order updated successfully!');
-      } else {
-        await apiService.post('/production/workOrder', payload);
-        alert('Work Order created successfully!');
-      }
-    } catch (err) {
-      console.error('Error submitting work order:', err);
-      alert('An error occurred while saving the work order.');
+    formik.setFieldValue('materials', scaledMaterials);
+  }, [formik.values.plannedQuantity]);
+
+  useEffect(() => {
+    if (workOrderId || !hasFetchedAddOperations) return;
+    const plannedQty = Number(formik.values?.plannedQuantity ?? 0);
+    const nextPlannedQty = Number.isNaN(plannedQty) ? 0 : plannedQty;
+    const updatedOperations = (formik.values.operations || []).map((operation) => ({
+      ...operation,
+      plannedQuantity: nextPlannedQty,
+    }));
+    formik.setFieldValue('operations', updatedOperations);
+  }, [formik.values.plannedQuantity]);
+
+  const mapBomPositionToMaterial = (position) => {
+    const rawComponent = position?.component || position?.childInventoryItem || position?.inventoryItem;
+    const component = rawComponent || {
+      inventoryItemId:
+        position?.inventoryItemId ??
+        position?.parentInventoryItemId ??
+        position?.parentItemId ??
+        null,
+      itemCode: position?.itemCode || position?.parentItemCode || '',
+      name: position?.name || position?.parentItemName || '',
+      uom: position?.uom || '',
+      availableQuantity: position?.availableQuantity ?? 0,
+    };
+    const requiredQuantity = Number(position?.requiredQuantity ?? position?.quantity ?? 0);
+
+    return {
+      id: position?.workOrderMaterialId ?? position?.positionId ?? position?.id ?? null,
+      component,
+      requiredQuantity: Number.isNaN(requiredQuantity) ? 0 : requiredQuantity,
+      issuedQuantity: Number(position?.issuedQuantity ?? 0) || 0,
+      scrappedQuantity: Number(position?.scrappedQuantity ?? 0) || 0,
+      issueStatus: position?.issueStatus || 'NOT_ISSUED',
+      workOrderOperationId:
+        position?.workOrderOperationId ??
+        position?.routingOperationId ??
+        null,
+      operationName:
+        position?.operationName ||
+        position?.routingOperationName ||
+        null,
+    };
+  };
+
+  const loadMaterialsFromBom = async ({ force = false } = {}) => {
+    if (workOrderId) return;
+    const bomId = formik.values?.bom?.id;
+    if (!bomId) {
+      setError('Select an item with active BOM before loading materials.');
+      return;
+    }
+    if (!force && hasFetchedAddMaterials) return;
+
+    try {
+      setIsMaterialsLoading(true);
+      const response = await getBomPositisions(bomId);
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.content)
+          ? response.content
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+      const mappedMaterials = rows.map(mapBomPositionToMaterial);
+      formik.setFieldValue('materials', mappedMaterials);
+      setBaseMaterialRequirements(mappedMaterials.map((m) => ({ requiredQuantity: Number(m.requiredQuantity ?? 0) || 0 })));
+      const plannedQty = Number(formik.values?.plannedQuantity ?? 0);
+      setBasePlannedQuantityForMaterials(Number.isNaN(plannedQty) || plannedQty <= 0 ? 1 : plannedQty);
+      setHasFetchedAddMaterials(true);
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to load materials from BOM.');
     } finally {
-      setSubmitting(false);
+      setIsMaterialsLoading(false);
     }
   };
 
-  const handleStatusChange = async (value) => {
-    if (workOrderId) {
-      console.log(value.target.value)
-      await apiService.patch(`/production/workOrder/${workOrderId}/status?newStatus=${value.target.value}`);
+  const mapRoutingOperationToWorkOrderOperation = (routingOperation) => {
+    const plannedQty = Number(formik.values?.plannedQuantity ?? 0);
+    return {
+      id: null,
+      routingOperation,
+      sequence: routingOperation?.sequenceNumber ?? 0,
+      operationName: routingOperation?.name || '',
+      workCenter: routingOperation?.workCenter || null,
+      plannedQuantity: Number.isNaN(plannedQty) ? 0 : plannedQty,
+      completedQuantity: 0,
+      scrappedQuantity: 0,
+      plannedStartDate: null,
+      plannedEndDate: null,
+      actualStartDate: null,
+      actualEndDate: null,
+      status: 'PLANNED',
+      isMilestone: false,
+      allowOverCompletion: false,
+    };
+  };
 
+  const loadOperationsFromBom = ({ force = false } = {}) => {
+    if (workOrderId) return;
+    if (!force && hasFetchedAddOperations) return;
+
+    const routingOperations = formik.values?.bom?.routing?.operations || [];
+    const mappedOperations = routingOperations.map(mapRoutingOperationToWorkOrderOperation);
+    formik.setFieldValue('operations', mappedOperations);
+    setHasFetchedAddOperations(true);
+  };
+
+  const loadWorkOrderHistory = useCallback(async ({ force = false } = {}) => {
+    if (!workOrderId) return;
+    if (!force && hasFetchedHistory) return;
+    try {
+      setIsHistoryLoading(true);
+      const response = await getWorkOrderHistory(workOrderId);
+      const rows = Array.isArray(response)
+        ? response
+        : Array.isArray(response?.content)
+          ? response.content
+          : Array.isArray(response?.data)
+            ? response.data
+            : [];
+      setWorkOrderHistory(rows);
+      setHasFetchedHistory(true);
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to fetch work order history.');
+    } finally {
+      setIsHistoryLoading(false);
     }
-  }
+  }, [workOrderId, hasFetchedHistory, setError]);
+
+  const handleTabChange = (_, tab) => {
+    setSelectedTab(tab);
+    if (tab === 1 && !workOrderId) {
+      loadMaterialsFromBom();
+    }
+    if (tab === 2 && !workOrderId) {
+      loadOperationsFromBom();
+    }
+    if (tab === 4) {
+      loadWorkOrderHistory();
+    }
+  };
+
+  const handleRelease = async () => {
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to issue work orders.');
+      return;
+    }
+    setIsReleaseConfirmOpen(true);
+  };
+
+  const handleReleaseConfirmClose = () => {
+    if (isReleaseLoading) return;
+    setIsReleaseConfirmOpen(false);
+  };
+
+  const handleReleaseConfirm = async () => {
+    if (!workOrderId) return;
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to issue work orders.');
+      return;
+    }
+    try {
+      setIsReleaseLoading(true);
+      await releaseWorkOrder(workOrderId);
+      await reloadWorkOrder();
+
+      // Build release summary from freshly-loaded operations
+      setTimeout(() => {
+        const freshOps = formik.values?.operations || [];
+        const readyOps = freshOps
+          .filter(op => op.status === 'READY')
+          .map(op => ({
+            seq: op.sequence ?? op.routingOperation?.sequenceNumber,
+            name: op.operationName || op.routingOperation?.name || '',
+          }));
+        const waitingOps = freshOps
+          .filter(op => op.status === 'WAITING_FOR_DEPENDENCY')
+          .map(op => {
+            const depSeqs = (op.dependsOnOperationIds || []).map(id => {
+              const dep = freshOps.find(o => o.id === id);
+              const seq = dep?.sequence ?? dep?.routingOperation?.sequenceNumber;
+              return seq != null ? `Op ${seq}` : `#${id}`;
+            });
+            return {
+              seq: op.sequence ?? op.routingOperation?.sequenceNumber,
+              name: op.operationName || op.routingOperation?.name || '',
+              blockedBy: depSeqs,
+            };
+          });
+
+        if (readyOps.length > 0 || waitingOps.length > 0) {
+          setReleaseResultDialog({ open: true, readyOps, waitingOps });
+        } else if (setSnackbar) {
+          setSnackbar('Work order issued successfully.', 'success');
+        }
+      }, 300);
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to issue work order. Please try again.');
+    } finally {
+      setIsReleaseLoading(false);
+      setIsReleaseConfirmOpen(false);
+    }
+  };
+
+  const openWorkOrderActionDialog = (action) => {
+    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to cancel work orders.');
+      return;
+    }
+    setWorkOrderActionDialog({ open: true, action });
+  };
+
+  const closeWorkOrderActionDialog = () => {
+    if (isWorkOrderActionLoading) return;
+    setWorkOrderActionDialog({ open: false, action: '' });
+  };
+
+  const handleConfirmWorkOrderAction = async () => {
+    if (!workOrderId || !workOrderActionDialog.action) return;
+    const action = workOrderActionDialog.action;
+    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to cancel work orders.');
+      setWorkOrderActionDialog({ open: false, action: '' });
+      return;
+    }
+
+    try {
+      setIsWorkOrderActionLoading(true);
+      if (action === 'complete') {
+        await completeWorkOrder(workOrderId);
+      }
+      if (action === 'close') {
+        await closeWorkOrder(workOrderId);
+      }
+      if (action === 'cancel') {
+        await cancelWorkOrder(workOrderId);
+      }
+      await reloadWorkOrder();
+      if (setSnackbar) {
+        const msg =
+          action === 'complete'
+            ? 'Work order completed successfully.'
+            : action === 'close'
+              ? 'Work order closed successfully.'
+              : 'Work order cancelled successfully.';
+        setSnackbar(msg, 'success');
+      }
+    } catch (error) {
+      const defaultError =
+        action === 'complete'
+          ? 'Failed to complete work order.'
+          : action === 'close'
+            ? 'Failed to close work order.'
+            : 'Failed to cancel work order.';
+      setError(error?.response?.data?.error || defaultError);
+    } finally {
+      setIsWorkOrderActionLoading(false);
+      setWorkOrderActionDialog({ open: false, action: '' });
+    }
+  };
+
+  const handleIssueMaterials = async (materialsPayload = []) => {
+    if (!workOrderId) return false;
+    if (!Array.isArray(materialsPayload) || materialsPayload.length === 0) {
+      setError('Enter issue/scrap quantity for at least one material.');
+      return false;
+    }
+
+    const normalizedMaterials = materialsPayload.map((material) => ({
+      workOrderMaterialId: material?.workOrderMaterialId,
+      issuedQuantity: Number(material?.issuedQuantity ?? 0),
+      scrappedQuantity: Number(material?.scrappedQuantity ?? 0),
+    }));
+
+    const hasInvalidPayload = normalizedMaterials.some((material) =>
+      !material.workOrderMaterialId ||
+      Number.isNaN(material.issuedQuantity) ||
+      Number.isNaN(material.scrappedQuantity) ||
+      material.issuedQuantity < 0 ||
+      material.scrappedQuantity < 0 ||
+      material.issuedQuantity + material.scrappedQuantity <= 0
+    );
+
+    if (hasInvalidPayload) {
+      setError('Material issue quantities must be valid positive values.');
+      return false;
+    }
+
+    try {
+      setMaterialIssueState({ loading: true });
+      await issueWorkOrderMaterials(workOrderId, normalizedMaterials);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Materials issued successfully.', 'success');
+      return true;
+    } catch (error) {
+      const apiError =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        '';
+      const normalizedError = typeof apiError === 'string' ? apiError : '';
+      const looksLikeOperationGateError =
+        /operation/i.test(normalizedError) &&
+        /(ready|in_progress|in progress|active)/i.test(normalizedError);
+      const materialById = new Map(
+        (formik.values?.materials || []).map((material) => [
+          Number(material?.id ?? material?.workOrderMaterialId),
+          material,
+        ])
+      );
+      const blockedMaterial = normalizedMaterials
+        .map((material) => materialById.get(Number(material?.workOrderMaterialId)))
+        .find((material) => material?.operationName);
+
+      if (looksLikeOperationGateError && blockedMaterial?.operationName) {
+        setError(
+          `This material can only be issued once the '${blockedMaterial.operationName}' operation is active.`
+        );
+      } else {
+        setError(normalizedError || 'Failed to issue materials.');
+      }
+      return false;
+    } finally {
+      setMaterialIssueState({ loading: false });
+    }
+  };
+
+  const handleStartOperation = async (operationId) => {
+    if (!operationId) return false;
+    const operations = formik.values?.operations || [];
+    const operation = operations.find(op => op.id === operationId);
+    const status = operation?.status;
+
+    // WAITING_FOR_DEPENDENCY → show blocking dialog, don't call API
+    if (status === 'WAITING_FOR_DEPENDENCY') {
+      const depIds = Array.isArray(operation?.dependsOnOperationIds) ? operation.dependsOnOperationIds : [];
+      const blockingNames = depIds
+        .map(depId => {
+          const dep = operations.find(op => op.id === depId);
+          if (!dep || dep.status === 'COMPLETED') return null;
+          const seq = dep.sequence ?? dep.routingOperation?.sequenceNumber;
+          const name = dep.operationName || dep.routingOperation?.name || '';
+          return `Op ${seq}${name ? ` — ${name}` : ''} (${dep.status || 'unknown'})`;
+        })
+        .filter(Boolean);
+      setBlockedOpDialog({ open: true, blockingNames });
+      return false;
+    }
+
+    // READY — check for parallel siblings already IN_PROGRESS
+    if (status === 'READY') {
+      const inProgressSiblings = operations.filter(
+        op => op.id !== operationId && op.status === 'IN_PROGRESS'
+      );
+      if (inProgressSiblings.length > 0) {
+        const opName = operation?.operationName || operation?.routingOperation?.name || `Op ${operation?.sequence}`;
+        const parallelOps = inProgressSiblings.map(op => {
+          const seq = op.sequence ?? op.routingOperation?.sequenceNumber;
+          const name = op.operationName || op.routingOperation?.name || '';
+          return `Op ${seq}${name ? ` — ${name}` : ''}`;
+        });
+        setStartConfirmDialog({ open: true, operationId, opName, parallelOps });
+        return false; // wait for confirmation
+      }
+    }
+
+    // Proceed with start
+    return _doStartOperation(operationId);
+  };
+
+  const _doStartOperation = async (operationId) => {
+    if (!operationId) return false;
+    try {
+      setOperationActionState({ loading: true, operationId, action: 'start' });
+      await startOperation(operationId);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Operation started successfully.', 'success');
+      return true;
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to start operation.');
+      return false;
+    } finally {
+      setOperationActionState({ loading: false, operationId: null, action: '' });
+    }
+  };
+
+  const handleCompleteOperation = async (operationId, completionPayload = {}) => {
+    if (!operationId) return false;
+    const completedQuantity = Number(completionPayload?.completedQuantity ?? 0);
+    const scrappedQuantity = Number(completionPayload?.scrappedQuantity ?? 0);
+
+    if (
+      Number.isNaN(completedQuantity) ||
+      Number.isNaN(scrappedQuantity) ||
+      completedQuantity < 0 ||
+      scrappedQuantity < 0
+    ) {
+      setError('Completed and scrapped quantities must be zero or greater.');
+      return false;
+    }
+
+    if (completedQuantity + scrappedQuantity <= 0) {
+      setError('Enter completed or scrapped quantity greater than zero.');
+      return false;
+    }
+
+    // Snapshot WAITING ops before complete, so we can detect newly-READY ones after reload
+    const prevWaitingOps = (formik.values?.operations || []).filter(
+      op => op.id !== operationId && op.status === 'WAITING_FOR_DEPENDENCY'
+    );
+
+    try {
+      setOperationActionState({ loading: true, operationId, action: 'complete' });
+      await completeOperationPartial(operationId, {
+        completedQuantity,
+        scrappedQuantity,
+        remarks: completionPayload?.remarks || '',
+      });
+      await reloadWorkOrder();
+
+      // Detect newly unlocked READY operations
+      const newOps = formik.values?.operations || [];
+      // Use a small delay to let React re-render after reloadWorkOrder sets initial values
+      setTimeout(() => {
+        const freshOps = formik.values?.operations || [];
+        const newlyReady = prevWaitingOps.filter(prev => {
+          const updated = freshOps.find(op => op.id === prev.id);
+          return updated && updated.status === 'READY';
+        });
+        if (newlyReady.length > 0 && setSnackbar) {
+          const names = newlyReady.map(op => {
+            const seq = op.sequence ?? op.routingOperation?.sequenceNumber;
+            const name = op.operationName || op.routingOperation?.name || '';
+            return `Op ${seq}${name ? ` (${name})` : ''}`;
+          }).join(', ');
+          setSnackbar(`Operation recorded. ${names} is now READY to start.`, 'success');
+        } else if (setSnackbar) {
+          setSnackbar('Operation progress recorded successfully.', 'success');
+        }
+      }, 300);
+
+      return true;
+    } catch (error) {
+      const apiError = error?.response?.data;
+      const errMsg = apiError?.error || '';
+      if (errMsg.toLowerCase().includes('material') || apiError?.errorCode === 'MATERIAL_GATE_FAILED') {
+        setError(`Material gate: ${errMsg || 'Required materials have not been fully issued for this operation.'}`);
+      } else if (errMsg.toLowerCase().includes('previous operation') || errMsg.toLowerCase().includes('input') || apiError?.errorCode === 'INPUT_GATE_FAILED') {
+        setError(`Input gate: ${errMsg || 'Previous operation has not forwarded sufficient quantity.'}`);
+      } else {
+        setError(errMsg || 'Failed to record operation progress.');
+      }
+      return false;
+    } finally {
+      setOperationActionState({ loading: false, operationId: null, action: '' });
+    }
+  };
+
+  const workOrderStatus = formik.values.status || 'CREATED';
+  const canIssueWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
+  const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
+  const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
+  const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
+  const canCancelWorkOrderStatus = !['CANCELLED', 'CLOSED'].includes(workOrderStatus);
+  const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
+  const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
+
+  const handleAutoSchedule = async () => {
+    if (!workOrderId) return;
+    try {
+      setIsScheduleLoading(true);
+      setError('');
+      const result = await scheduleWorkOrder(workOrderId);
+      setScheduleResult(result);
+      setScheduleDialogOpen(true);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Work order scheduled successfully.', 'success');
+    } catch (error) {
+      setError(error?.response?.data?.error || error?.response?.data?.message || 'Failed to schedule work order.');
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!workOrderId || !rescheduleDate) return;
+    try {
+      setIsScheduleLoading(true);
+      setError('');
+      const result = await rescheduleWorkOrder(workOrderId, rescheduleDate);
+      setScheduleResult(result);
+      setRescheduleDialogOpen(false);
+      setScheduleDialogOpen(true);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Work order rescheduled successfully.', 'success');
+    } catch (error) {
+      setError(error?.response?.data?.error || error?.response?.data?.message || 'Failed to reschedule work order.');
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
+  const compactButtonSx = {
+    minWidth: { xs: '100%', sm: 88 },
+    px: 1.25,
+    py: 0.5,
+    borderRadius: 1.5,
+    fontSize: '0.74rem',
+    fontWeight: 600,
+    textTransform: 'none',
+    whiteSpace: 'nowrap',
+  };
+
   return (
-    <Box sx={{ width: '100%', p: 3 }}>
-      {(initialValues || !workOrderId) && (
-        <Formik initialValues={initialValues || defaultValues} onSubmit={handleSubmit} enableReinitialize={true}>
-          {(formik) => (
-            <form onSubmit={formik.handleSubmit}>
-              <Grid container justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Grid item>
-                  <Typography variant="h5">
-                    {workOrderId ? formik.values.workOrderNumber : 'New Work Order'}
-                  </Typography>
-                </Grid>
-                <Grid item sx={{ minWidth: 200 }}>
-                  <TextField
-                    label="Status"
-                    select
-                    fullWidth
-                    size="small"
-                    {...formik.getFieldProps('workOrderStatus')}
-                    onChange={handleStatusChange}
-                  >
-                    {STATUS_OPTIONS.map((status) => (
-                      <MenuItem key={status} value={status}>
-                        {status.replace('_', ' ')}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-              </Grid>
+    <Box sx={{
+      fontFamily: "'IBM Plex Sans', system-ui",
+      background: 'linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%)',
+      p: { xs: 1, sm: 2, md: 3 },
+      borderRadius: 2,
+      width: '100%',
+      maxWidth: '100%',
+      minWidth: 0,
+      overflowX: 'hidden',
+    }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 1.5, sm: 2, md: 2.5 },
+          borderRadius: 2,
+          border: '1px solid #e3e8ef',
+          boxShadow: '0 10px 26px rgba(2, 12, 27, 0.08)',
+          backgroundColor: '#ffffff',
+          minHeight: '500px',
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
 
-              <Divider sx={{ mb: 2 }} />
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: { xs: 'flex-start', md: 'center' },
+            mb: 2,
+            gap: 1.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          <Box display="flex" flexDirection="column" gap={0.5}>
+            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+              <Typography variant="h6" fontWeight={700} color="primary.main">
+                {workOrderId ? (formik.values.remarks || formik.values.workOrderNumber) : 'NEW WORK ORDER'}
+              </Typography>
+              <Chip
+                size="small"
+                label={formik.values.status || 'CREATED'}
+                color={statusColorMap[formik.values.status] || 'default'}
+                sx={{ fontWeight: 600 }}
+              />
+              {formik.values.priority && (
+                <Chip
+                  size="small"
+                  label={formik.values.priority}
+                  sx={{
+                    fontWeight: 600,
+                    bgcolor: PRIORITY_COLORS[formik.values.priority] || '#3b82f6',
+                    color: '#fff',
+                    fontSize: '0.7rem',
+                  }}
+                />
+              )}
+              {formik.values.autoScheduled && (
+                <Chip size="small" label="Auto-Scheduled" color="info" variant="outlined" sx={{ fontWeight: 500, fontSize: '0.7rem' }} />
+              )}
+            </Box>
+            {workOrderId && (
+              <Typography variant="caption" color="text.secondary">
+                Work Order No: {formik.values.workOrderNumber || '-'}
+              </Typography>
+            )}
+            <Typography variant="body2" color="text.secondary">
+              {`${formik.values.selectedItem?.name || 'Item'} | Qty: ${formik.values.plannedQuantity ?? '-'} | Due: ${formik.values.dueDate || '-'}`}
+              {formik.values.estimatedProductionMinutes ? ` | Est. ${Math.round(formik.values.estimatedProductionMinutes / 60)}h ${formik.values.estimatedProductionMinutes % 60}m` : ''}
+              {formik.values.estimatedTotalCost ? ` | Cost: ₹${Number(formik.values.estimatedTotalCost).toLocaleString('en-IN')}` : ''}
+            </Typography>
+          </Box>
 
-              <Tabs value={currentTab} onChange={handleTabChange} variant="scrollable" scrollButtons="auto">
-                <Tab label="Basic Details" />
-                <Tab label="BOM & Items" />
-                <Tab label="Inventory Actions" />
-                <Tab label="Cost Details" />
-              </Tabs>
-
-              <Divider sx={{ my: 2 }} />
-
-              {currentTab === 0 && <WorkOrderBasicDetails formik={formik} />}
-              {currentTab === 1 && <WorkOrderBomItems formik={formik} />}
-              {currentTab === 2 && <WorkOrderInventoryActions formik={formik} />}
-              {currentTab === 3 && <WorkOrderCostDetails formik={formik} />}
-
-              <Box display="flex" justifyContent="flex-end" sx={{ mt: 3 }}>
-                <Button variant="contained" type="submit">
-                  Submit
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1}
+            useFlexGap
+            flexWrap="wrap"
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
+            {(workOrderId &&
+              <>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FileDownload fontSize="small" />}
+                  sx={compactButtonSx}
+                  onClick={() => { "TODO" }}
+                >
+                  Excel
                 </Button>
-              </Box>
-            </form>
+                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="info"
+                      startIcon={<Schedule fontSize="small" />}
+                      sx={compactButtonSx}
+                      onClick={handleAutoSchedule}
+                      disabled={isScheduleLoading || !canScheduleWorkOrder}
+                    >
+                      {isScheduleLoading ? 'Scheduling...' : 'Auto Schedule'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      startIcon={<EventRepeat fontSize="small" />}
+                      sx={compactButtonSx}
+                      onClick={() => setRescheduleDialogOpen(true)}
+                      disabled={isScheduleLoading || !canScheduleWorkOrder}
+                    >
+                      Reschedule
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canIssueWorkOrder ? `Must be in CREATED or SCHEDULED status to issue (current: ${workOrderStatus})` : !canManageWorkOrderAdminActions ? 'Admin role required to issue work orders' : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      sx={compactButtonSx}
+                      onClick={handleRelease}
+                      disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
+                    >
+                      {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCompleteWorkOrderStatus ? `Must be RELEASED or IN_PROGRESS to complete (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('complete')}
+                      disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
+                    >
+                      Complete WO
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCloseWorkOrderStatus ? `Must be COMPLETED before closing (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('close')}
+                      disabled={isWorkOrderActionLoading || !canCloseWorkOrderStatus}
+                    >
+                      Close WO
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCancelWorkOrderStatus ? `Work Order is already ${workOrderStatus.toLowerCase()} and cannot be cancelled` : !canManageWorkOrderAdminActions ? 'Admin role required to cancel work orders' : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('cancel')}
+                      disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
+                    >
+                      Cancel WO
+                    </Button>
+                  </span>
+                </Tooltip>
+
+              </>
+            )}
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              size="small"
+              sx={{
+                ...compactButtonSx,
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.22)',
+              }}
+              onClick={workOrderId ? formik.handleSubmit : () => setIsCreateConfirmOpen(true)}
+              disabled={isUpdateDisabled}
+            >
+              {workOrderId ? 'Update' : 'Create'}
+            </Button>
+
+
+          </Stack>
+        </Box>
+
+        <Divider sx={{ mb: 1.5 }} />
+
+        {/* ── Compact Schedule Card (shown when WO is SCHEDULED or a result exists) ── */}
+        {workOrderId && (formik.values.status === 'SCHEDULED' || scheduleResult) && (
+          <Paper
+            variant="outlined"
+            sx={{
+              display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5,
+              px: 2, py: 1, mb: 1.5, borderRadius: 1.5,
+              bgcolor: '#f0f7ff', borderColor: '#91caff',
+            }}
+          >
+            <Chip size="small" label="SCHEDULED" color="info" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+            {(formik.values.plannedStartDate || formik.values.plannedEndDate) && (
+              <Typography variant="body2" fontWeight={600} color="#0d47a1" sx={{ fontSize: '0.8rem' }}>
+                {formik.values.plannedStartDate
+                  ? dayjs(formik.values.plannedStartDate).format('DD MMM YYYY')
+                  : '–'}
+                {' → '}
+                {formik.values.plannedEndDate
+                  ? dayjs(formik.values.plannedEndDate).format('DD MMM YYYY')
+                  : '–'}
+              </Typography>
+            )}
+            {formik.values.estimatedProductionMinutes > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                {Math.round(formik.values.estimatedProductionMinutes / 60 * 10) / 10} hrs
+              </Typography>
+            )}
+            {formik.values.estimatedTotalCost > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                ₹{Number(formik.values.estimatedTotalCost).toLocaleString('en-IN')}
+              </Typography>
+            )}
+            <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+              {scheduleResult && (
+                <Button size="small" variant="outlined" color="info"
+                  sx={{ textTransform: 'none', fontSize: '0.74rem', py: 0.25, px: 1 }}
+                  onClick={() => setScheduleDialogOpen(true)}>
+                  View Full Schedule
+                </Button>
+              )}
+              {canManageWorkOrderAdminActions && canScheduleWorkOrder && (
+                <Button size="small" variant="text" color="info" startIcon={<EventRepeat fontSize="small" />}
+                  sx={{ textTransform: 'none', fontSize: '0.74rem', py: 0.25, px: 1 }}
+                  onClick={() => setRescheduleDialogOpen(true)}
+                  disabled={isScheduleLoading}>
+                  Reschedule
+                </Button>
+              )}
+            </Box>
+          </Paper>
+        )}
+
+        <Tabs value={selectedTab} onChange={handleTabChange} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto">
+          <Tab label="WO DETAILS" />
+          <Tab label="Materials" />
+          <Tab label="Operations" />
+          {<Tab label="Attachments" />}
+          <Tab label="History" />
+          <Tab label="Quality Control" />
+        </Tabs>
+
+        <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%', minWidth: 0, overflowX: 'auto', flex: 1 }}>
+
+          {selectedTab === 0 && (
+
+            <WorkOrderBasicDetails formik={formik} setError={setError} workOrderId={workOrderId} />
+
           )}
-        </Formik>
-      )}
+          {selectedTab === 1 && (
+            <WorkOrderMaterialsTab
+              formik={formik}
+              isLoading={isMaterialsLoading}
+              onLoadFromBom={() => loadMaterialsFromBom({ force: true })}
+              isAddMode={!workOrderId}
+              onIssueMaterials={handleIssueMaterials}
+              materialIssueState={materialIssueState}
+            />
+          )}
+          {selectedTab === 2 && (
+            <WorkOrderOperationsTab
+              formik={formik}
+              isEditMode={Boolean(workOrderId)}
+              onStartOperation={handleStartOperation}
+              onCompleteOperation={handleCompleteOperation}
+              operationActionState={operationActionState}
+              materials={formik.values.materials}
+            />
+          )}
+          {selectedTab === 3 && (
+            <WorkOrderAttachmentsTab
+              workOrderId={workOrderId}
+              setError={setError}
+              setSnackbar={setSnackbar}
+            />
+          )}
+          {selectedTab === 4 && (
+            <WorkOrderHistoryTab
+              rows={workOrderHistory}
+              loading={isHistoryLoading}
+              isAddMode={!workOrderId}
+            />
+          )}
+          {selectedTab === 5 && workOrderId && (
+            <WorkOrderQCTab
+              workOrderId={workOrderId}
+              setError={setError}
+              setSnackbar={setSnackbar}
+            />
+          )}
+        </Box>
+      </Paper>
+
+      <Dialog
+        open={isReleaseConfirmOpen}
+        onClose={handleReleaseConfirmClose}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Issue</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Issue this work order now? This changes status from CREATED to RELEASED.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleReleaseConfirmClose} disabled={isReleaseLoading}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleReleaseConfirm}
+            variant="contained"
+            color="secondary"
+            disabled={isReleaseLoading}
+          >
+            {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={workOrderActionDialog.open}
+        onClose={closeWorkOrderActionDialog}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>
+          {workOrderActionDialog.action === 'complete' && 'Complete Work Order'}
+          {workOrderActionDialog.action === 'close' && 'Close Work Order'}
+          {workOrderActionDialog.action === 'cancel' && 'Cancel Work Order'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {workOrderActionDialog.action === 'complete' &&
+              'Mark this work order as COMPLETED? All required operations must already be completed.'}
+            {workOrderActionDialog.action === 'close' &&
+              'Close this work order? No further changes should be made after closing.'}
+            {workOrderActionDialog.action === 'cancel' &&
+              'Cancel this work order? This action should only be used when production will not continue.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeWorkOrderActionDialog} disabled={isWorkOrderActionLoading}>
+            Back
+          </Button>
+          <Button
+            onClick={handleConfirmWorkOrderAction}
+            variant="contained"
+            color={workOrderActionDialog.action === 'cancel' ? 'error' : 'primary'}
+            disabled={isWorkOrderActionLoading}
+          >
+            {isWorkOrderActionLoading ? 'Please wait...' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Schedule Result Dialog */}
+      <ScheduleDialog
+        open={scheduleDialogOpen}
+        onClose={() => setScheduleDialogOpen(false)}
+        result={scheduleResult}
+      />
+
+      {/* Unsaved Changes Warning */}
+      <Dialog open={showLeaveWarning} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>Unsaved Changes</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            You have unsaved changes. If you leave now, your changes will be lost.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowLeaveWarning(false)}>Stay</Button>
+          <Button variant="contained" color="error" onClick={handleLeaveAnyway}>
+            Leave anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Work Order Confirmation */}
+      <Dialog
+        open={isCreateConfirmOpen}
+        onClose={() => setIsCreateConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Create Work Order?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Once created, the <strong>BOM</strong> and <strong>Reference Document</strong> cannot be changed.
+            Make sure these are correct before proceeding.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIsCreateConfirmOpen(false)}>Go Back</Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => { setIsCreateConfirmOpen(false); formik.handleSubmit(); }}
+          >
+            Create Work Order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={rescheduleDialogOpen} onClose={() => !isScheduleLoading && setRescheduleDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Reschedule Work Order</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>Select a new start date for this work order. The scheduler will recalculate all operation timings.</DialogContentText>
+          <TextField
+            type="date"
+            label="New Start Date"
+            fullWidth
+            size="small"
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ min: dayjs().format('YYYY-MM-DD') }}
+            value={rescheduleDate}
+            onChange={(e) => setRescheduleDate(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRescheduleDialogOpen(false)} disabled={isScheduleLoading} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button onClick={handleReschedule} variant="contained" color="info" disabled={isScheduleLoading || !rescheduleDate} sx={{ textTransform: 'none' }}>
+            {isScheduleLoading ? 'Rescheduling...' : 'Confirm Reschedule'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Blocked Operation Dialog (WAITING_FOR_DEPENDENCY) ── */}
+      <Dialog open={blockedOpDialog.open} onClose={() => setBlockedOpDialog({ open: false, blockingNames: [] })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, color: '#d46b08', display: 'flex', alignItems: 'center', gap: 1 }}>
+          ⚠ Cannot Start — Waiting for Dependencies
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1.5 }}>
+            This operation cannot start yet. The following operations must complete first:
+          </DialogContentText>
+          <Box sx={{ bgcolor: '#fff7e6', border: '1px solid #ffd591', borderRadius: 1.5, p: 1.5 }}>
+            {blockedOpDialog.blockingNames.length > 0 ? (
+              blockedOpDialog.blockingNames.map((name, i) => (
+                <Box key={i} display="flex" alignItems="center" gap={1} mb={0.5}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#fa8c16', flexShrink: 0 }} />
+                  <Typography sx={{ fontSize: '0.82rem', fontWeight: 500 }}>{name}</Typography>
+                </Box>
+              ))
+            ) : (
+              <Typography sx={{ fontSize: '0.82rem', color: '#8c8c8c' }}>
+                Dependency details not available. Check the Operations tab.
+              </Typography>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setBlockedOpDialog({ open: false, blockingNames: [] })}>
+            OK, Got it
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Parallel Start Confirmation Dialog (READY with parallel siblings) ── */}
+      <Dialog open={startConfirmDialog.open} onClose={() => setStartConfirmDialog({ open: false, operationId: null, opName: '', parallelOps: [] })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, color: '#0f2744' }}>
+          Start Operation — Running in Parallel
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1.5 }}>
+            You are about to start <strong>{startConfirmDialog.opName}</strong>.
+          </DialogContentText>
+          <Box sx={{ bgcolor: '#f0f7ff', border: '1px solid #91caff', borderRadius: 1.5, p: 1.5, mb: 1.5 }}>
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: '#1677ff', mb: 0.75 }}>
+              ⚡ Currently running in parallel:
+            </Typography>
+            {startConfirmDialog.parallelOps.map((name, i) => (
+              <Box key={i} display="flex" alignItems="center" gap={1} mb={0.5}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#52c41a', flexShrink: 0 }} />
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 500 }}>{name}</Typography>
+              </Box>
+            ))}
+          </Box>
+          <DialogContentText sx={{ fontSize: '0.82rem' }}>
+            This operation can run simultaneously (parallel execution). Proceed?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setStartConfirmDialog({ open: false, operationId: null, opName: '', parallelOps: [] })}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={async () => {
+              const opId = startConfirmDialog.operationId;
+              setStartConfirmDialog({ open: false, operationId: null, opName: '', parallelOps: [] });
+              await _doStartOperation(opId);
+            }}
+          >
+            Start in Parallel
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Release Summary Dialog ── */}
+      <Dialog
+        open={releaseResultDialog.open}
+        onClose={() => setReleaseResultDialog({ open: false, readyOps: [], waitingOps: [] })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: '#0f2744', pb: 0.5 }}>
+          Work Order Issued Successfully ✓
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 1.5, fontSize: '0.85rem' }}>
+            Operations have been set based on routing dependencies:
+          </DialogContentText>
+
+          {releaseResultDialog.readyOps.length > 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Box display="flex" alignItems="center" gap={1} mb={0.75}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#52c41a' }} />
+                <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#237804' }}>
+                  {releaseResultDialog.readyOps.length} operation(s) ready to start now
+                </Typography>
+              </Box>
+              <Box sx={{ bgcolor: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 1.5, p: 1.25 }}>
+                {releaseResultDialog.readyOps.map((op, i) => (
+                  <Box key={i} display="flex" alignItems="center" gap={1}
+                    mb={i < releaseResultDialog.readyOps.length - 1 ? 0.5 : 0}>
+                    <Typography sx={{ fontSize: '0.8rem' }}>
+                      <strong>Op {op.seq}</strong>{op.name ? ` — ${op.name}` : ''}
+                    </Typography>
+                    <Chip size="small" label="READY"
+                      sx={{ height: 16, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#1677ff', color: '#fff' }} />
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+
+          {releaseResultDialog.waitingOps.length > 0 && (
+            <Box>
+              <Box display="flex" alignItems="center" gap={1} mb={0.75}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#fa8c16' }} />
+                <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#d46b08' }}>
+                  {releaseResultDialog.waitingOps.length} operation(s) waiting for dependencies
+                </Typography>
+              </Box>
+              <Box sx={{ bgcolor: '#fff7e6', border: '1px solid #ffd591', borderRadius: 1.5, p: 1.25 }}>
+                {releaseResultDialog.waitingOps.map((op, i) => (
+                  <Box key={i} mb={i < releaseResultDialog.waitingOps.length - 1 ? 1 : 0}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                      Op {op.seq}{op.name ? ` — ${op.name}` : ''}
+                    </Typography>
+                    {op.blockedBy.length > 0 && (
+                      <Typography sx={{ fontSize: '0.72rem', color: '#8c8c8c', ml: 1 }}>
+                        Waiting for: {op.blockedBy.join(', ')}
+                      </Typography>
+                    )}
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant="contained"
+            onClick={() => setReleaseResultDialog({ open: false, readyOps: [], waitingOps: [] })}
+          >
+            Got it
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 }

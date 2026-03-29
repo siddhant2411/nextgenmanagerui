@@ -24,7 +24,6 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
     const navigate = useNavigate();
 
     const handleEdit = (enquiryId) => {
-        console.log(enquiryId)
         navigate(`/enquiry/edit/${enquiryId}`);
     };
 

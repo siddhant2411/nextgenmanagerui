@@ -1,35 +1,45 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
     Avatar,
+    Box,
+    Divider,
     IconButton,
+    ListItemIcon,
     Menu,
     MenuItem,
-    Divider,
-    ListItemIcon,
     Typography,
-    Box,
 } from "@mui/material";
 import Logout from "@mui/icons-material/Logout";
 import Settings from "@mui/icons-material/Settings";
-import Person from "@mui/icons-material/Person";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../../auth/AuthContext";
 
 export default function UserMenu() {
+    const { user, roles, logout } = useAuth();
+    const navigate = useNavigate();
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
 
-    // Example user data (replace with API response / auth context)
-    const user = {
-        username: "smavani",
-        name: "Siddhant Mavani",
-        role: "Admin",
-        email: "siddhant@example.com",
-    };
+    const username = user?.username || "User";
+    const primaryRole = useMemo(() => (roles?.[0] ? roles[0] : "No role"), [roles]);
+    const avatarLetter = username.charAt(0).toUpperCase();
 
     const handleMenuOpen = (event) => {
         setAnchorEl(event.currentTarget);
     };
+
     const handleMenuClose = () => {
         setAnchorEl(null);
+    };
+
+    const handleLogout = () => {
+        handleMenuClose();
+        logout();
+    };
+
+    const handleAccountSettings = () => {
+        handleMenuClose();
+        navigate("/account/settings");
     };
 
     return (
@@ -38,18 +48,16 @@ export default function UserMenu() {
                 onClick={handleMenuOpen}
                 size="small"
                 sx={{
-                    ml: 2,
+                    ml: 1,
                     display: "flex",
                     alignItems: "center",
-                    gap: 1, // space between avatar and text
+                    gap: 1,
                     textTransform: "none",
                 }}
             >
-                <Avatar sx={{ width: 36, height: 36,bgcolor: "green"  }}>
-                    {user.name.charAt(0)}
-                </Avatar>
-                <Typography variant="body2" fontWeight="bold">
-                    {user.username}
+                <Avatar sx={{ width: 34, height: 34, bgcolor: "#0f2744" }}>{avatarLetter}</Avatar>
+                <Typography variant="body2" fontWeight={700}>
+                    {username}
                 </Typography>
             </IconButton>
 
@@ -58,53 +66,36 @@ export default function UserMenu() {
                 open={open}
                 onClose={handleMenuClose}
                 PaperProps={{
-                    elevation: 3,
+                    elevation: 4,
                     sx: {
                         mt: 1.5,
                         borderRadius: 2,
-                        minWidth: 250,
+                        minWidth: 240,
                         p: 1,
                     },
                 }}
                 transformOrigin={{ horizontal: "right", vertical: "top" }}
                 anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             >
-                {/* User Info Header */}
-                <Box sx={{ px: 2, py: 1, textAlign: "center" }}>
-                    <Avatar sx={{ width: 72, height: 72, mx: "auto", mb: 1, bgcolor: "green" }}>
-                        {user.name.charAt(0)}
-                    </Avatar>
-                    <Typography variant="subtitle1" fontWeight="bold">
-                        {user.name}
+                <Box sx={{ px: 1.5, py: 1 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {username}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        {user.role}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {user.email}
+                        {primaryRole}
                     </Typography>
                 </Box>
 
-                <Divider sx={{ my: 1 }} />
+                <Divider sx={{ my: 0.5 }} />
 
-                {/* Menu Items */}
-                <MenuItem>
-                    <ListItemIcon>
-                        <Person fontSize="small" />
-                    </ListItemIcon>
-                    Profile
-                </MenuItem>
-
-                <MenuItem>
+                <MenuItem onClick={handleAccountSettings}>
                     <ListItemIcon>
                         <Settings fontSize="small" />
                     </ListItemIcon>
-                    Settings
+                    Account Settings
                 </MenuItem>
 
-                <Divider />
-
-                <MenuItem onClick={() => alert("Logout clicked")}>
+                <MenuItem onClick={handleLogout}>
                     <ListItemIcon>
                         <Logout fontSize="small" />
                     </ListItemIcon>
@@ -112,6 +103,5 @@ export default function UserMenu() {
                 </MenuItem>
             </Menu>
         </>
-
     );
 }

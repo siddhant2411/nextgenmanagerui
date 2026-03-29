@@ -14,6 +14,13 @@ export const breadcrumbNameMap= {
   "/sales/sales-order": "Sales Order",
   "/config": "Config",
   "/config/item-code-mapping": "Item Code Mapping",
+  "/manufacturing/work-center":"Work Center",
+  "/manufacturing":"Manufacuring",
+  "/superadmin": "Admin",
+  "/superadmin/users": "User Management",
+  "/superadmin/roles": "Role Management",
+  "/account": "Account",
+  "/account/settings": "Account Settings"
 };
 
 

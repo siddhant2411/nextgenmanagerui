@@ -1,106 +1,116 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import InventoryItemList from './InventoryItemList';
 import AddInventoryItem from './AddInventoryItem';
 import apiService from '../../services/apiService';
-import { Box, Button, Typography } from '@mui/material';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import { Alert, Box, Snackbar } from '@mui/material';
+import RoleProtectedRoute from '../../auth/RoleProtectedRoute';
+import { ACTION_KEYS, INVENTORY_ITEM_APPROVAL_ROLES, INVENTORY_MANAGE_ROLES } from '../../auth/roles';
+import { useAuth } from '../../auth/AuthContext';
 import './style/InventoryItem.css'
 const InventoryItem = () => {
-  const [items, setItems] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [sortBy, setSortBy] = useState('inventoryItemId');
-  const [sortDir, setSortDir] = useState('asc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [itemsPerPage, setItemPerPage] = useState(10);
-
+  const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
-
-  const fetchInventoryItems = useCallback(async (page = 1, sort = 'inventoryItemId', dir = 'asc', search = '') => {
-    setLoading(true);
-    try {
-      const params = {
-        page: page - 1,
-        size: itemsPerPage,
-        sortBy: sort,
-        sortDir: dir,
-        search,
-      };
-      const data = await apiService.get('/inventory_item/all', params);
-      setItems(data.content);
-      setTotalPages(data.totalPages);
-      setCurrentPage(0);
-    } catch (err) {
-      setError('Failed to fetch inventory items');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (location.pathname === '/inventory-item') {
-      fetchInventoryItems();
-    }
-  }, [location]);
-
-  const performSearch = () => {
-    fetchInventoryItems(1, sortBy, sortDir, searchQuery);
-  };
-
-
+  const { canAction } = useAuth();
+  const canWriteInventoryItems = canAction(ACTION_KEYS.INVENTORY_ITEM_WRITE);
+  const isAdminRole = canAction(INVENTORY_ITEM_APPROVAL_ROLES);
 
   const handleAddNewItemClick = () => {
-    const url = `${window.location.origin}${window.location.pathname}/add`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (!canWriteInventoryItems) {
+      return;
+    }
+    navigate(`/inventory-item/add/`)
   };
 
   const deleteInventoryItem = async (id) => {
+    if (!canWriteInventoryItems) {
+      return;
+    }
     try {
       await apiService.delete(`/inventory_item/${id}`);
-      fetchInventoryItems(currentPage, sortBy, sortDir, searchQuery);
     } catch (err) {
-      console.error(err);
+      // handled
     }
   };
 
+
+  const handleClose = (_, reason) => {
+    if (reason === "clickaway") return;
+    setError(null)
+    setOpen(false);
+
+  };
+
+  useEffect(() => {
+    if (error !== null) {
+      setOpen(true)
+    }
+  }, [error])
+
   return (
     <Box sx={{ p: 3 }}>
+
       <Routes>
         <Route
           path="/"
           element={
             <>
               <InventoryItemList
-                inventoryItems={items}
-                setInventoryItems={setItems}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                sortBy={sortBy}
-                sortDir={sortDir}
-                setSortBy={setSortBy}
-                setSortDir={setSortDir}
                 onDeleteItem={deleteInventoryItem}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                itemsPerPage={itemsPerPage}
-                setItemPerPage={setItemPerPage}
-                setTotalPages={setTotalPages}
-                setCurrentPage={setCurrentPage}
                 loading={loading}
+                setLoading={setLoading}
                 error={error}
+                setError={setError}
                 handleAddNewItemClick={handleAddNewItemClick}
+                canWriteInventoryItems={canWriteInventoryItems}
+                isAdminRole={isAdminRole}
               />
             </>
           }
         />
-        <Route path="/add" element={<AddInventoryItem />} />
-        <Route path="/edit/:id" element={<AddInventoryItem />} />
+        <Route
+          path="/add"
+          element={
+            <RoleProtectedRoute
+              allowedRoles={INVENTORY_MANAGE_ROLES}
+              deniedMessage="You are not authorized to create inventory items."
+            >
+              <AddInventoryItem />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="/edit/:id"
+          element={
+            <RoleProtectedRoute
+              allowedRoles={INVENTORY_MANAGE_ROLES}
+              deniedMessage="You are not authorized to update inventory items."
+            >
+              <AddInventoryItem />
+            </RoleProtectedRoute>
+          }
+        />
       </Routes>
+
+      <Snackbar
+        open={open}
+        autoHideDuration={4000}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          onClose={handleClose}
+          severity="error"
+          sx={{ width: "100%" }}
+          variant="filled"
+        >
+          {error}
+        </Alert>
+      </Snackbar>
+
     </Box>
   );
 };
