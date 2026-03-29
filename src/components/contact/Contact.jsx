@@ -1,163 +1,187 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import {
+    Alert,
+    Button,
+    CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    Snackbar,
+} from '@mui/material';
+import apiService, { resolveApiErrorMessage } from '../../services/apiService';
 import ContactList from './ContactList';
-import { Button } from 'react-bootstrap';
-import apiService from '../../services/apiService';
-import AddUpdateContact from "./AddUpdateContact";
-import InventoryForm from "../inventory/InventoryForm";
+import AddUpdateContact from './AddUpdateContact';
 
-const Inventory = () => {
-    const [loading, setLoading] = useState(false);
-    const [contactList, setContactList] = useState([]);
-    const [error, setError] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    const [sortBy, setSortBy] = useState('id');
-    const [sortDir, setSortDir] = useState('asc');
-    const [filters, setFilters] = useState({
-        itemCode: '',
-        name: '',
-        hsnCode: '',
-        itemType: '',
-        uom: '',
-    });
+const Contact = () => {
+    const [contactList, setContactList]   = useState([]);
+    const [loading, setLoading]           = useState(false);
+    const [error, setError]               = useState(null);
+    const [currentPage, setCurrentPage]   = useState(1);
+    const [totalPages, setTotalPages]     = useState(1);
+    const [sortBy, setSortBy]             = useState('companyName');
+    const [sortDir, setSortDir]           = useState('asc');
+    const [filters, setFilters]           = useState({ query: '', type: '' });
+    const [snackbar, setSnackbar]         = useState({ open: false, message: '', severity: 'success' });
+    const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
 
-    const itemsPerPage = 5;
-    const navigate = useNavigate();
-    const location = useLocation();
+    const itemsPerPage    = 20;
+    const navigate        = useNavigate();
+    const location        = useLocation();
     const debounceTimeout = useRef(null);
 
-    // Handle filter changes
-    const handleFilterChange = (key, value) => {
-        const newFilters = { ...filters, [key]: value };
-        setFilters(newFilters);
+    const showSnackbar = (message, severity = 'success') =>
+        setSnackbar({ open: true, message, severity });
 
-        if (debounceTimeout.current) {
-            clearTimeout(debounceTimeout.current);
-        }
-        debounceTimeout.current = setTimeout(() => {
-            fetchContactList(currentPage, sortBy, sortDir, newFilters);
-        }, 1500);
-    };
-
-    const handleSort = (column) => {
-        const newSortDir = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
-        setSortBy(column);
-        setSortDir(newSortDir);
-        fetchContactList(currentPage, column, newSortDir, filters);
-    };
-
-    const handleAdd = () => {
-        navigate('add');
-    };
-
-    const handleSave = async (data) => {
-        try {
-            if (data.id) {
-                await apiService.put(`/contact/${data.id}`, data); // Update
-            } else {
-                await apiService.post('/contact', data); // Create
-            }
-            navigate(-1);
-        } catch (err) {
-            // handled
-        }
-    };
-
-    const handleDelete = async (id) => {
-        await apiService.delete(`/contact/${id}`);
-        fetchContactList()
-    };
+    // ── fetch ──────────────────────────────────────────────────────────────
     const fetchContactList = useCallback(
-        async (page = currentPage, sort = sortBy, dir = sortDir, filters) => {
+        async (page = currentPage, sort = sortBy, dir = sortDir, f = filters) => {
             setLoading(true);
-            setError(null); // Reset error state
+            setError(null);
             try {
                 const params = {
-                    page: page - 1, // API expects zero-based page index
+                    page: page - 1,
                     size: itemsPerPage,
                     sortBy: sort,
                     sortDir: dir,
-                    ...filters, // Pass filters in API request
+                    ...(f.query && { query: f.query }),
+                    ...(f.type  && { type:  f.type  }),
                 };
-
                 const data = await apiService.get('/contact', params);
                 setContactList(data.content || []);
                 setTotalPages(data.totalPages || 1);
                 setCurrentPage(page);
             } catch (err) {
-                setError('Failed to fetch inventory list');
+                setError('Failed to fetch contacts.');
             } finally {
                 setLoading(false);
             }
         },
-        [currentPage, sortBy, sortDir]
+        [currentPage, sortBy, sortDir, filters]
     );
-
-    const handlePageChange = (event, page) => {
-        setCurrentPage(page);
-        fetchContactList(page, sortBy, sortDir, filters);
-    };
 
     useEffect(() => {
         if (location.pathname === '/contact') {
             fetchContactList(currentPage, sortBy, sortDir, filters);
         }
-    }, [location]);
+    }, [location.pathname]);
 
-    if (loading) {
-        return (
-            <div className="text-center">
-                <div className="spinner-border" role="status">
-                    <span className="sr-only">Loading...</span>
-                </div>
-            </div>
-        );
-    }
+    useEffect(() => {
+        return () => { if (debounceTimeout.current) clearTimeout(debounceTimeout.current); };
+    }, []);
 
-    if (error) {
-        return <div className="alert alert-danger">Error: {error}</div>;
-    }
+    // ── handlers ───────────────────────────────────────────────────────────
+    const handleFilterChange = (key, value) => {
+        const newFilters = { ...filters, [key]: value };
+        setFilters(newFilters);
+        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+        debounceTimeout.current = setTimeout(() => {
+            fetchContactList(1, sortBy, sortDir, newFilters);
+        }, 500);
+    };
 
+    const handleSort = (column) => {
+        const newDir = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
+        setSortBy(column);
+        setSortDir(newDir);
+        fetchContactList(currentPage, column, newDir, filters);
+    };
+
+    const handlePageChange = (_, page) => {
+        fetchContactList(page, sortBy, sortDir, filters);
+    };
+
+    const handleSave = async (data) => {
+        try {
+            if (data.id) {
+                await apiService.put(`/contact/${data.id}`, data);
+                showSnackbar('Contact updated successfully.');
+            } else {
+                await apiService.post('/contact', data);
+                showSnackbar('Contact created successfully.');
+            }
+            navigate('/contact');
+        } catch (err) {
+            showSnackbar(resolveApiErrorMessage(err, 'Failed to save contact.'), 'error');
+        }
+    };
+
+    const handleDeleteRequest = (id) => setDeleteDialog({ open: true, id });
+
+    const handleDeleteConfirm = async () => {
+        const { id } = deleteDialog;
+        setDeleteDialog({ open: false, id: null });
+        try {
+            await apiService.delete(`/contact/${id}`);
+            showSnackbar('Contact deleted.');
+            fetchContactList(currentPage, sortBy, sortDir, filters);
+        } catch (err) {
+            showSnackbar(resolveApiErrorMessage(err, 'Failed to delete contact.'), 'error');
+        }
+    };
+
+    // ── render ─────────────────────────────────────────────────────────────
     return (
-        <div>
-            <>
+        <>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={4000}
+                onClose={() => setSnackbar(p => ({ ...p, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert
+                    severity={snackbar.severity}
+                    onClose={() => setSnackbar(p => ({ ...p, open: false }))}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
+
+            <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, id: null })}>
+                <DialogTitle>Delete Contact</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete this contact? This action cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialog({ open: false, id: null })}>Cancel</Button>
+                    <Button onClick={handleDeleteConfirm} color="error" variant="contained">Delete</Button>
+                </DialogActions>
+            </Dialog>
+
             <Routes>
                 <Route
                     path="/"
                     element={
-                        <ContactList
-                            contacts={contactList}
-                            filters={filters}
-                            handleSort={handleSort}
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            handlePageChange={handlePageChange}
-                            handleFilterChange={handleFilterChange}
-                            handleDelete={handleDelete}
-                        />
+                        loading ? (
+                            <CircularProgress sx={{ display: 'block', mx: 'auto', mt: 8 }} />
+                        ) : error ? (
+                            <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>
+                        ) : (
+                            <ContactList
+                                contacts={contactList}
+                                filters={filters}
+                                sortBy={sortBy}
+                                sortDir={sortDir}
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                handleSort={handleSort}
+                                handlePageChange={handlePageChange}
+                                handleFilterChange={handleFilterChange}
+                                handleDelete={handleDeleteRequest}
+                            />
+                        )
                     }
                 />
-                <Route path="/add"
-                       element={
-                    <AddUpdateContact
-                    onSave={handleSave}
-                    />
-                       } />
-
-                <Route
-                    path="/edit/:contactId"
-                    element={
-                        <AddUpdateContact
-                            onSave={handleSave}
-                        />
-                    }
-                />
+                <Route path="/add"         element={<AddUpdateContact onSave={handleSave} />} />
+                <Route path="/edit/:contactId" element={<AddUpdateContact onSave={handleSave} />} />
             </Routes>
-            </>
-
-        </div>
+        </>
     );
 };
 
-export default Inventory;
+export default Contact;

@@ -1,7 +1,8 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Routes, useLocation, useNavigate,Route} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {CircularProgress} from "@mui/material";
+import {Alert, CircularProgress} from "@mui/material";
+import Snackbar from "@mui/material/Snackbar";
 import QuotationList from "./QuotationList";
 import AddUpdateEnquiry from "../enquiry/AddUpdateEnquiry";
 import AddUpdateQuotation from "./AddUpdateQuotation";
@@ -11,6 +12,8 @@ const Quotation = () => {
     const [loading, setLoading] = useState(false);
     const [quotationList, setQuotationList] = useState([]);
     const [error, setError] = useState(null);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+    const showSnackbar = (message, severity = 'error') => setSnackbar({ open: true, message, severity });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [sortBy, setSortBy] = useState('id');
@@ -88,7 +91,7 @@ const Quotation = () => {
             }
             navigate(-1);
         } catch (err) {
-            // handled
+            showSnackbar(err?.response?.data?.message || err?.message || 'Failed to save quotation. Please try again.');
         }
     };
 
@@ -129,6 +132,16 @@ const Quotation = () => {
 
     return (
         <div>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={5000}
+                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            >
+                <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
             <Routes>
                 <Route
                     path="/"

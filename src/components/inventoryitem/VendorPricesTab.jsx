@@ -11,7 +11,13 @@ import dayjs from 'dayjs';
 const BORDER_COLOR = '#e5e7eb';
 const HEADER_BG = '#0f2744';
 
-export default function VendorPricesTab({ itemId, setSnackbar }) {
+/**
+ * purchased / manufactured props control which sections are visible:
+ *   purchased=true, manufactured=false  → PURCHASE prices only
+ *   purchased=false, manufactured=true  → JOB_WORK (sub-contract) only
+ *   both true OR both false             → both sections shown
+ */
+export default function VendorPricesTab({ itemId, setSnackbar, purchased = true, manufactured = false }) {
   const [vendorPrices, setVendorPrices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -22,7 +28,7 @@ export default function VendorPricesTab({ itemId, setSnackbar }) {
     if (!itemId) return;
     setLoading(true);
     try {
-      const dbResponse = await apiService.get(`/api/items/${itemId}/vendor-prices`).catch(() => []);
+      const dbResponse = await apiService.get(`/items/${itemId}/vendor-prices`).catch(() => []);
       // Placeholder mock data if endpoint not yet live
       const data = dbResponse?.length ? dbResponse : []; 
       setVendorPrices(data);
@@ -39,7 +45,7 @@ export default function VendorPricesTab({ itemId, setSnackbar }) {
 
   const handleSetPreferred = async (id, type) => {
     try {
-      await apiService.patch(`/api/items/${itemId}/vendor-prices/${id}/set-preferred`);
+      await apiService.patch(`/items/${itemId}/vendor-prices/${id}/set-preferred`);
       setSnackbar?.('Vendor set as preferred.', 'success');
       fetchVendorPrices();
     } catch (error) {
@@ -50,7 +56,7 @@ export default function VendorPricesTab({ itemId, setSnackbar }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to remove this vendor price?')) return;
     try {
-      await apiService.delete(`/api/items/${itemId}/vendor-prices/${id}`);
+      await apiService.delete(`/items/${itemId}/vendor-prices/${id}`);
       setSnackbar?.('Vendor price removed.', 'success');
       fetchVendorPrices();
     } catch (error) {
@@ -160,9 +166,13 @@ export default function VendorPricesTab({ itemId, setSnackbar }) {
   const purchasePrices = vendorPrices.filter(p => p.priceType === 'PURCHASE');
   const jobWorkRates = vendorPrices.filter(p => p.priceType === 'JOB_WORK');
 
+  // Show both sections when neither flag is set (fallback) or when both are set
+  const showPurchase = purchased || (!purchased && !manufactured);
+  const showJobWork = manufactured || (!purchased && !manufactured);
+
   return (
     <Box sx={{ mt: 2 }}>
-      {renderTable(
+      {showPurchase && renderTable(
         purchasePrices,
         "Supplier Purchase Prices",
         <ShoppingCart sx={{ color: '#1565c0' }} />,
@@ -170,8 +180,8 @@ export default function VendorPricesTab({ itemId, setSnackbar }) {
         "+ Add Supplier Price",
         "PURCHASE"
       )}
-      
-      {renderTable(
+
+      {showJobWork && renderTable(
         jobWorkRates,
         "Job Work / Subcontract Rates",
         <Handyman sx={{ color: '#f57c00' }} />,

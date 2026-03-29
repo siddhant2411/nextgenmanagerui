@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper
+  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip
 } from '@mui/material';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
@@ -8,6 +8,7 @@ import WorkOrderMaterialsTab from './tabs/WorkOrderMaterialsTab';
 import WorkOrderOperationsTab from './tabs/WorkOrderOperationsTab';
 import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
 import WorkOrderQCTab from './tabs/WorkOrderQCTab';
+import WorkOrderAttachmentsTab from './tabs/WorkOrderAttachmentsTab';
 import ScheduleDialog from './ScheduleDialog';
 import { useFormik } from 'formik';
 import dayjs from 'dayjs';
@@ -863,7 +864,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
   const canCancelWorkOrderStatus = !['CANCELLED', 'CLOSED'].includes(workOrderStatus);
-  const isUpdateDisabled = Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus);
+  const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
+  const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
   const handleAutoSchedule = async () => {
     if (!workOrderId) return;
@@ -1005,66 +1007,90 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                 >
                   Excel
                 </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="info"
-                  startIcon={<Schedule fontSize="small" />}
-                  sx={compactButtonSx}
-                  onClick={handleAutoSchedule}
-                  disabled={isScheduleLoading || !canScheduleWorkOrder}
-                >
-                  {isScheduleLoading ? 'Scheduling...' : 'Auto Schedule'}
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="info"
-                  startIcon={<EventRepeat fontSize="small" />}
-                  sx={compactButtonSx}
-                  onClick={() => setRescheduleDialogOpen(true)}
-                  disabled={isScheduleLoading || !canScheduleWorkOrder}
-                >
-                  Reschedule
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="secondary"
-                  sx={compactButtonSx}
-                  onClick={handleRelease}
-                  disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
-                >
-                  {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  sx={compactButtonSx}
-                  onClick={() => openWorkOrderActionDialog('complete')}
-                  disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
-                >
-                  Complete WO
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  sx={compactButtonSx}
-                  onClick={() => openWorkOrderActionDialog('close')}
-                  disabled={isWorkOrderActionLoading || !canCloseWorkOrderStatus}
-                >
-                  Close WO
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="error"
-                  sx={compactButtonSx}
-                  onClick={() => openWorkOrderActionDialog('cancel')}
-                  disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
-                >
-                  Cancel WO
-                </Button>
+                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="info"
+                      startIcon={<Schedule fontSize="small" />}
+                      sx={compactButtonSx}
+                      onClick={handleAutoSchedule}
+                      disabled={isScheduleLoading || !canScheduleWorkOrder}
+                    >
+                      {isScheduleLoading ? 'Scheduling...' : 'Auto Schedule'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="info"
+                      startIcon={<EventRepeat fontSize="small" />}
+                      sx={compactButtonSx}
+                      onClick={() => setRescheduleDialogOpen(true)}
+                      disabled={isScheduleLoading || !canScheduleWorkOrder}
+                    >
+                      Reschedule
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canIssueWorkOrder ? `Must be in CREATED or SCHEDULED status to issue (current: ${workOrderStatus})` : !canManageWorkOrderAdminActions ? 'Admin role required to issue work orders' : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="secondary"
+                      sx={compactButtonSx}
+                      onClick={handleRelease}
+                      disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
+                    >
+                      {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCompleteWorkOrderStatus ? `Must be RELEASED or IN_PROGRESS to complete (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('complete')}
+                      disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
+                    >
+                      Complete WO
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCloseWorkOrderStatus ? `Must be COMPLETED before closing (current: ${workOrderStatus})` : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('close')}
+                      disabled={isWorkOrderActionLoading || !canCloseWorkOrderStatus}
+                    >
+                      Close WO
+                    </Button>
+                  </span>
+                </Tooltip>
+                <Tooltip title={!canCancelWorkOrderStatus ? `Work Order is already ${workOrderStatus.toLowerCase()} and cannot be cancelled` : !canManageWorkOrderAdminActions ? 'Admin role required to cancel work orders' : ''}>
+                  <span>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      sx={compactButtonSx}
+                      onClick={() => openWorkOrderActionDialog('cancel')}
+                      disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
+                    >
+                      Cancel WO
+                    </Button>
+                  </span>
+                </Tooltip>
 
               </>
             )}
@@ -1175,6 +1201,13 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               onCompleteOperation={handleCompleteOperation}
               operationActionState={operationActionState}
               materials={formik.values.materials}
+            />
+          )}
+          {selectedTab === 3 && (
+            <WorkOrderAttachmentsTab
+              workOrderId={workOrderId}
+              setError={setError}
+              setSnackbar={setSnackbar}
             />
           )}
           {selectedTab === 4 && (

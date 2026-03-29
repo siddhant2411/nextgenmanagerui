@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip } from '@mui/material';
+import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Alert } from '@mui/material';
 import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
@@ -290,6 +290,11 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
                 label="No BOM found for this item"
               />
             </Box>
+          )}
+          {formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              This item is marked as <strong>Purchased Only</strong> and cannot be manufactured. Work orders can only be created for items with manufacturing enabled.
+            </Alert>
           )}
         </Grid>
 

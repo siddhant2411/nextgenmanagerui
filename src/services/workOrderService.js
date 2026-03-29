@@ -1,4 +1,4 @@
-import apiService from "./apiService";
+import apiService, { apiClientFile } from "./apiService";
 
 export const getWorkOrderList = async (params) => {
     return apiService.post('/production/work-order/get-list', params);
@@ -176,4 +176,27 @@ export const getProductionScheduleMachine = async (machineId, from, to) => {
     if (from) params.from = from;
     if (to) params.to = to;
     return apiService.get(`/production/work-order/schedule/machine/${machineId}`, { params });
+};
+
+// ── Attachments ──
+
+export const getWorkOrderAttachments = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/attachments`);
+};
+
+export const uploadWorkOrderAttachments = async (workOrderId, files = []) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f.file || f));
+    const response = await apiClientFile.post(`/production/work-order/${workOrderId}/attachments`, formData, {
+        headers: { Accept: 'application/json' },
+    });
+    return response.data;
+};
+
+export const deleteWorkOrderAttachment = async (workOrderId, attachmentId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    if (!attachmentId) throw new Error('Attachment id is required');
+    return apiService.delete(`/production/work-order/${workOrderId}/attachments/${attachmentId}`);
 };

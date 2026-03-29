@@ -192,8 +192,9 @@ const Sidebar = ({
 
             <List>
                 {menuItems.map((item, index) => {
-                    const isChildActive = item.children && item.children.some((child) => location.pathname === child.path);
-                    const isActive = location.pathname === item.path || isChildActive;
+                    const pathMatches = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+                    const isChildActive = item.children && item.children.some((child) => pathMatches(child.path));
+                    const isActive = (item.path && pathMatches(item.path)) || isChildActive;
                     const showText = !collapsed || isSmallScreen;
 
                     const listButton = (
@@ -261,10 +262,10 @@ const Sidebar = ({
                                                     m: "2px 12px 2px 32px",
                                                     borderRadius: 1.5,
                                                     transition: "all 0.2s ease",
-                                                    backgroundColor: location.pathname === child.path ? "rgba(255, 255, 255, 0.08)" : "transparent",
-                                                    color: location.pathname === child.path ? "#ffffff" : "#94a3b8",
-                                                    "&:hover": { 
-                                                        backgroundColor: location.pathname === child.path ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                                                    backgroundColor: pathMatches(child.path) ? "rgba(255, 255, 255, 0.08)" : "transparent",
+                                                    color: pathMatches(child.path) ? "#ffffff" : "#94a3b8",
+                                                    "&:hover": {
+                                                        backgroundColor: pathMatches(child.path) ? "rgba(255, 255, 255, 0.12)" : "rgba(255, 255, 255, 0.04)",
                                                         color: "#ffffff"
                                                     },
                                                     px: 2,
@@ -274,7 +275,7 @@ const Sidebar = ({
                                                 <ListItemText
                                                     primary={child.text}
                                                     sx={{ my: 0 }}
-                                                    slotProps={{ primary: { fontSize: "0.8125rem", fontWeight: location.pathname === child.path ? 600 : 500, color: "inherit" } }}
+                                                    slotProps={{ primary: { fontSize: "0.8125rem", fontWeight: pathMatches(child.path) ? 600 : 500, color: "inherit" } }}
                                                 />
                                             </ListItemButton>
                                         ))}

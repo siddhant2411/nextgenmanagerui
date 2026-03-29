@@ -9,7 +9,8 @@ import dayjs from 'dayjs';
 
 const DRAWER_WIDTH = 480;
 
-const getDefaultContactType = (type) => type === 'JOB_WORK' ? 'JOB_WORKER' : 'SUPPLIER';
+// Both PURCHASE and JOB_WORK use vendors (ContactType.VENDOR includes BOTH contacts)
+const VENDOR_CONTACT_TYPE = 'VENDOR';
 
 export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editingPrice, defaultType, onSave, setSnackbar }) {
   const isEditing = !!editingPrice;
@@ -37,7 +38,8 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
     if (isEditing) {
       setFormData({
         vendorId: editingPrice.vendorId,
-        vendorRef: { id: editingPrice.vendorId, name: editingPrice.vendorName, gstNumber: editingPrice.vendorGstNumber, registeredDealer: editingPrice.gstRegistered },
+        // companyName is the field used by ContactSummaryDTO
+        vendorRef: { id: editingPrice.vendorId, companyName: editingPrice.vendorName, gstNumber: editingPrice.vendorGstNumber },
         priceType: editingPrice.priceType,
         pricePerUnit: editingPrice.pricePerUnit,
         currency: editingPrice.currency || 'INR',
@@ -52,19 +54,18 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
       });
     } else {
       setFormData(prev => ({ ...prev, priceType: defaultType || 'PURCHASE', isPreferredVendor: true }));
-      fetchVendors('', defaultType || 'PURCHASE');
+      fetchVendors('');
     }
   }, [isEditing, editingPrice, defaultType]);
 
-  const fetchVendors = async (query = '', type) => {
+  const fetchVendors = async (query = '') => {
     setSearching(true);
     try {
-      // Fetch from generic contacts endpoint based on type
-      let contactTypeFilter = getDefaultContactType(type);
-      const res = await apiService.get('/contact/search', { type: contactTypeFilter, search: query, page: 0, size: 20 });
-      setVendorOptions(res?.content || []);
+      // /contact/dropdown returns ContactSummaryDTO list (max 20)
+      // type=VENDOR includes contacts with contactType VENDOR or BOTH
+      const res = await apiService.get('/contact/dropdown', { query, type: VENDOR_CONTACT_TYPE });
+      setVendorOptions(res || []);
     } catch (e) {
-      // default mock fallback if api differs
       setVendorOptions([]);
     } finally {
       setSearching(false);
@@ -76,12 +77,13 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
-  const handleVendorChange = (e, val) => {
+  const handleVendorChange = (_, val) => {
     setFormData(prev => ({
       ...prev,
       vendorRef: val,
       vendorId: val?.id || '',
-      gstRegistered: val?.registeredDealer ?? true // inherit from vendor profile explicitly
+      // gstType UNREGISTERED means no GST registration; all other types are registered
+      gstRegistered: val ? val.gstType !== 'UNREGISTERED' : true,
     }));
   };
 
@@ -110,10 +112,10 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
     setLoading(true);
     try {
       if (isEditing) {
-        await apiService.put(`/api/items/${itemId}/vendor-prices/${editingPrice.id}`, payload);
+        await apiService.put(`/items/${itemId}/vendor-prices/${editingPrice.id}`, payload);
         setSnackbar?.('Vendor price updated', 'success');
       } else {
-        await apiService.post(`/api/items/${itemId}/vendor-prices`, payload);
+        await apiService.post(`/items/${itemId}/vendor-prices`, payload);
         setSnackbar?.('Vendor price added', 'success');
       }
       onSave?.();
@@ -138,7 +140,7 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
         <Typography variant="subtitle2" fontWeight={600} mb={1}>Price Context</Typography>
         <RadioGroup row name="priceType" value={formData.priceType} onChange={(e) => {
           handleChange(e);
-          fetchVendors('', e.target.value);
+          fetchVendors('');
         }}>
           <FormControlLabel value="PURCHASE" control={<Radio size="small" />} label="Purchase Price" />
           <FormControlLabel value="JOB_WORK" control={<Radio size="small" />} label="Job Work Rate" />
@@ -152,16 +154,19 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
               options={vendorOptions}
               value={formData.vendorRef}
               onChange={handleVendorChange}
-              onInputChange={(e, val) => fetchVendors(val, formData.priceType)}
-              getOptionLabel={(option) => option.name || ''}
+              onInputChange={(_, val) => fetchVendors(val)}
+              getOptionLabel={(option) => option.companyName || ''}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
               loading={searching}
               renderOption={(props, option) => (
-                <li {...props}>
+                <li {...props} key={option.id}>
                   <Box>
-                    <Typography variant="body2">{option.name}</Typography>
+                    <Typography variant="body2">{option.companyName}</Typography>
                     <Box display="flex" gap={1}>
                       <Typography variant="caption" color="text.secondary">GST: {option.gstNumber || 'N/A'}</Typography>
-                      {!option.registeredDealer && <Typography variant="caption" color="error">⚠ Unregistered</Typography>}
+                      {option.gstType === 'UNREGISTERED' && (
+                        <Typography variant="caption" color="error">⚠ Unregistered</Typography>
+                      )}
                     </Box>
                   </Box>
                 </li>
