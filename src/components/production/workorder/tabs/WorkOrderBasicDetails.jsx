@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Grid, Box, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip } from '@mui/material';
+import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Alert } from '@mui/material';
 import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
@@ -52,13 +52,12 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
       }));
       setSearchedItemList(filteredData);
     } catch (err) {
-      console.error('Search error:', err);
+      // handled
     }
   };
 
   const handleCost = (value) => {
 
-    console.log(value)
     formik.setFieldValue('workOrderProductionTemplate', value?.workOrderProductionTemplate || null);
     formik.setFieldValue('workOrderJobLists', value?.workOrderJobLists || []);
     formik.setFieldValue('estimatedCostOfLabour', Number(value?.workOrderProductionTemplate?.estimatedCostOfLabour) || 0);
@@ -156,7 +155,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
         setReferenceOptions(filtered);
       }
     } catch (err) {
-      console.error('Reference search error:', err);
       setError('Failed to load reference documents. Please try again.');
     }
   };
@@ -176,9 +174,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
         handleGetBom(selectedProduct.id);
       }
       catch (err) {
-        console.log(err);
-        // setError(err);
-
+        // handled
       }
     }
   };
@@ -206,7 +202,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           : null
         : null;
   return (
-    <>
+    <Box sx={{ width: '100%', overflowX: 'hidden', minWidth: 0, pb: 1 }}>
       <Grid container spacing={2}>
 
         <Grid item xs={12} sm={6}>
@@ -294,6 +290,11 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
                 label="No BOM found for this item"
               />
             </Box>
+          )}
+          {formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured && (
+            <Alert severity="warning" sx={{ mt: 1 }}>
+              This item is marked as <strong>Purchased Only</strong> and cannot be manufactured. Work orders can only be created for items with manufacturing enabled.
+            </Alert>
           )}
         </Grid>
 
@@ -423,6 +424,52 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
               "& .MuiInputLabel-root": { fontSize: 14 },
             }}
           />
+        </Grid>
+
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth size="small">
+            <InputLabel id="priority-label" sx={{ fontSize: 14 }}>Priority</InputLabel>
+            <Select
+              labelId="priority-label"
+              id="priority"
+              label="Priority"
+              value={formik.values.priority || 'NORMAL'}
+              onChange={(e) => formik.setFieldValue('priority', e.target.value)}
+              sx={{
+                "& .MuiInputBase-input": { fontSize: 14 },
+                "& .MuiInputLabel-root": { fontSize: 14 },
+              }}
+              renderValue={(selected) => {
+                const colorMap = { URGENT: '#ef4444', HIGH: '#f97316', NORMAL: '#3b82f6', LOW: '#9ca3af' };
+                return (
+                  <Chip
+                    size="small"
+                    label={selected}
+                    sx={{
+                      bgcolor: colorMap[selected] || '#3b82f6',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.75rem',
+                    }}
+                  />
+                );
+              }}
+            >
+              {[
+                { value: 'URGENT', color: '#ef4444', label: 'Urgent' },
+                { value: 'HIGH', color: '#f97316', label: 'High' },
+                { value: 'NORMAL', color: '#3b82f6', label: 'Normal' },
+                { value: 'LOW', color: '#9ca3af', label: 'Low' },
+              ].map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: opt.color }} />
+                    <span>{opt.label}</span>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Grid>
 
       </Grid>
@@ -598,6 +645,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           />
         </Grid>
       </Grid>
-    </>
+    </Box>
   );
 }

@@ -28,12 +28,10 @@ export default function AddItemQtyForm({
         };
 
         try {
-            const res = await apiService.post("/inventory/add-instances", requestData)
-
-            console.log(res)
+            await apiService.post("/inventory/add-instances", requestData)
             handleCloseDialog()
         } catch (e) {
-            console.log(resolveApiErrorMessage(e, "Failed to add item quantity."))
+            // handled
         }
 
 

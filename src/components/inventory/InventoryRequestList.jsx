@@ -74,7 +74,6 @@ const InventoryRequestList = () => {
       setRequests(res.content || []);
       setTotalRequests(res.totalElements || 0);
     } catch (err) {
-      console.error('Failed to fetch grouped requests:', err);
       showSnackbar(resolveApiErrorMessage(err, 'Failed to load requests. Please try again later.'), 'error');
     } finally {
       setLoading(false);
@@ -122,7 +121,6 @@ const InventoryRequestList = () => {
       showSnackbar('Request approved successfully!', 'success');
       fetchRequests();
     } catch (err) {
-      console.error('Failed to approve request:', err);
       showSnackbar(resolveApiErrorMessage(err, 'Failed to approve request.'), 'error');
     }
   };
@@ -140,7 +138,6 @@ const InventoryRequestList = () => {
       showSnackbar('Request rejected successfully!', 'info');
       fetchRequests();
     } catch (err) {
-      console.error('Failed to reject request:', err);
       showSnackbar(resolveApiErrorMessage(err, 'Failed to reject the request. Please try again.'), 'error');
     }
   };

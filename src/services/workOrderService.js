@@ -1,7 +1,6 @@
-import apiService from "./apiService";
+import apiService, { apiClientFile } from "./apiService";
 
 export const getWorkOrderList = async (params) => {
-    console.log('Fetching work order list with params:', params);
     return apiService.post('/production/work-order/get-list', params);
 }
 
@@ -103,3 +102,101 @@ export const cancelWorkOrder = async (id) => {
     }
     return apiService.patch(`/production/work-order/${id}/cancel`);
 }
+
+// ── QC Testing ──
+
+export const getWorkOrderTests = async (id) => {
+    if (!id) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${id}/tests`);
+}
+
+export const recordTestResult = async (id, testResultId, data) => {
+    if (!id) throw new Error('Work order id is required');
+    if (!testResultId) throw new Error('Test result id is required');
+    return apiService.put(`/production/work-order/${id}/tests/${testResultId}`, data);
+}
+
+export const getTestReport = async (id) => {
+    if (!id) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${id}/test-report`);
+}
+
+// ── Production Scheduling ──
+
+export const scheduleWorkOrder = async (id) => {
+    if (!id) throw new Error('Work order id is required');
+    return apiService.post(`/production/work-order/${id}/schedule`);
+}
+
+export const rescheduleWorkOrder = async (id, startDate) => {
+    if (!id) throw new Error('Work order id is required');
+    if (!startDate) throw new Error('Start date is required');
+    return apiService.post(`/production/work-order/${id}/reschedule?startDate=${startDate}`);
+}
+
+// ── Machine Schedule ──
+
+export const getMachineSchedule = async (machineId, from, to) => {
+    if (!machineId) throw new Error('Machine id is required');
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return apiService.get(`/production/work-order/machine/${machineId}/schedule`, { params });
+};
+
+export const getMachineScheduleToday = async (machineId) => {
+    if (!machineId) throw new Error('Machine id is required');
+    return apiService.get(`/production/work-order/machine/${machineId}/schedule/today`);
+};
+
+export const scheduleAllWorkOrders = async () => {
+    return apiService.post('/production/work-order/schedule-all');
+};
+
+// ── Plant Manager Schedule Views ──
+
+export const getProductionScheduleCombined = async (from, to) => {
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return apiService.get('/production/work-order/schedule/combined', { params });
+};
+
+export const getProductionScheduleWorkCenter = async (workCenterId, from, to) => {
+    if (!workCenterId) throw new Error('Work center id is required');
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return apiService.get(`/production/work-order/schedule/work-center/${workCenterId}`, { params });
+};
+
+export const getProductionScheduleMachine = async (machineId, from, to) => {
+    if (!machineId) throw new Error('Machine id is required');
+    const params = {};
+    if (from) params.from = from;
+    if (to) params.to = to;
+    return apiService.get(`/production/work-order/schedule/machine/${machineId}`, { params });
+};
+
+// ── Attachments ──
+
+export const getWorkOrderAttachments = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/attachments`);
+};
+
+export const uploadWorkOrderAttachments = async (workOrderId, files = []) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f.file || f));
+    const response = await apiClientFile.post(`/production/work-order/${workOrderId}/attachments`, formData, {
+        headers: { Accept: 'application/json' },
+    });
+    return response.data;
+};
+
+export const deleteWorkOrderAttachment = async (workOrderId, attachmentId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    if (!attachmentId) throw new Error('Attachment id is required');
+    return apiService.delete(`/production/work-order/${workOrderId}/attachments/${attachmentId}`);
+};

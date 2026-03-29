@@ -59,9 +59,9 @@ const AddUpdateQuotation = ({ onSave }) => {
             discountAmount: initialData.discountAmount ? initialData.discountAmount : 0,
             roundOff: initialData.roundOff ? initialData.roundOff : 0,
             totalAmount: initialData.totalAmount ? initialData.totalAmount : 0,
-            pandfchargesPercentage: initialData.pandfchargesPercentage ? initialData.pandfchargesPercentage : 0,
-            pandfcharges: initialData.pandfcharges ? initialData.pandfcharges : 0,
-            taxableAmount: initialData.discountAmount ? initialData.pandfcharges + initialData.netAmount - initialData.discountAmount : 0,
+            packagingAndForwardingChargesPercentage: initialData.packagingAndForwardingChargesPercentage ? initialData.packagingAndForwardingChargesPercentage : 0,
+            packagingAndForwardingCharges: initialData.packagingAndForwardingCharges ? initialData.packagingAndForwardingCharges : 0,
+            taxableAmount: initialData.discountAmount ? initialData.packagingAndForwardingCharges + initialData.netAmount - initialData.discountAmount : 0,
             validTill: initialData.validTill || '',
             paymentTerms: initialData.paymentTerms || '',
             deliveryTerms: initialData.deliveryTerms || '',
@@ -76,7 +76,7 @@ const AddUpdateQuotation = ({ onSave }) => {
         validationSchema: Yup.object({
             discountPercentage: Yup.number().min(0, "Cannot be negative").max(100, "Cannot exceed 100"),
             gstPercentage: Yup.number().min(0, "Cannot be negative").max(100, "Cannot exceed 100"),
-            pandfchargesPercentage: Yup.number().min(0, "Cannot be negative"),
+            packagingAndForwardingChargesPercentage: Yup.number().min(0, "Cannot be negative"),
             quotationProducts: Yup.array().of(
                 Yup.object().shape({
                     qty: Yup.number().required("Qty is required").min(0.01, "Qty must be greater than 0"),
@@ -86,35 +86,31 @@ const AddUpdateQuotation = ({ onSave }) => {
         }),
         onSubmit: (values) => {
             const updatedValues = { ...values };
-            console.log("INSIDE");
 
             if (values.id === 0) {
 
 
                 delete updatedValues.enqNo;
                 delete updatedValues.id;
-                console.log(updatedValues);
 
             }
 
-
-            console.log(updatedValues)
 
             onSave(updatedValues)
         },
     });
 
-    const { pandfchargesPercentage, discountAmount } = formik.values;
+    const { packagingAndForwardingChargesPercentage, discountAmount } = formik.values;
 
     useEffect(() => {
-        const pct = parseFloat(formik.values.pandfchargesPercentage) || 0;
+        const pct = parseFloat(formik.values.packagingAndForwardingChargesPercentage) || 0;
         const disc = parseFloat(formik.values.discountAmount) || 0;
         // say P&F charges = pct% of discountAmount
         const pandf = +(disc * pct / 100).toFixed(2);
 
-        formik.setFieldValue('pandfcharges', pandf);
+        formik.setFieldValue('packagingAndForwardingCharges', pandf);
     }, [
-        pandfchargesPercentage,
+        packagingAndForwardingChargesPercentage,
         discountAmount
     ]);
 
@@ -125,12 +121,12 @@ const AddUpdateQuotation = ({ onSave }) => {
     useEffect(() => {
         const net = parseFloatOrZero(formik.values.netAmount);
         const discount = parseFloatOrZero(formik.values.discountPercentage);
-        const pandf = parseFloatOrZero(formik.values.pandfcharges);
+        const pandf = parseFloatOrZero(formik.values.packagingAndForwardingCharges);
         const discountAmount = ((discount / 100) * net).toFixed(2);
         const taxable = (net - discountAmount + pandf).toFixed(2);
         formik.setFieldValue('discountAmount', discountAmount);
         formik.setFieldValue('taxableAmount', taxable);
-    }, [formik.values.discountPercentage, formik.values.netAmount, formik.values.pandfcharges]);
+    }, [formik.values.discountPercentage, formik.values.netAmount, formik.values.packagingAndForwardingCharges]);
 
     useEffect(() => {
         const taxable = parseFloatOrZero(formik.values.taxableAmount);
@@ -144,7 +140,6 @@ const AddUpdateQuotation = ({ onSave }) => {
     }, [formik.values.gstPercentage, formik.values.taxableAmount]);
 
     const fetchQuotationDetails = useCallback(async () => {
-        console.log("Enquiry" + quotationId)
         if (!quotationId) return;
 
         try {
@@ -217,7 +212,6 @@ const AddUpdateQuotation = ({ onSave }) => {
             // setSearchQuery('')
             return
         }
-        console.log(index)
         // formik.setFieldValue(`enquiredProducts[${index}].searchQuery`, value);
 
         setLoading(true)
@@ -288,17 +282,17 @@ const AddUpdateQuotation = ({ onSave }) => {
 
         // 2) Discount & taxable
         const globalDp = parseNum(formik.values.discountPercentage);
-        const pafPct = parseNum(formik.values.pandfchargesPercentage);
+        const pafPct = parseNum(formik.values.packagingAndForwardingChargesPercentage);
         const discountAmount = +(net * globalDp / 100).toFixed(2);
         const taxableAmount = +(net - discountAmount).toFixed(2);
 
         // 3) P&F charges (pct of the discount)
-        const pandfcharges = +(((net - discountAmount) * pafPct / 100)).toFixed(2);
+        const packagingAndForwardingCharges = +(((net - discountAmount) * pafPct / 100)).toFixed(2);
 
         // 4) GST, total & roundOff
         const gp = parseNum(formik.values.gstPercentage);
         const gstAmount = +(taxableAmount * gp / 100).toFixed(2);
-        const rawTotal = taxableAmount + gstAmount + pandfcharges;
+        const rawTotal = taxableAmount + gstAmount + packagingAndForwardingCharges;
         const total = Math.round(rawTotal);
         const roundOff = +(total - rawTotal).toFixed(2);
 
@@ -306,7 +300,7 @@ const AddUpdateQuotation = ({ onSave }) => {
         formik.setFieldValue('netAmount', net.toFixed(2));
         formik.setFieldValue('discountAmount', discountAmount);
         formik.setFieldValue('taxableAmount', taxableAmount);
-        formik.setFieldValue('pandfcharges', pandfcharges);
+        formik.setFieldValue('packagingAndForwardingCharges', packagingAndForwardingCharges);
         formik.setFieldValue('gstAmount', gstAmount);
         formik.setFieldValue('totalAmount', total);
         formik.setFieldValue('roundOff', roundOff);
@@ -314,7 +308,7 @@ const AddUpdateQuotation = ({ onSave }) => {
     }, [
         formik.values.quotationProducts,
         formik.values.discountPercentage,
-        formik.values.pandfchargesPercentage,
+        formik.values.packagingAndForwardingChargesPercentage,
         formik.values.gstPercentage
     ]);
 
@@ -371,6 +365,17 @@ const AddUpdateQuotation = ({ onSave }) => {
                                     ))}
                                 </TextField>
 
+                                {quotationId && formik.values.quotationStatus === 'ACCEPTED' && (
+                                    <Button
+                                        variant="contained"
+                                        color="success"
+                                        onClick={() => navigate('/sales/sales-order/add', {
+                                            state: { prefillQuotationId: quotationId }
+                                        })}
+                                    >
+                                        Convert to Sales Order
+                                    </Button>
+                                )}
                                 {quotationId && (
                                     <Button variant="contained" color="info" onClick={printDocument}>
                                         Print
@@ -685,7 +690,6 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                             }
                                                             onChange={(event) => {
                                                                 const { value } = event.target;
-                                                                console.log(value)
                                                                 if (/^\d*\.?\d*$/.test(value)) {
                                                                     formik.handleChange(event);
 
@@ -746,7 +750,6 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                     <TableCell align="center">
                                                         {(() => {
 
-                                                            console.log(formik.values.quotationProducts[index])
                                                             const prod = formik.values.quotationProducts[index];
                                                             const qty = prod.qty || 0;
                                                             // fallback price: inventoryItem.sellingPrice or pricePerUnit
@@ -821,8 +824,8 @@ const AddUpdateQuotation = ({ onSave }) => {
                                         <TextField
                                             fullWidth
                                             label="P & F Charges %"
-                                            name="pandfchargesPercentage"
-                                            value={formik.values.pandfchargesPercentage}
+                                            name="packagingAndForwardingChargesPercentage"
+                                            value={formik.values.packagingAndForwardingChargesPercentage}
                                             onChange={formik.handleChange}
                                             size="small"
                                         />
@@ -832,8 +835,8 @@ const AddUpdateQuotation = ({ onSave }) => {
                                         <TextField
                                             fullWidth
                                             label="P & F Charges"
-                                            name="pandfcharges"
-                                            value={formik.values.pandfcharges}
+                                            name="packagingAndForwardingCharges"
+                                            value={formik.values.packagingAndForwardingCharges}
                                             onChange={formik.handleChange}
                                             size="small"
                                         />

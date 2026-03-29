@@ -64,7 +64,6 @@ const ProcurementOrdersTabContent = () => {
             setOrders(res.content || []);
             setTotalElements(res.totalElements || 0);
         } catch (err) {
-            console.error("Failed to load procurement orders:", err);
             showSnackbar(resolveApiErrorMessage(err, "Failed to load procurement orders"), "error");
         } finally {
             setLoading(false);
@@ -103,7 +102,6 @@ const ProcurementOrdersTabContent = () => {
             showSnackbar("Procurement order marked as completed!", "success");
             fetchOrders();
         } catch (err) {
-            console.error("Failed to complete order:", err);
             showSnackbar(resolveApiErrorMessage(err, "Failed to complete order"), "error");
         }
     };

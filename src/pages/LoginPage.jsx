@@ -72,7 +72,7 @@ export default function LoginPage() {
                     <Box className="plm-brand-chip">
                         <PrecisionManufacturingOutlinedIcon fontSize="small" />
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            PLM Access
+                            NextGenManager
                         </Typography>
                     </Box>
 
@@ -124,6 +124,10 @@ export default function LoginPage() {
                             </Button>
                         </Stack>
                     </Box>
+
+                    <Typography variant="caption" color="text.secondary" align="center">
+                        Having trouble signing in? Contact your system administrator.
+                    </Typography>
                 </Stack>
             </Paper>
         </div>

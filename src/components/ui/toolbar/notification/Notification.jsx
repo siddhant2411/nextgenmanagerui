@@ -1,50 +1,49 @@
-import React, { useEffect, useState } from "react";
-import { IconButton, Badge, Menu, MenuItem } from "@mui/material";
-import NotificationsIcon from "@mui/icons-material/Notifications";
+import React, { useState } from "react";
+import {
+    IconButton,
+    Badge,
+    Menu,
+    MenuItem,
+    Typography,
+    Box,
+} from "@mui/material";
 import { NotificationsOutlined } from "@mui/icons-material";
 
-
 export default function Notification() {
-  const [notifications, setNotifications] = useState([]);
-  const [anchorEl, setAnchorEl] = useState(null);
+    const [notifications] = useState([]);
+    const [anchorEl, setAnchorEl] = useState(null);
 
-  useEffect(() => {
-    // fetch("/api/notifications/123") // replace with userId
-    //   .then(res => res.json())
-    //   .then(data => setNotifications(data));
-    setNotifications([{
-      id: 1,
-      message: "Notification 1",
-      date: new Date(),
-      status: "unread"
-    },
-    {
-      id: 2,
-      message: "Notification 2",
-      date: new Date(),
-      status: "read"
-    },]
-    )
-  }, []);
+    const unreadCount = notifications.filter((n) => n.status === "unread").length;
 
-  const unreadCount = notifications.filter(n => n.status === "unread").length;
+    return (
+        <div>
+            <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
+                <Badge badgeContent={unreadCount} color="error">
+                    <NotificationsOutlined />
+                </Badge>
+            </IconButton>
 
-  return (
-    <div>
-      <IconButton color="inherit" onClick={(e) => setAnchorEl(e.currentTarget)}>
-        <Badge badgeContent={unreadCount} color="error">
-          <NotificationsOutlined />
-        </Badge>
-      </IconButton>
-
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {notifications.length === 0 && <MenuItem>No notifications</MenuItem>}
-        {notifications.map((n) => (
-          <MenuItem key={n.id} onClick={() => window.location.href = n.link}>
-            {n.message}
-          </MenuItem>
-        ))}
-      </Menu>
-    </div>
-  );
+            <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={() => setAnchorEl(null)}
+                PaperProps={{ sx: { minWidth: 280, maxHeight: 400 } }}
+            >
+                {notifications.length === 0 ? (
+                    <Box sx={{ px: 2, py: 3, textAlign: "center" }}>
+                        <NotificationsOutlined sx={{ fontSize: 40, color: "text.disabled", mb: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
+                            No notifications
+                        </Typography>
+                    </Box>
+                ) : (
+                    notifications.map((n) => (
+                        <MenuItem key={n.id}>
+                            {n.message}
+                        </MenuItem>
+                    ))
+                )}
+            </Menu>
+        </div>
+    );
 }

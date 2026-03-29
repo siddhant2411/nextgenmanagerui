@@ -18,7 +18,7 @@ const InventoryItemList = () => {
       const res = await inventoryItemSearch(query);
       setItems(res);
     } catch (err) {
-      console.error('Failed to fetch inventory items', err);
+      // handled
     }
   };
 

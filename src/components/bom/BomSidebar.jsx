@@ -1,37 +1,47 @@
 import React, { useState } from 'react'
-import { Chip, Divider, FormControlLabel, Typography, Box, Checkbox, FormControl, InputLabel, Select, MenuItem, FormHelperText } from "@mui/material";
+import { Chip, Divider, Typography, Box, FormControl, InputLabel, Select, MenuItem, FormHelperText } from "@mui/material";
 import BomStatusChangeDialog from './BomStatusChangeDialog';
 import apiService from '../../services/apiService';
 import { resolveApiErrorMessage } from '../../services/apiService';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
+
+const BORDER_COLOR = '#e5e7eb';
+
 const bomStatus = [
-    { key: "DRAFT", value: "Draft" },
-    { key: "PENDING_APPROVAL", value: "Under Review" },
-    { key: "APPROVED", value: "Approved" },
-    { key: "ACTIVE", value: "Active" },
-    { key: "INACTIVE", value: "Inactive" },
-    { key: "OBSOLETE", value: "Obsolete" },
-    { key: "ARCHIVED", value: "Archived" }
-]
+    { key: "DRAFT", value: "Draft", color: "#e3f2fd", textColor: "#1565c0" },
+    { key: "PENDING_APPROVAL", value: "Under Review", color: "#fff3e0", textColor: "#e65100" },
+    { key: "APPROVED", value: "Approved", color: "#e8f5e9", textColor: "#2e7d32" },
+    { key: "ACTIVE", value: "Active", color: "#e8f5e9", textColor: "#2e7d32" },
+    { key: "INACTIVE", value: "Inactive", color: "#fafafa", textColor: "#757575" },
+    { key: "OBSOLETE", value: "Obsolete", color: "#ffebee", textColor: "#c62828" },
+    { key: "ARCHIVED", value: "Archived", color: "#fafafa", textColor: "#9e9e9e" }
+];
 
+const InfoRow = ({ label, children }) => (
+    <Box mb={2}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 500 }}>
+            {label}
+        </Typography>
+        <Box sx={{ mt: 0.25 }}>{children}</Box>
+    </Box>
+);
 
+const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
-export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackbar,loading,error }) {
-
+export default function BomSidebar({ bomId, formik, operations = [], setError, setLoading, showSnackbar, loading, error }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const { canAction } = useAuth();
     const canChangeBomStatus = canAction(ACTION_KEYS.BOM_STATUS_VERSION_WRITE);
     const [nextStatus, setNextStatus] = useState(null);
-    const [statusChangePayload, setStatusChangePayload] = useState({
-        bomId: bomId,
-        nextStatus: "",
-        ecoNumber: "",
-        changeReason: "",
-        approvalComments: ""
-    });
 
     const currentStatus = formik.values.bomStatus;
+    const statusInfo = bomStatus.find(s => s.key === currentStatus);
 
     const handleChangeStatus = (e) => {
         if (!canChangeBomStatus) {
@@ -40,14 +50,9 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
         }
         setNextStatus(e.target.value);
         setDialogOpen(true);
-
-    }
-
-
-    const handleClose = () => {
-        setDialogOpen(false);
-        setNextStatus(null);
     };
+
+    const handleClose = () => { setDialogOpen(false); setNextStatus(null); };
 
     const handleConfirm = async (payload) => {
         if (!canChangeBomStatus) {
@@ -55,130 +60,112 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
             return;
         }
         const finalPayload = {
-            bomId: bomId,
-            nextStatus: payload.nextStatus,
-            ecoNumber: payload.ecoNumber || "",
-            changeReason: payload.changeReason || "",
-            approvalComments: payload.approvalComments || ""
+            bomId, nextStatus: payload.nextStatus, ecoNumber: payload.ecoNumber || "",
+            changeReason: payload.changeReason || "", approvalComments: payload.approvalComments || ""
         };
-
-        setStatusChangePayload(finalPayload);
         try {
-            setLoading(true)
-           const  res = await apiService.post("/bom/changeStatus/" + bomId, finalPayload);
-           showSnackbar( "Status changed to : "+res.bomStatus)
-           formik.setFieldValue("bomStatus",res.bomStatus)
-           
+            setLoading(true);
+            const res = await apiService.post("/bom/changeStatus/" + bomId, finalPayload);
+            showSnackbar("Status changed to: " + res.bomStatus);
+            formik.setFieldValue("bomStatus", res.bomStatus);
+        } catch (e) {
+            showSnackbar(resolveApiErrorMessage(e, "Failed to change BOM status."), "error");
         }
-        catch (e){
-            console.log(e)
-             showSnackbar(resolveApiErrorMessage(e, "Failed to change BOM status."), "error")
-         
-        }
-        setLoading(false)
+        setLoading(false);
         setDialogOpen(false);
     };
+
     return (
         <Box
             sx={{
-                p: 3,
-                backgroundColor: "white",
+                p: 2.5,
+                backgroundColor: "#fff",
                 borderRadius: 2,
-                boxShadow: 2,
-                height: "100vh",
-                minHeight: "500px",
+                border: `1px solid ${BORDER_COLOR}`,
+                position: { md: 'sticky' },
+                top: { md: 80 },
                 display: "flex",
                 flexDirection: "column",
             }}
         >
-            <Typography variant="h6" mb={2}>BOM Info</Typography>
+            <Typography variant="subtitle2" fontWeight={600} color="#0f2744"
+                sx={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: 0.8, mb: 2 }}>
+                BOM Details
+            </Typography>
 
-            <Box mb={2}>
-                <FormControl
-                    fullWidth
-                    size="small"
-                    required
-                    error={formik.touched.bomStatus && Boolean(formik.errors.bomStatus)}
-                >
-                    <InputLabel id="bom-status-label">Status</InputLabel>
-
+            {/* Status */}
+            <InfoRow label="Status">
+                <FormControl fullWidth size="small"
+                    error={formik.touched.bomStatus && Boolean(formik.errors.bomStatus)}>
                     <Select
-                        labelId="bom-status-label"
                         name="bomStatus"
                         value={formik.values.bomStatus || ""}
-                        label="Status"
-                        onChange={(e) =>
-                            handleChangeStatus(e)
-                        }
+                        onChange={handleChangeStatus}
                         onBlur={formik.handleBlur}
-                        sx={{ width: "200px" }}
                         disabled={!canChangeBomStatus || loading}
+                        sx={{
+                            borderRadius: 1.5,
+                            fontSize: '0.8125rem',
+                            fontWeight: 500,
+                            bgcolor: statusInfo?.color || '#fafafa',
+                            color: statusInfo?.textColor || '#374151',
+                            '& .MuiOutlinedInput-notchedOutline': { borderColor: BORDER_COLOR },
+                        }}
                     >
                         {bomStatus.map((option) => (
-                            <MenuItem key={option.key} value={option.key}>
+                            <MenuItem key={option.key} value={option.key} sx={{ fontSize: '0.8125rem' }}>
                                 {option.value}
                             </MenuItem>
                         ))}
                     </Select>
-
                     {formik.touched.bomStatus && formik.errors.bomStatus && (
                         <FormHelperText>{formik.errors.bomStatus}</FormHelperText>
                     )}
                 </FormControl>
+            </InfoRow>
 
+            {/* Stats */}
+            <InfoRow label="Revision">
+                <Typography variant="body2" fontWeight={500}>{formik.values.revision || '-'}</Typography>
+            </InfoRow>
+
+            <Box display="flex" gap={2} mb={2}>
+                <Box sx={{ flex: 1, p: 1.5, borderRadius: 1.5, bgcolor: '#f8f9fa', border: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+                    <Typography variant="h6" fontWeight={700} color="#1565c0">{formik.values.components?.length || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>Components</Typography>
+                </Box>
+                <Box sx={{ flex: 1, p: 1.5, borderRadius: 1.5, bgcolor: '#f8f9fa', border: `1px solid ${BORDER_COLOR}`, textAlign: 'center' }}>
+                    <Typography variant="h6" fontWeight={700} color="#1565c0">{operations?.length || formik.values.operations?.length || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>Operations</Typography>
+                </Box>
             </Box>
 
-            <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">Revision</Typography>
-                <Typography variant="subtitle1">{formik.values.revision}</Typography>
-            </Box>
+            <Divider sx={{ my: 1.5 }} />
 
+            {/* Dates */}
+            <InfoRow label="Created">
+                <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{formatDate(formik.values.creationDate)}</Typography>
+            </InfoRow>
 
-
-            <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">Components</Typography>
-                <Typography variant="subtitle1">{formik.values.components?.length}</Typography>
-            </Box>
-
-            <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">Operations</Typography>
-                <Typography variant="subtitle1">{formik.values.operations?.length}</Typography>
-            </Box>
-
-            <Divider sx={{ my: 2 }} />
-
-            <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">Created</Typography>
-                <Typography variant="subtitle2">
-                    {new Date(formik.values.creationDate).toLocaleDateString()}
-                </Typography>
-            </Box>
-
-            <Box mb={2}>
-                <Typography variant="body2" color="text.secondary">Updated</Typography>
-                <Typography variant="subtitle2">
-                    {new Date(formik.values.updatedDate).toLocaleDateString()}
-                </Typography>
-            </Box>
+            <InfoRow label="Last Updated">
+                <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{formatDate(formik.values.updatedDate)}</Typography>
+            </InfoRow>
 
             {formik.values.ecoNumber && (
-                <Box mb={2}>
-                    <Typography variant="body2" color="text.secondary">ECO Number</Typography>
-                    <Typography variant="subtitle1">{formik.values.ecoNumber}</Typography>
-                </Box>
+                <InfoRow label="ECO Number">
+                    <Chip size="small" label={formik.values.ecoNumber} variant="outlined" sx={{ fontSize: '0.75rem', borderColor: BORDER_COLOR }} />
+                </InfoRow>
             )}
-
 
             {formik.values.approvalDate && (
-                <Box mb={2}>
-                    <Typography variant="body2" color="text.secondary">Approved</Typography>
-                    <Typography variant="subtitle2">
-                        {new Date(formik.values.approvalDate).toLocaleDateString()}
-                        <br /> by {formik.values.approvedBy}
-                    </Typography>
-                </Box>
+                <>
+                    <Divider sx={{ my: 1.5 }} />
+                    <InfoRow label="Approved">
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem' }}>{formatDate(formik.values.approvalDate)}</Typography>
+                        <Typography variant="caption" color="text.secondary">by {formik.values.approvedBy}</Typography>
+                    </InfoRow>
+                </>
             )}
-
 
             {nextStatus && (
                 <BomStatusChangeDialog
@@ -190,5 +177,5 @@ export default function BomSidebar({ bomId,formik,setError,setLoading,showSnackb
                 />
             )}
         </Box>
-    )
+    );
 }

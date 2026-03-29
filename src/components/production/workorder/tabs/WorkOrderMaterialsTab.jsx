@@ -16,7 +16,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { DeleteOutline, Refresh } from '@mui/icons-material';
+import { DeleteOutline, Refresh, WarningAmber } from '@mui/icons-material';
 
 const DEFAULT_ISSUE_STATUSES = [
   'NOT_ISSUED',
@@ -34,9 +34,9 @@ const toNumberValue = (value) => {
 const getMaterialRowKey = (material, index) =>
   String(
     material?.id ??
-      material?.workOrderMaterialId ??
-      material?.component?.inventoryItemId ??
-      index
+    material?.workOrderMaterialId ??
+    material?.component?.inventoryItemId ??
+    index
   );
 
 const getMaterialId = (material) =>
@@ -242,16 +242,19 @@ export default function WorkOrderMaterialsTab({
           '& .MuiTableCell-root': compactCellSx,
         }}
       >
-        <Table size="small" sx={{ minWidth: isAddMode ? 900 : 1200 }}>
+        <Table size="small" sx={{ minWidth: isAddMode ? 800 : 1100 }}>
           <TableHead>
             <TableRow>
               <TableCell>#</TableCell>
               <TableCell>Item Code</TableCell>
               <TableCell>Component</TableCell>
               <TableCell>UOM</TableCell>
+              <TableCell>Required at Operation</TableCell>
               <TableCell>Net Req</TableCell>
               <TableCell>Planned</TableCell>
               <TableCell>Issued Qty</TableCell>
+              {!isAddMode && <TableCell>Consumed</TableCell>}
+              {!isAddMode && <TableCell>Available</TableCell>}
               <TableCell>Scrap Qty</TableCell>
               {!isAddMode && <TableCell>Remaining Qty</TableCell>}
               <TableCell>Status</TableCell>
@@ -263,7 +266,7 @@ export default function WorkOrderMaterialsTab({
           <TableBody>
             {materials.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAddMode ? 10 : 13} align="center">
+                <TableCell colSpan={isAddMode ? 11 : 16} align="center">
                   <Typography variant="body2" color="text.secondary">
                     {isAddMode
                       ? 'No materials found. Select item/BOM and open this tab to load.'
@@ -279,6 +282,8 @@ export default function WorkOrderMaterialsTab({
                 const netRequiredQuantity = toNumberValue(material?.netRequiredQuantity);
                 const plannedRequiredQuantity = toNumberValue(material?.plannedRequiredQuantity);
                 const issuedQuantity = toNumberValue(material?.issuedQuantity);
+                const consumedQuantity = toNumberValue(material?.consumedQuantity);
+                const availableQuantity = Math.max(issuedQuantity - consumedQuantity, 0);
                 const scrappedQuantity = toNumberValue(material?.scrappedQuantity);
                 const remainingQuantity = Math.max(netRequiredQuantity - issuedQuantity - scrappedQuantity, 0);
 
@@ -290,6 +295,14 @@ export default function WorkOrderMaterialsTab({
                     <TableCell>{material?.component?.itemCode || '-'}</TableCell>
                     <TableCell>{material?.component?.name || '-'}</TableCell>
                     <TableCell>{material?.component?.uom || '-'}</TableCell>
+                    <TableCell>
+                      {material?.operationName || 'All / On Start'}
+                      {!material?.operationName && !material?.workOrderOperationId && material?.issueStatus !== 'ISSUED' && !isAddMode && (
+                        <Tooltip title="This material must be fully issued before any operation can start" arrow>
+                          <WarningAmber sx={{ fontSize: 16, color: 'warning.main', ml: 0.5, verticalAlign: 'middle', cursor: 'help' }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
 
                     <TableCell sx={{ minWidth: 88 }}>
                       {isAddMode ? (
@@ -337,6 +350,20 @@ export default function WorkOrderMaterialsTab({
                         <Typography variant="caption">{issuedQuantity}</Typography>
                       )}
                     </TableCell>
+
+                    {!isAddMode && (
+                      <TableCell sx={{ minWidth: 78 }}>
+                        <Typography variant="caption">{consumedQuantity}</Typography>
+                      </TableCell>
+                    )}
+
+                    {!isAddMode && (
+                      <TableCell sx={{ minWidth: 78 }}>
+                        <Typography variant="caption" fontWeight={600} color={availableQuantity === 0 ? 'text.secondary' : 'success.main'}>
+                          {availableQuantity}
+                        </Typography>
+                      </TableCell>
+                    )}
 
                     <TableCell sx={{ minWidth: 88 }}>
                       {isAddMode ? (

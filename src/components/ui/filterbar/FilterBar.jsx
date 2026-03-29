@@ -1,35 +1,24 @@
 import React, { useState } from "react";
 import {
-    Box,
-    Button,
-    Chip,
-    FormControl,
-    InputLabel,
-    MenuItem,
-    Select,
-    TextField,
-    Typography,
-    Stack,
+    Box, Button, Chip, FormControl, InputLabel, MenuItem,
+    Select, TextField, Typography, Stack,
 } from "@mui/material";
-import axios from "axios";
-import apiService from "../../../services/apiService";
+import { FilterList, Close } from "@mui/icons-material";
+
+const compactSx = {
+    fontSize: 13,
+    height: 36,
+    width: "100%",
+    '& .MuiOutlinedInput-root': { borderRadius: 1.5 },
+};
 
 export default function FilterBar({
-    allColumns,
-    fetchUrl,
-    onFilterApplied,
-    pageSize,
-    filters,
-    setFilters,
-    page,
-    handleApplyFilters,
-    sortKey,
-    sortDir
+    allColumns, fetchUrl, onFilterApplied, pageSize,
+    filters, setFilters, page, handleApplyFilters, sortKey, sortDir
 }) {
     const [selectedField, setSelectedField] = useState("");
     const [operator, setOperator] = useState("");
     const [value, setValue] = useState("");
-
 
     const selectedColumn = allColumns.find((col) => col.field === selectedField);
     const fieldType = selectedColumn?.type?.toLowerCase();
@@ -42,101 +31,85 @@ export default function FilterBar({
 
     const handleAddFilter = () => {
         if (!selectedField || !operator || !value) return;
-
-        // Compute new filters array first
-        const newFilters = [
-            ...filters,
-            { field: selectedField, operator, value },
-        ];
-
-       
-        // Update state
+        const newFilters = [...filters, { field: selectedField, operator, value }];
         setFilters(newFilters);
-
-        // Clear inputs
         setSelectedField("");
         setOperator("");
         setValue("");
-
-        // Apply immediately using latest array
-        handleApplyFilters(newFilters, 0, sortKey, sortDir)
+        handleApplyFilters(newFilters, 0, sortKey, sortDir);
     };
 
     const handleRemoveFilter = (index) => {
         const newFilters = filters.filter((_, i) => i !== index);
         setFilters(newFilters);
-        handleApplyFilters(newFilters, 0, sortKey, sortDir)
+        handleApplyFilters(newFilters, 0, sortKey, sortDir);
     };
-    const handleClearAll = () => { setFilters([]); handleApplyFilters([], 0, sortKey, sortDir) };
 
+    const handleClearAll = () => {
+        setFilters([]);
+        handleApplyFilters([], 0, sortKey, sortDir);
+    };
 
+    const getColumnLabel = (field) => {
+        const col = allColumns.find(c => c.field === field);
+        return col?.headerName || field;
+    };
 
     return (
-        <Box sx={{ mb: 2, p: 2, borderRadius: 2, width: "100%", maxWidth: "100%", minWidth: 0 }}>
-            <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>
-                Filters
-            </Typography>
-            
+        <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0 }}>
             {/* Filter Builder Row */}
             <Stack
                 direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
+                spacing={1}
                 alignItems={{ xs: "stretch", md: "center" }}
                 flexWrap="wrap"
-                sx={{ mb: 2, width: "100%", minWidth: 0 }}
+                sx={{ width: "100%", minWidth: 0 }}
             >
-                <FormControl
-                    size="small"
-                    sx={{ minWidth: { xs: "100%", sm: 180 }, width: { xs: "100%", sm: 180 } }}
-                >
+                <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 }, width: { xs: "100%", sm: 160 } }}>
                     <InputLabel sx={{ fontSize: 13 }}>Field</InputLabel>
                     <Select
                         value={selectedField}
                         onChange={(e) => setSelectedField(e.target.value)}
                         label="Field"
-                        sx={{ fontSize: 13, height: 36, width: "100%" }}
+                        sx={{ ...compactSx }}
                     >
                         {allColumns.map((col) => (
-                            <MenuItem key={col.field} value={col.field}>
+                            <MenuItem key={col.field} value={col.field} sx={{ fontSize: 13 }}>
                                 {col.headerName}
                             </MenuItem>
                         ))}
                     </Select>
                 </FormControl>
 
-                <FormControl
-                    size="small"
-                    sx={{ minWidth: { xs: "100%", sm: 160 }, width: { xs: "100%", sm: 160 } }}
-                >
-                    <InputLabel sx={{ fontSize: 13, height: 36 }}>Operator</InputLabel>
+                <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 130 }, width: { xs: "100%", sm: 130 } }}>
+                    <InputLabel sx={{ fontSize: 13 }}>Operator</InputLabel>
                     <Select
                         value={operator}
                         onChange={(e) => setOperator(e.target.value)}
                         label="Operator"
                         disabled={!selectedField}
-                        sx={{ fontSize: 13, height: 36, width: "100%" }}
+                        sx={{ ...compactSx }}
                     >
                         {operatorOptions.map((op) => (
-                            <MenuItem key={op} value={op}>
-                                {op}
-                            </MenuItem>
+                            <MenuItem key={op} value={op} sx={{ fontSize: 13 }}>{op}</MenuItem>
                         ))}
                     </Select>
                 </FormControl>
 
                 {isEnum ? (
-                    <Select
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        size="small"
-                        sx={{ width: { xs: "100%", sm: 180 } }}
-                    >
-                        {selectedColumn?.options?.map((opt) => (
-                            <MenuItem key={opt} value={opt}>
-                                {opt}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                    <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 160 }, width: { xs: "100%", sm: 160 } }}>
+                        <InputLabel sx={{ fontSize: 13 }}>Value</InputLabel>
+                        <Select
+                            value={value}
+                            onChange={(e) => setValue(e.target.value)}
+                            label="Value"
+                            sx={{ ...compactSx }}
+                        >
+                            {selectedColumn?.options?.map((opt) => (
+                                <MenuItem key={opt} value={opt} sx={{ fontSize: 13 }}>{opt.replace(/_/g, ' ')}</MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
                 ) : (
                     <TextField
                         size="small"
@@ -145,81 +118,78 @@ export default function FilterBar({
                         type={isDateField ? "date" : "text"}
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
-                        sx={{
-                            width: { xs: "100%", sm: 180 }, fontSize: 13
-                        }}
                         InputLabelProps={isDateField ? { shrink: true } : undefined}
-                        slotProps={{
-                            input: {
-                                sx: {
-                                    height: 36,
-                                    textAlign: "center",
-                                    fontSize: "13px",
-
-                                },
-                            },
-                            inputLabel: {
-                                sx: {
-                                    textAlign: "center",
-                                    fontSize: "13px",
-                                }
-                            }
+                        sx={{
+                            width: { xs: "100%", sm: 160 },
+                            '& .MuiOutlinedInput-root': { borderRadius: 1.5, height: 36 },
+                            '& .MuiInputBase-input': { fontSize: 13 },
+                            '& .MuiInputLabel-root': { fontSize: 13 },
                         }}
-
-
                     />
                 )}
-                <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleAddFilter}
-                    disabled={!selectedField || !operator || !value}
-                    sx={{ borderRadius: 2, height: 36, minWidth: { xs: "100%", sm: 120 } }}
-                >
-                    Add Filter
-                </Button>
 
                 <Button
-                    variant="outlined"
-                    color="error"
-                    onClick={handleClearAll}
-                    disabled={filters.length === 0}
-                    sx={{ borderRadius: 2, minWidth: { xs: "100%", sm: 110 } }}
+                    variant="contained"
+                    onClick={handleAddFilter}
+                    disabled={!selectedField || !operator || !value}
+                    startIcon={<FilterList sx={{ fontSize: 16 }} />}
+                    sx={{
+                        height: 36,
+                        minWidth: { xs: "100%", sm: 110 },
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        borderRadius: 1.5,
+                        fontSize: '0.8125rem',
+                        bgcolor: '#1565c0',
+                        '&:hover': { bgcolor: '#0d47a1' },
+                    }}
                 >
-                    Clear All
+                    Add
                 </Button>
+
+                {filters.length > 0 && (
+                    <Button
+                        variant="text"
+                        onClick={handleClearAll}
+                        startIcon={<Close sx={{ fontSize: 14 }} />}
+                        sx={{
+                            height: 36,
+                            minWidth: { xs: "100%", sm: 90 },
+                            textTransform: 'none',
+                            fontSize: '0.8125rem',
+                            color: '#d32f2f',
+                            '&:hover': { bgcolor: '#ffebee' },
+                        }}
+                    >
+                        Clear
+                    </Button>
+                )}
             </Stack>
 
             {/* Active Filters */}
             {filters.length > 0 && (
-                <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 2 }}>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
                     {filters.map((f, idx) => (
-
                         <Chip
                             key={idx}
-                            label={`${f.field} ${f.operator} ${f.value}`}
+                            label={
+                                <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                                    <strong>{getColumnLabel(f.field)}</strong> {f.operator} <em>{f.value}</em>
+                                </Typography>
+                            }
                             onDelete={() => handleRemoveFilter(idx)}
-                            color="primary"
-                            variant="outlined"
-                            sx={{ borderRadius: "16px" }}
+                            size="small"
+                            sx={{
+                                borderRadius: 1,
+                                bgcolor: '#e3f2fd',
+                                color: '#1565c0',
+                                borderColor: '#90caf9',
+                                '& .MuiChip-deleteIcon': { color: '#1565c0', fontSize: 16, '&:hover': { color: '#0d47a1' } },
+                            }}
                         />
                     ))}
                 </Stack>
             )}
-
-            {/* Actions */}
-            <Stack direction="row" spacing={2}>
-                {/* <Button
-                    variant="contained"
-                    color="success"
-                    onClick={handleApplyFilters}
-                    disabled={filters.length === 0}
-                    sx={{ borderRadius: 2 }}
-                >
-                    Apply Filters
-                </Button> */}
-
-            </Stack>
         </Box>
     );
 }

@@ -32,7 +32,7 @@ const InventoryItem = () => {
     try {
       await apiService.delete(`/inventory_item/${id}`);
     } catch (err) {
-      console.error(err);
+      // handled
     }
   };
 

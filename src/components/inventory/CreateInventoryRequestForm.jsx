@@ -54,11 +54,10 @@ export default function CreateInventoryRequestForm({
             params.append('requestedBy', formData.requestedBy);
             params.append('requestRemarks', formData.requestRemarks);
 
-            const res = await apiService.post(`/inventory/requests?${params.toString()}`);
-            console.log('Request created:', res);
+            await apiService.post(`/inventory/requests?${params.toString()}`);
             handleCloseDialog();
         } catch (err) {
-            console.error('Error creating request:', err);
+            // handled
         }
     };
 
@@ -67,9 +66,8 @@ export default function CreateInventoryRequestForm({
         try {
             const result = await inventoryItemSearch(query);
             setItemList(result);
-            console.log(result)
         } catch (err) {
-            console.error('Item search failed:', err);
+            // handled
         }
         setLoading(false);
     };

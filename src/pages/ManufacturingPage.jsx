@@ -7,7 +7,7 @@ export default function ManufacturingPage() {
     <>
       <Routes>
 
-        <Route element={<WorkCenter />} path='/work-center' />
+        <Route element={<WorkCenter />} path='/work-center/*' />
       </Routes>
     </>
   )

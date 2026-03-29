@@ -3,19 +3,20 @@ import {
     Alert,
     Box,
     Button,
-    Card,
-    CardContent,
     Chip,
     CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
-    DialogContentText,
     DialogTitle,
+    Grid,
+    IconButton,
     Paper,
     Stack,
+    Tooltip,
     Typography,
 } from "@mui/material";
+import { ArrowBack, Edit, Delete, EventNote, PostAdd } from "@mui/icons-material";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthContext";
 import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
@@ -24,7 +25,6 @@ import {
     getMachineDetailsById,
 } from "../../../services/machineAssetsService";
 import AddProductionLogDialog from "./AddProductionLogDialog";
-import { MACHINE_STATUS_COLOR_MAP } from "./constants";
 import LogMachineEventDialog from "./LogMachineEventDialog";
 import ProductionLogsTable from "./ProductionLogsTable";
 import StatusHistoryTable from "./StatusHistoryTable";
@@ -34,45 +34,28 @@ import {
     resolveMachineErrorMessage,
 } from "./machineAssetsHelpers";
 
-const SummaryCard = ({ title, value, accent = "#1976d2" }) => (
-    <Paper
-        variant="outlined"
-        sx={{
-            p: 1.5,
-            borderRadius: 2,
-            position: "relative",
-            overflow: "hidden",
-            minHeight: 90,
-        }}
-    >
-        <Box
-            sx={{
-                position: "absolute",
-                top: -18,
-                right: -18,
-                width: 58,
-                height: 58,
-                borderRadius: "50%",
-                backgroundColor: accent,
-                opacity: 0.12,
-            }}
-        />
-        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-            {title}
-        </Typography>
-        <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
-            {value || "-"}
-        </Typography>
-    </Paper>
-);
+const BORDER_COLOR = '#e5e7eb';
 
-const StatusChip = ({ status }) => (
-    <Chip
-        size="small"
-        label={status || "-"}
-        color={MACHINE_STATUS_COLOR_MAP[status] || "default"}
-        sx={{ fontWeight: 700 }}
-    />
+const statusChipSx = {
+    ACTIVE: { bg: '#e8f5e9', color: '#2e7d32' },
+    IDLE: { bg: '#fff3e0', color: '#e65100' },
+    MAINTENANCE: { bg: '#e3f2fd', color: '#1565c0' },
+    BREAKDOWN: { bg: '#ffebee', color: '#c62828' },
+    DECOMMISSIONED: { bg: '#fafafa', color: '#757575' },
+};
+
+const formatCurrency = (value) => {
+    if (value === null || value === undefined) return '-';
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(value);
+};
+
+const InfoItem = ({ label, value }) => (
+    <Box>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            {label}
+        </Typography>
+        <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.25 }}>{value || '-'}</Typography>
+    </Box>
 );
 
 export default function MachineAssetDetails({ onSuccess, onError }) {
@@ -94,10 +77,7 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
     const [statusHistoryRefreshKey, setStatusHistoryRefreshKey] = useState(0);
 
     const loadMachine = async () => {
-        if (!machineId) {
-            return;
-        }
-
+        if (!machineId) return;
         try {
             setMachineLoading(true);
             setMachineError("");
@@ -106,165 +86,156 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
         } catch (error) {
             const message = resolveMachineErrorMessage(error, "Failed to load machine details.");
             setMachineError(message);
-            onError(message);
+            if (onError) onError(message);
         } finally {
             setMachineLoading(false);
         }
     };
 
-    useEffect(() => {
-        loadMachine();
-    }, [machineId]);
+    useEffect(() => { loadMachine(); }, [machineId]);
 
     const handleDelete = async () => {
-        if (!machine?.id) {
-            onError("Machine id is missing.");
-            return;
-        }
-
+        if (!machine?.id) { if (onError) onError("Machine id is missing."); return; }
         try {
             setIsDeleting(true);
             await deleteMachineDetails(machine.id);
-            onSuccess("Machine deleted successfully.");
+            if (onSuccess) onSuccess("Machine deleted successfully.");
             navigate("/production/machine-assets");
         } catch (error) {
-            onError(resolveMachineErrorMessage(error, "Failed to delete machine."));
+            if (onError) onError(resolveMachineErrorMessage(error, "Failed to delete machine."));
         } finally {
             setIsDeleting(false);
         }
     };
 
-    if (machineLoading) {
-        return (
-            <Stack sx={{ minHeight: 240, placeItems: "center", display: "grid" }}>
-                <CircularProgress />
-            </Stack>
-        );
-    }
+    if (machineLoading) return (
+        <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="60vh" gap={2}>
+            <CircularProgress size={32} sx={{ color: '#1565c0' }} />
+            <Typography variant="body2" color="text.secondary">Loading machine details...</Typography>
+        </Box>
+    );
 
-    if (machineError) {
-        return (
-            <Stack spacing={1.5}>
-                <Alert severity="error">{machineError}</Alert>
-                <Button size="small" variant="outlined" onClick={loadMachine} sx={{ width: "fit-content" }}>
-                    Retry
-                </Button>
-            </Stack>
-        );
-    }
+    if (machineError) return (
+        <Box sx={{ p: 3 }}>
+            <Alert severity="error" sx={{ borderRadius: 1.5, mb: 2 }}>{machineError}</Alert>
+            <Button size="small" variant="outlined" onClick={loadMachine} sx={{ textTransform: 'none' }}>Retry</Button>
+        </Box>
+    );
+
+    const statusStyle = statusChipSx[machine?.machineStatus] || { bg: '#fafafa', color: '#757575' };
 
     return (
-        <Stack spacing={2}>
-            <Card elevation={0} sx={{ border: "1px solid #e5e9f2", borderRadius: 2 }}>
-                <CardContent>
-                    <Stack
-                        direction={{ xs: "column", md: "row" }}
-                        justifyContent="space-between"
-                        alignItems={{ xs: "stretch", md: "center" }}
-                        spacing={1.5}
-                    >
+        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+            <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 2, border: `1px solid ${BORDER_COLOR}`, mb: 2 }}>
+
+                {/* Page Header */}
+                <Box display="flex" justifyContent="space-between" alignItems="center"
+                    flexDirection={{ xs: 'column', sm: 'row' }} gap={1.5} mb={2.5}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <IconButton onClick={() => navigate('/production/machine-assets')} size="small" sx={{ color: '#1565c0' }}>
+                            <ArrowBack fontSize="small" />
+                        </IconButton>
                         <Box>
-                            <Typography variant="h6" color="primary.main" sx={{ fontWeight: 700 }}>
-                                {machine?.machineName || "Machine Details"}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Code: {machine?.machineCode || "-"}
+                            <Box display="flex" alignItems="center" gap={1}>
+                                <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.2rem', md: '1.4rem' } }}>
+                                    {machine?.machineName || 'Machine Details'}
+                                </Typography>
+                                <Chip label={machine?.machineStatus || '-'} size="small" sx={{
+                                    backgroundColor: statusStyle.bg, color: statusStyle.color,
+                                    fontWeight: 500, fontSize: '0.7rem', height: 22,
+                                }} />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                                Code: {machine?.machineCode || '-'}
                             </Typography>
                         </Box>
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} flexWrap="wrap" useFlexGap>
-                            <Button variant="outlined" onClick={() => navigate("/production/machine-assets")}>
-                                Back
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                onClick={() => navigate(`/production/machine-assets/edit/${machine?.id}`)}
-                                disabled={!canManage}
-                            >
-                                Edit
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                onClick={() => setEventDialogOpen(true)}
-                                disabled={!canManage}
-                            >
-                                Log Event
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                onClick={() => setProductionLogDialogOpen(true)}
-                                disabled={!canManage}
-                            >
-                                Add Production Log
-                            </Button>
-                            <Button
-                                color="error"
-                                variant="outlined"
-                                onClick={() => setDeleteDialogOpen(true)}
-                                disabled={!canManage}
-                            >
-                                Delete
-                            </Button>
-                        </Stack>
-                    </Stack>
-
-                    <Box
-                        sx={{
-                            display: "grid",
-                            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" },
-                            gap: 1.5,
-                        }}
-                    >
-                        <SummaryCard title="Latest Status" value={<StatusChip status={machine?.machineStatus} />} accent="#22c55e" />
-                        <SummaryCard
-                            title="Work Center"
-                            value={getWorkCenterDisplayValue(machine?.workCenter) || "-"}
-                            accent="#0284c7"
-                        />
-                        <SummaryCard title="Cost Per Hour" value={machine?.costPerHour ?? "-"} accent="#7c3aed" />
-                        <SummaryCard
-                            title="Last Updated"
-                            value={formatDateTime(machine?.lastUpdate)}
-                            accent="#f97316"
-                        />
                     </Box>
 
-                    {machine?.description ? (
-                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, mt: 2 }}>
-                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
-                                Description
-                            </Typography>
-                            <Typography variant="body2">{machine.description}</Typography>
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                        {canManage && (
+                            <>
+                                <Button size="small" variant="outlined" startIcon={<Edit />}
+                                    onClick={() => navigate(`/production/machine-assets/edit/${machine?.id}`)}
+                                    sx={{ textTransform: 'none', fontWeight: 500, borderColor: BORDER_COLOR, color: '#374151' }}>
+                                    Edit
+                                </Button>
+                                <Button size="small" variant="outlined" startIcon={<EventNote />}
+                                    onClick={() => setEventDialogOpen(true)}
+                                    sx={{ textTransform: 'none', fontWeight: 500, borderColor: '#1565c0', color: '#1565c0' }}>
+                                    Log Event
+                                </Button>
+                                <Button size="small" variant="outlined" startIcon={<PostAdd />}
+                                    onClick={() => setProductionLogDialogOpen(true)}
+                                    sx={{ textTransform: 'none', fontWeight: 500, borderColor: '#388e3c', color: '#388e3c' }}>
+                                    Add Log
+                                </Button>
+                                <Button size="small" variant="outlined" startIcon={<Delete />}
+                                    onClick={() => setDeleteDialogOpen(true)}
+                                    sx={{ textTransform: 'none', fontWeight: 500, borderColor: '#d32f2f', color: '#d32f2f' }}>
+                                    Delete
+                                </Button>
+                            </>
+                        )}
+                    </Stack>
+                </Box>
+
+                {/* Summary Cards */}
+                <Grid container spacing={2} mb={2}>
+                    <Grid item xs={6} sm={3}>
+                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                            <InfoItem label="Work Center" value={getWorkCenterDisplayValue(machine?.workCenter)} />
                         </Paper>
-                    ) : null}
-                </CardContent>
-            </Card>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                            <InfoItem label="Cost Per Hour" value={formatCurrency(machine?.costPerHour)} />
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                            <InfoItem label="Last Updated" value={formatDateTime(machine?.lastUpdate)} />
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                        <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                            <InfoItem label="Status" value={
+                                <Chip label={machine?.machineStatus || '-'} size="small" sx={{
+                                    backgroundColor: statusStyle.bg, color: statusStyle.color,
+                                    fontWeight: 500, fontSize: '0.65rem', height: 20, mt: 0.5,
+                                }} />
+                            } />
+                        </Paper>
+                    </Grid>
+                </Grid>
 
-            <Card elevation={0} sx={{ border: "1px solid #e5e9f2", borderRadius: 2 }}>
-                <CardContent>
-                    <ProductionLogsTable
-                        machineId={machineId}
-                        refreshKey={productionLogsRefreshKey}
-                        onError={onError}
-                    />
-                </CardContent>
-            </Card>
+                {/* Description */}
+                {machine?.description && (
+                    <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                        <Typography variant="subtitle2" fontWeight={600} color="#0f2744"
+                            sx={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.5 }}>
+                            Description
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">{machine.description}</Typography>
+                    </Paper>
+                )}
+            </Paper>
 
-            <Card elevation={0} sx={{ border: "1px solid #e5e9f2", borderRadius: 2 }}>
-                <CardContent>
-                    <StatusHistoryTable
-                        machineId={machineId}
-                        refreshKey={statusHistoryRefreshKey}
-                        onError={onError}
-                    />
-                </CardContent>
-            </Card>
+            {/* Production Logs */}
+            <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 2, border: `1px solid ${BORDER_COLOR}`, mb: 2 }}>
+                <ProductionLogsTable machineId={machineId} refreshKey={productionLogsRefreshKey} onError={onError} />
+            </Paper>
 
+            {/* Status History */}
+            <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 2, border: `1px solid ${BORDER_COLOR}` }}>
+                <StatusHistoryTable machineId={machineId} refreshKey={statusHistoryRefreshKey} onError={onError} />
+            </Paper>
+
+            {/* Dialogs */}
             <LogMachineEventDialog
-                open={eventDialogOpen}
-                machine={machine}
+                open={eventDialogOpen} machine={machine}
                 onClose={() => setEventDialogOpen(false)}
                 onSuccess={async (message) => {
-                    onSuccess(message);
+                    if (onSuccess) onSuccess(message);
                     await loadMachine();
                     setStatusHistoryRefreshKey((prev) => prev + 1);
                 }}
@@ -272,32 +243,30 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
             />
 
             <AddProductionLogDialog
-                open={productionLogDialogOpen}
-                machine={machine}
+                open={productionLogDialogOpen} machine={machine}
                 onClose={() => setProductionLogDialogOpen(false)}
                 onSuccess={(message) => {
-                    onSuccess(message);
+                    if (onSuccess) onSuccess(message);
                     setProductionLogsRefreshKey((prev) => prev + 1);
                 }}
                 onError={onError}
             />
 
-            <Dialog open={deleteDialogOpen} onClose={() => !isDeleting && setDeleteDialogOpen(false)}>
-                <DialogTitle>Delete Machine</DialogTitle>
+            <Dialog open={deleteDialogOpen} onClose={() => !isDeleting && setDeleteDialogOpen(false)}
+                maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+                <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Delete Machine</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Delete this machine? Backend performs soft delete for audit.
-                    </DialogContentText>
+                    <Typography variant="body2" color="text.secondary">
+                        Delete "{machine?.machineName}"? This action cannot be undone.
+                    </Typography>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
-                        Cancel
-                    </Button>
-                    <Button color="error" variant="contained" onClick={handleDelete} disabled={isDeleting}>
-                        {isDeleting ? "Deleting..." : "Delete"}
-                    </Button>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}
+                        sx={{ textTransform: 'none', color: '#374151' }}>Cancel</Button>
+                    <Button color="error" variant="contained" onClick={handleDelete} disabled={isDeleting}
+                        sx={{ textTransform: 'none' }}>{isDeleting ? "Deleting..." : "Delete"}</Button>
                 </DialogActions>
             </Dialog>
-        </Stack>
+        </Box>
     );
 }

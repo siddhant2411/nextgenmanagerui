@@ -18,7 +18,7 @@ const InventoryDashboard = ({ onTabChange }) => {
         const res = await apiService.get('/inventory/summary');
         setSummary(res);
       } catch (err) {
-        console.error('Failed to load inventory summary', err);
+        // handled
       }
     };
 

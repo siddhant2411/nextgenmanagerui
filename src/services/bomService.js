@@ -43,3 +43,15 @@ export const getBomHistoryByInventoryItem = (itemId) => {
 export const getBomPositisions = (bomId) => {
     return apiService.get(`/bom/positions/${bomId}`);
 }
+
+export const getWhereUsedByItemId = (itemId) => {
+    return apiService.get(`/bom/where-used/${itemId}`);
+}
+
+export const getBomChangeLog = (bomId) => {
+    return apiService.get(`/bom/${bomId}/change-log`);
+}
+
+export const getBomCostBreakdown = (bomId) => {
+    return apiService.get(`/bom/${bomId}/cost-breakdown`);
+}

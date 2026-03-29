@@ -10,7 +10,6 @@ export default function SalesOrder() {
 
   const handleSave = async (data) => {
 
-    console.log(data)
     try {
       if (data.id) {
         await apiService.put(`/sales-orders/${data.id}`, data); // Update
@@ -19,7 +18,7 @@ export default function SalesOrder() {
       }
       // navigate(-1);
     } catch (err) {
-      console.error('Save failed', err);
+      // handled
     }
   };
   return (

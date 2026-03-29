@@ -1,6 +1,5 @@
 const convertAddressToString = (addressObject) => {
 
-    console.log(addressObject)
     const addressString = addressObject.street1 + ", " + addressObject.street2 + (addressObject.pinCode ? "-" + addressObject.pinCode : '') + ", " +
         addressObject.state + ", " + addressObject.country
 

@@ -1,7 +1,10 @@
 import { Autocomplete, TextField } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import { breadcrumbOptions } from "../../../../utils/breadcrumbConfig";
 
 export default function SearchBar() {
+    const navigate = useNavigate();
+
     return (
         <Autocomplete
             options={breadcrumbOptions}
@@ -11,10 +14,10 @@ export default function SearchBar() {
             )}
             onChange={(event, value) => {
                 if (value) {
-                    window.location.href = value.path; // navigate to selected path
+                    navigate(value.path);
                 }
             }}
-            sx={{ width: 400 }}
+            sx={{ width: { xs: 160, sm: 240, md: 320 } }}
         />
     );
 }
