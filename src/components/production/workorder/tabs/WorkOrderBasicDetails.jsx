@@ -472,6 +472,30 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           </FormControl>
         </Grid>
 
+        <Grid item xs={12} sm={6}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={!!formik.values.allowBackflush}
+                onChange={(e) => formik.setFieldValue('allowBackflush', e.target.checked)}
+                disabled={!isPlanningEditable}
+                size="small"
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  Allow Backflush
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Auto-consume materials when work order is completed
+                </Typography>
+              </Box>
+            }
+            sx={{ alignItems: 'flex-start', ml: 0 }}
+          />
+        </Grid>
+
       </Grid>
 
       <Box

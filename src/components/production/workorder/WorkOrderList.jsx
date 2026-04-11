@@ -40,12 +40,14 @@ const statusStyles = {
   BLOCKED: { bg: '#ffebee', color: '#c62828' },
   CLOSED: { bg: '#fafafa', color: '#9e9e9e' },
   CANCELLED: { bg: '#ffebee', color: '#c62828' },
+  SHORT_CLOSED: { bg: '#fef3c7', color: '#92400e' },
 };
 
 const statusLabels = {
   DRAFT: 'Draft', CREATED: 'Created', SCHEDULED: 'Scheduled', RELEASED: 'Released',
   IN_PROGRESS: 'In Progress', READY: 'Ready', COMPLETED: 'Completed',
   BLOCKED: 'Blocked', CLOSED: 'Closed', CANCELLED: 'Cancelled',
+  SHORT_CLOSED: 'Short Closed',
 };
 
 const PRIORITY_COLORS = {
@@ -75,7 +77,7 @@ const allColumns = [
   { field: "salesOrderNumber", headerName: "Reference Doc.", width: 170, type: "string" },
   { field: "priority", headerName: "Priority", width: 110, type: "enum", options: ["URGENT", "HIGH", "NORMAL", "LOW"] },
   { field: "bomName", headerName: "BOM", width: 180, type: "string" },
-  { field: "status", headerName: "Status", width: 130, type: "enum", options: ["DRAFT", "CREATED", "SCHEDULED", "RELEASED", "IN_PROGRESS", "READY", "COMPLETED", "BLOCKED", "CLOSED", "CANCELLED"] },
+  { field: "status", headerName: "Status", width: 130, type: "enum", options: ["DRAFT", "CREATED", "SCHEDULED", "RELEASED", "IN_PROGRESS", "READY", "COMPLETED", "BLOCKED", "CLOSED", "CANCELLED", "SHORT_CLOSED"] },
   { field: "plannedQuantity", headerName: "Qty", width: 80, type: "number" },
   { field: "completedQuantity", headerName: "Completed", width: 100, type: "number" },
   { field: "dueDate", headerName: "Due Date", width: 130, type: "date" },
@@ -104,6 +106,7 @@ const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
 const defaultFilters = [
   { field: "status", operator: "!=", value: "CLOSED" },
   { field: "status", operator: "!=", value: "CANCELLED" },
+  { field: "status", operator: "!=", value: "SHORT_CLOSED" },
 ];
 
 const DATE_FIELDS = new Set([

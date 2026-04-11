@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
     Alert,
     Autocomplete,
@@ -6,10 +6,15 @@ import {
     Button,
     Checkbox,
     Chip,
+    CircularProgress,
     Collapse,
     Divider,
     FormControlLabel,
     Grid,
+    IconButton,
+    List,
+    ListItem,
+    ListItemText,
     MenuItem,
     Paper,
     Switch,
@@ -17,7 +22,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material'
-import { ExpandMore, ExpandLess, WarningAmber } from '@mui/icons-material'
+import { DeleteOutline, ExpandMore, ExpandLess, WarningAmber, AttachFile } from '@mui/icons-material'
 import {
     DragDropContext,
     Droppable,
@@ -25,6 +30,12 @@ import {
 } from "@hello-pangea/dnd";
 import OperationCard from './OperationCard';
 import RoutingDAGPreview from './RoutingDAGPreview';
+import {
+    uploadOperationAttachment,
+    getOperationAttachments,
+    deleteOperationAttachment,
+    downloadOperationAttachment,
+} from '../../services/bomService';
 
 // Parallel path colour mapping
 const PATH_COLOURS_LIST = [
@@ -81,6 +92,12 @@ export default function BomRouting({
     const [selectedOperation, setSelectedOperation] = useState(null);
     const [depsExpanded, setDepsExpanded] = useState(false);
     const [selfDepAlert, setSelfDepAlert] = useState(false);
+
+    // Attachment state
+    const [opAttachments, setOpAttachments] = useState([]);
+    const [attachmentFile, setAttachmentFile] = useState(null);
+    const [attachmentUploading, setAttachmentUploading] = useState(false);
+    const [attachmentsExpanded, setAttachmentsExpanded] = useState(true);
 
     // Compute unique parallel paths across all operations for colour legend
     const allParallelPaths = [...new Set((operations || []).map(o => o.parallelPath).filter(Boolean))];
@@ -161,6 +178,55 @@ export default function BomRouting({
             setSelectedWorkCenter(selectedJob?.workCenter ?? null);
         }
     }, [selectedJob]);
+
+    // Fetch attachments when an existing (saved) operation is selected
+    const fetchOpAttachments = useCallback(async (opId) => {
+        if (!opId) { setOpAttachments([]); return; }
+        try {
+            const data = await getOperationAttachments(opId);
+            setOpAttachments(data || []);
+        } catch { setOpAttachments([]); }
+    }, []);
+
+    useEffect(() => {
+        if (selectedOperation?.id) {
+            fetchOpAttachments(selectedOperation.id);
+        } else {
+            setOpAttachments([]);
+        }
+        setAttachmentFile(null);
+    }, [selectedOperation?.id, fetchOpAttachments]);
+
+    const handleAttachmentUpload = async () => {
+        if (!attachmentFile || !selectedOperation?.id) return;
+        setAttachmentUploading(true);
+        try {
+            await uploadOperationAttachment(selectedOperation.id, attachmentFile);
+            setAttachmentFile(null);
+            await fetchOpAttachments(selectedOperation.id);
+        } catch (e) {
+            console.error('Failed to upload attachment', e);
+        }
+        setAttachmentUploading(false);
+    };
+
+    const handleAttachmentDelete = async (fileId) => {
+        if (!selectedOperation?.id) return;
+        try {
+            await deleteOperationAttachment(selectedOperation.id, fileId);
+            await fetchOpAttachments(selectedOperation.id);
+        } catch (e) {
+            console.error('Failed to delete attachment', e);
+        }
+    };
+
+    const handleAttachmentDownload = async (fileId, fileName) => {
+        try {
+            await downloadOperationAttachment(fileId, fileName);
+        } catch (e) {
+            console.error('Failed to download attachment', e);
+        }
+    };
 
     const isCalculated = selectedOperation?.costType === 'CALCULATED' || !selectedOperation?.costType;
 
@@ -595,6 +661,109 @@ export default function BomRouting({
                                 onChange={(e) => setSelectedOperation({ ...selectedOperation, notes: e.target.value })}
                                 multiline minRows={2}
                             />
+
+                            {/* ── Attachments Section ── */}
+                            {selectedOperation.id && (
+                                <>
+                                    <Box
+                                        onClick={() => setAttachmentsExpanded(v => !v)}
+                                        sx={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            cursor: 'pointer', mb: 0.5, px: 0.5, py: 0.25, borderRadius: 1,
+                                            '&:hover': { bgcolor: '#f0f4ff' },
+                                        }}
+                                    >
+                                        <Box display="flex" alignItems="center" gap={0.5}>
+                                            <AttachFile sx={{ fontSize: 14, color: '#0f2744' }} />
+                                            <Typography variant="caption" fontWeight={700} color="#0f2744"
+                                                sx={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                                Attachments
+                                            </Typography>
+                                            {opAttachments.length > 0 && (
+                                                <Chip size="small" label={opAttachments.length}
+                                                    sx={{ height: 16, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#1677ff', color: '#fff' }} />
+                                            )}
+                                        </Box>
+                                        {attachmentsExpanded
+                                            ? <ExpandLess sx={{ fontSize: 16, color: '#6b7280' }} />
+                                            : <ExpandMore sx={{ fontSize: 16, color: '#6b7280' }} />
+                                        }
+                                    </Box>
+
+                                    <Collapse in={attachmentsExpanded}>
+                                        <Box sx={{ mb: 1.5 }}>
+                                            <Box display="flex" alignItems="center" gap={1} mb={1} flexWrap="wrap">
+                                                <Button
+                                                    component="label"
+                                                    variant="outlined"
+                                                    size="small"
+                                                    sx={{ textTransform: 'none', fontSize: '0.75rem', borderColor: BORDER_COLOR, color: '#374151' }}
+                                                >
+                                                    Choose File
+                                                    <input type="file" hidden
+                                                        onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)} />
+                                                </Button>
+                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {attachmentFile ? attachmentFile.name : 'No file selected'}
+                                                </Typography>
+                                                <Button
+                                                    onClick={handleAttachmentUpload}
+                                                    variant="contained"
+                                                    size="small"
+                                                    disabled={!attachmentFile || attachmentUploading}
+                                                    sx={{ textTransform: 'none', fontSize: '0.75rem', bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' }, minWidth: 70 }}
+                                                >
+                                                    {attachmentUploading ? <CircularProgress size={14} color="inherit" /> : 'Upload'}
+                                                </Button>
+                                            </Box>
+
+                                            {opAttachments.length === 0 && (
+                                                <Box sx={{ py: 2, textAlign: 'center', bgcolor: '#fafbfc', borderRadius: 1, border: `1px dashed ${BORDER_COLOR}` }}>
+                                                    <Typography variant="caption" color="text.secondary">No attachments</Typography>
+                                                </Box>
+                                            )}
+
+                                            <List dense disablePadding>
+                                                {opAttachments.map((file) => (
+                                                    <ListItem
+                                                        key={file.id}
+                                                        sx={{
+                                                            borderRadius: 1, border: `1px solid ${BORDER_COLOR}`, mb: 0.5, bgcolor: '#fafbfc',
+                                                            '&:hover': { bgcolor: '#f0f4f8' }, py: 0.25, px: 1,
+                                                        }}
+                                                        secondaryAction={
+                                                            <IconButton edge="end" size="small" onClick={() => handleAttachmentDelete(file.id)}>
+                                                                <DeleteOutline sx={{ fontSize: 16, color: '#d32f2f' }} />
+                                                            </IconButton>
+                                                        }
+                                                    >
+                                                        <ListItemText
+                                                            primary={
+                                                                <Typography variant="body2" fontWeight={500}
+                                                                    sx={{ color: '#1565c0', cursor: 'pointer', fontSize: '0.78rem' }}
+                                                                    onClick={() => handleAttachmentDownload(file.id, file.fileName)}>
+                                                                    {file.originalName || file.fileName?.replace(/^\d+_/, '')}
+                                                                </Typography>
+                                                            }
+                                                            secondary={
+                                                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                                                                    {file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString('en-GB') : ''}
+                                                                </Typography>
+                                                            }
+                                                        />
+                                                    </ListItem>
+                                                ))}
+                                            </List>
+                                        </Box>
+                                    </Collapse>
+                                </>
+                            )}
+
+                            {!selectedOperation.id && (
+                                <Alert severity="info" sx={{ mb: 1.5, py: 0.25, fontSize: '0.74rem' }}>
+                                    Save the operation first to attach files.
+                                </Alert>
+                            )}
 
                             {/* Action Buttons */}
                             <Button variant="contained" fullWidth size="small"

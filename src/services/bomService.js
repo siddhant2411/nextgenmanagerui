@@ -55,3 +55,21 @@ export const getBomChangeLog = (bomId) => {
 export const getBomCostBreakdown = (bomId) => {
     return apiService.get(`/bom/${bomId}/cost-breakdown`);
 }
+
+// ---- Routing Operation Attachments ----
+
+export const uploadOperationAttachment = (operationId, file) => {
+    return apiService.upload(`/manufacturing/routing/operation/${operationId}/upload`, file);
+};
+
+export const getOperationAttachments = (operationId) => {
+    return apiService.get(`/manufacturing/routing/operation/${operationId}/attachments`);
+};
+
+export const deleteOperationAttachment = (operationId, fileId) => {
+    return apiService.delete(`/manufacturing/routing/operation/${operationId}/delete-attachment/${fileId}`);
+};
+
+export const downloadOperationAttachment = (fileId, fileName) => {
+    return apiService.download(`/manufacturing/routing/operation/download/${fileId}`, null, fileName);
+};

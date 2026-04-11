@@ -103,6 +103,14 @@ export const cancelWorkOrder = async (id) => {
     return apiService.patch(`/production/work-order/${id}/cancel`);
 }
 
+export const shortCloseWorkOrder = async (id, remarks = '') => {
+    if (!id) {
+        throw new Error('Work order id is required');
+    }
+    const params = remarks ? `?remarks=${encodeURIComponent(remarks)}` : '';
+    return apiService.patch(`/production/work-order/${id}/short-close${params}`);
+}
+
 // ── QC Testing ──
 
 export const getWorkOrderTests = async (id) => {

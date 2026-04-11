@@ -23,6 +23,7 @@ import {
   getWorkOrderHistory,
   issueWorkOrderMaterials,
   releaseWorkOrder,
+  shortCloseWorkOrder,
   startOperation,
   updateWorkOrder,
   scheduleWorkOrder,
@@ -51,6 +52,7 @@ const getDefaultValues = () => ({
   actualEndDate: '',
   status: 'CREATED',
   priority: 'NORMAL',
+  allowBackflush: false,
   remarks: '',
   referenceDocument: '',
   selectedItem: null,
@@ -86,6 +88,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     open: false,
     action: '',
   });
+  const [shortCloseDialog, setShortCloseDialog] = useState({
+    open: false,
+    remarks: '',
+  });
   const [isWorkOrderActionLoading, setIsWorkOrderActionLoading] = useState(false);
   const [hasFetchedAddMaterials, setHasFetchedAddMaterials] = useState(false);
   const [hasFetchedAddOperations, setHasFetchedAddOperations] = useState(false);
@@ -115,6 +121,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     COMPLETED: "success",
     CLOSED: "default",
     CANCELLED: "error",
+    SHORT_CLOSED: "warning",
   };
   const formik = useFormik({
     initialValues,
@@ -318,6 +325,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         response?.referenceDocument ||
         '',
       priority: response?.priority || 'NORMAL',
+      allowBackflush: response?.allowBackflush ?? false,
       autoScheduled: response?.autoScheduled || false,
     };
   }, []);
@@ -606,8 +614,12 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const openWorkOrderActionDialog = (action) => {
-    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
-      setError('You are not authorized to cancel work orders.');
+    if ((action === 'cancel' || action === 'short_close') && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to perform this action.');
+      return;
+    }
+    if (action === 'short_close') {
+      setShortCloseDialog({ open: true, remarks: '' });
       return;
     }
     setWorkOrderActionDialog({ open: true, action });
@@ -659,6 +671,27 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     } finally {
       setIsWorkOrderActionLoading(false);
       setWorkOrderActionDialog({ open: false, action: '' });
+    }
+  };
+
+  const handleConfirmShortClose = async () => {
+    if (!workOrderId) return;
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to short-close work orders.');
+      setShortCloseDialog({ open: false, remarks: '' });
+      return;
+    }
+
+    try {
+      setIsWorkOrderActionLoading(true);
+      await shortCloseWorkOrder(workOrderId, shortCloseDialog.remarks);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Work order short-closed successfully.', 'success');
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to short-close work order.');
+    } finally {
+      setIsWorkOrderActionLoading(false);
+      setShortCloseDialog({ open: false, remarks: '' });
     }
   };
 
@@ -863,7 +896,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
-  const canCancelWorkOrderStatus = !['CANCELLED', 'CLOSED'].includes(workOrderStatus);
+  const canCancelWorkOrderStatus = ['CREATED', 'SCHEDULED', 'RELEASED', 'IN_PROGRESS'].includes(workOrderStatus);
+  const canShortCloseWorkOrderStatus = ['RELEASED', 'IN_PROGRESS'].includes(workOrderStatus);
   const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
   const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
@@ -1091,6 +1125,18 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                     </Button>
                   </span>
                 </Tooltip>
+                {canShortCloseWorkOrderStatus && canManageWorkOrderAdminActions && (
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    size="small"
+                    onClick={() => openWorkOrderActionDialog('short_close')}
+                    disabled={isWorkOrderActionLoading}
+                    sx={compactButtonSx}
+                  >
+                    Short Close
+                  </Button>
+                )}
 
               </>
             )}
@@ -1286,6 +1332,68 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
             disabled={isWorkOrderActionLoading}
           >
             {isWorkOrderActionLoading ? 'Please wait...' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={shortCloseDialog.open}
+        onClose={() => !isWorkOrderActionLoading && setShortCloseDialog({ open: false, remarks: '' })}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, color: '#92400e' }}>
+          Short Close Work Order
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            This will permanently close the work order before full completion. The system will:
+          </DialogContentText>
+          <Box component="ul" sx={{ pl: 2, mb: 2, '& li': { mb: 0.5, fontSize: '0.875rem' } }}>
+            <li>Accept the partial completed quantity as final output</li>
+            <li>Add finished goods to inventory if any were produced</li>
+            <li>Return unused issued materials back to store</li>
+            <li>Cancel all remaining inventory reservations</li>
+            <li>Cancel all pending operations</li>
+          </Box>
+          {formik.values.allowBackflush && (
+            <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              Backflush is enabled. Materials will be auto-consumed proportional to completed quantity before closure.
+            </Alert>
+          )}
+          <TextField
+            label="Reason for Short Closure"
+            placeholder="e.g. Tool breakage, Priority changed, Material shortage..."
+            fullWidth
+            multiline
+            rows={2}
+            size="small"
+            value={shortCloseDialog.remarks}
+            onChange={(e) => setShortCloseDialog(prev => ({ ...prev, remarks: e.target.value }))}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setShortCloseDialog({ open: false, remarks: '' })}
+            disabled={isWorkOrderActionLoading}
+            sx={{ textTransform: 'none', color: '#374151' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmShortClose}
+            variant="contained"
+            disabled={isWorkOrderActionLoading}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              bgcolor: '#92400e',
+              '&:hover': { bgcolor: '#78350f' },
+            }}
+          >
+            {isWorkOrderActionLoading ? 'Processing...' : 'Confirm Short Close'}
           </Button>
         </DialogActions>
       </Dialog>

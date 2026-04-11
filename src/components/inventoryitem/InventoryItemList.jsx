@@ -226,10 +226,14 @@ const InventoryItemList = ({
   const [columnWidths, setColumnWidths] = useState(
     allColumns.reduce((acc, col) => { acc[col.field] = col.width || 150; return acc; }, {})
   );
+  const [utilityColumnWidths, setUtilityColumnWidths] = useState({
+    selection: 56,
+    rowNumber: 44,
+  });
 
   const getBaseWidth = (field) => columnWidths[field] || allColumns.find((c) => c.field === field)?.width || 150;
 
-  const extraColumnsWidth = 56 + 40 + 100;
+  const extraColumnsWidth = utilityColumnWidths.selection + utilityColumnWidths.rowNumber + 100;
 
   const { scaledColumnWidths, tableMinWidth } = useMemo(() => {
     const baseWidths = displayedColumns.map((col) => ({ field: col.field, width: getBaseWidth(col.field) }));
@@ -239,18 +243,28 @@ const InventoryItemList = ({
     const scale = dataWidthTotal > availableForData && availableForData > 0 ? availableForData / dataWidthTotal : 1;
     const scaled = baseWidths.reduce((acc, col) => { acc[col.field] = Math.max(60, Math.floor(col.width * scale)); return acc; }, {});
     return { scaledColumnWidths: scaled, tableMinWidth: Math.min(dataWidthTotal + extraColumnsWidth, availableWidth) };
-  }, [displayedColumns, columnWidths, tableContainerWidth]);
+  }, [displayedColumns, columnWidths, tableContainerWidth, extraColumnsWidth]);
 
   const resizingCol = useRef(null);
   const handleMouseDown = (e, field) => {
-    resizingCol.current = { field, startX: e.clientX, startWidth: getBaseWidth(field) };
+    resizingCol.current = { type: 'data', field, startX: e.clientX, startWidth: getBaseWidth(field) };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+  const handleUtilityMouseDown = (e, field) => {
+    resizingCol.current = { type: 'utility', field, startX: e.clientX, startWidth: utilityColumnWidths[field] };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
   };
   const handleMouseMove = (e) => {
     if (!resizingCol.current) return;
-    const { field, startX, startWidth } = resizingCol.current;
-    setColumnWidths((prev) => ({ ...prev, [field]: Math.max(80, startWidth + (e.clientX - startX)) }));
+    const { type, field, startX, startWidth } = resizingCol.current;
+    const nextWidth = Math.max(44, startWidth + (e.clientX - startX));
+    if (type === 'utility') {
+      setUtilityColumnWidths((prev) => ({ ...prev, [field]: nextWidth }));
+      return;
+    }
+    setColumnWidths((prev) => ({ ...prev, [field]: Math.max(80, nextWidth) }));
   };
   const handleMouseUp = () => {
     resizingCol.current = null;
@@ -454,7 +468,16 @@ const InventoryItemList = ({
                 {/* ── Table Head ── */}
                 <TableHead>
                   <TableRow>
-                    <TableCell padding="checkbox" sx={{ ...headerCellSx, width: 56 }}>
+                    <TableCell
+                      padding="checkbox"
+                      sx={{
+                        ...headerCellSx,
+                        width: utilityColumnWidths.selection,
+                        maxWidth: utilityColumnWidths.selection,
+                        minWidth: 44,
+                        position: "relative",
+                      }}
+                    >
                       <Checkbox
                         indeterminate={selectedRows?.length > 0 && selectedRows?.length < inventoryItems?.length}
                         checked={inventoryItems?.length > 0 && selectedRows?.length === inventoryItems?.length}
@@ -465,9 +488,28 @@ const InventoryItemList = ({
                           '&.MuiCheckbox-indeterminate': { color: '#fff' },
                         }}
                       />
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); handleUtilityMouseDown(e, 'selection'); }}
+                        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "5px", cursor: "col-resize", zIndex: 1 }}
+                      />
                     </TableCell>
 
-                    <TableCell align="center" sx={{ ...headerCellSx, width: 44, minWidth: 44 }}>#</TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        ...headerCellSx,
+                        width: utilityColumnWidths.rowNumber,
+                        maxWidth: utilityColumnWidths.rowNumber,
+                        minWidth: 44,
+                        position: "relative",
+                      }}
+                    >
+                      #
+                      <div
+                        onMouseDown={(e) => { e.stopPropagation(); handleUtilityMouseDown(e, 'rowNumber'); }}
+                        style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "5px", cursor: "col-resize", zIndex: 1 }}
+                      />
+                    </TableCell>
 
                     {displayedColumns?.map((col) => (
                       <TableCell
@@ -523,7 +565,15 @@ const InventoryItemList = ({
                         '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.8125rem', py: 0.75 },
                       }}
                     >
-                      <TableCell padding="checkbox" align="center">
+                      <TableCell
+                        padding="checkbox"
+                        align="center"
+                        sx={{
+                          width: utilityColumnWidths.selection,
+                          maxWidth: utilityColumnWidths.selection,
+                          minWidth: 44,
+                        }}
+                      >
                         <Checkbox
                           color="primary"
                           size="small"
@@ -535,7 +585,13 @@ const InventoryItemList = ({
                       <TableCell
                         align="center"
                         onClick={() => handleEditClick(item.inventoryItemId)}
-                        sx={{ color: '#6b7280', fontWeight: 500 }}
+                        sx={{
+                          color: '#6b7280',
+                          fontWeight: 500,
+                          width: utilityColumnWidths.rowNumber,
+                          maxWidth: utilityColumnWidths.rowNumber,
+                          minWidth: 44,
+                        }}
                       >
                         {(index + 1) + itemsPerPage * currentPage}
                       </TableCell>

@@ -9,6 +9,7 @@ import { ArrowDownward, ArrowUpward, DeleteOutline, ExpandLess, ExpandMore, Subd
 const HEADER_BG = '#0f2744';
 const BORDER_COLOR = '#e5e7eb';
 const ROW_HOVER = '#e3f2fd';
+const MAX_TREE_DEPTH = 5;
 
 const headerCellSx = {
     background: HEADER_BG,
@@ -28,7 +29,7 @@ const compactFieldSx = {
 };
 
 const getPositionRowId = (row) => row?.positionId ?? row?.id ?? null;
-const getChildBomId = (row) => row?.childBomId ?? row?.id ?? row?.childBom?.id ?? null;
+const getChildItemId = (row) => row?.childInventoryItemId ?? row?.inventoryItemId ?? row?.childInventoryItem?.inventoryItemId ?? null;
 const getOperationId = (operation) => operation?.id ?? operation?.operationId ?? operation?.routingOperationId ?? operation?._tempId ?? null;
 const getOperationName = (operation) => operation?.name ?? operation?.operationName ?? null;
 const isPersistedOperationId = (value) => value !== null && value !== undefined && !Number.isNaN(Number(value));
@@ -67,9 +68,9 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
         if ((rows[index].level ?? 0) !== 0) return;
         const blocks = buildParentBlocks(rows);
         const currentParent = rows[index];
-        const currentParentKey = getPositionRowId(currentParent) ?? `${currentParent?.parentItemCode}-${index}`;
+        const currentParentKey = getPositionRowId(currentParent) ?? `${currentParent?.itemCode}-${index}`;
         const blockIndex = blocks.findIndex((block) => {
-            const blockKey = getPositionRowId(block[0]) ?? `${block?.[0]?.parentItemCode}-${rows.indexOf(block[0])}`;
+            const blockKey = getPositionRowId(block[0]) ?? `${block?.[0]?.itemCode}-${rows.indexOf(block[0])}`;
             return blockKey === currentParentKey;
         });
         if (blockIndex === -1) return;
@@ -80,8 +81,8 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
         formik.setFieldValue("components", recalcPositions(newBlocks.flat()));
     };
 
-    const showChildBom = async (index, bomId) => {
-        if (!bomId) return;
+    const showChildBom = async (index, itemId) => {
+        if (!itemId) return;
         const components = formik.values.components;
         const parent = components[index];
         if (!parent) return;
@@ -97,12 +98,15 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
             return;
         }
 
-        const res = await apiService.get(`/bom/positions/${bomId}`);
-        const childBoms = res?.map(cb => ({
-            ...cb, childBomId: getChildBomId(cb), level: (parent.level ?? 0) + 1,
+        const parentLevel = parent.level ?? 0;
+        if (parentLevel >= MAX_TREE_DEPTH - 1) return; // limit depth
+
+        const res = await apiService.get(`/bom/positions/by-item/${itemId}`);
+        const childItems = res?.map(cb => ({
+            ...cb, childInventoryItemId: getChildItemId(cb), level: parentLevel + 1,
             parentPositionId: getPositionRowId(parent), isExpanded: false, isChild: true
         }));
-        const updated = [...components.slice(0, index + 1), ...childBoms, ...components.slice(index + 1)];
+        const updated = [...components.slice(0, index + 1), ...childItems, ...components.slice(index + 1)];
         updated[index] = { ...updated[index], isExpanded: true };
         formik.setFieldValue("components", updated);
     };
@@ -110,8 +114,8 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
     const handlePositionAdd = (val) => {
         if (!val) return;
         const components = formik.values.components;
-        const valChildBomId = getChildBomId(val);
-        const index = components.findIndex((c) => getChildBomId(c) === valChildBomId);
+        const valChildItemId = getChildItemId(val);
+        const index = components.findIndex((c) => getChildItemId(c) === valChildItemId);
         if (index !== -1) {
             const updated = components[index];
             updated.quantity = components[index].quantity + 1;
@@ -123,7 +127,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
         const newPosition = (formik.values.components?.length + 1) * 10;
         formik.setFieldValue("components", [
             ...(formik.values.components || []),
-            { ...val, childBomId: valChildBomId, quantity: 1, position: newPosition, routingOperationId: null, routingOperationName: null }
+            { ...val, childInventoryItemId: valChildItemId, quantity: 1, position: newPosition, routingOperationId: null, routingOperationName: null }
         ]);
         handleSearchChange("");
     };
@@ -138,7 +142,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
             <Autocomplete
                 fullWidth size="small" options={searchedItemList} inputValue={searchQuery}
                 onInputChange={(e, v, r) => r === "input" && handleSearchChange(v)}
-                getOptionLabel={(o) => `${o.parentItemName} | ${o.parentItemCode} | ${o.bomName} | Rev (${o.revision})`}
+                getOptionLabel={(o) => `${o.name ?? o.itemName ?? ''} | ${o.itemCode ?? ''}`}
                 onChange={(e, val) => handlePositionAdd(val)}
                 renderInput={(params) => (
                     <TextField {...params}
@@ -163,11 +167,9 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                         <TableRow>
                             <TableCell sx={{ ...headerCellSx, width: 50 }}></TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 70 }}>Pos</TableCell>
-                            <TableCell sx={headerCellSx}>BOM</TableCell>
                             <TableCell sx={headerCellSx}>Component</TableCell>
                             <TableCell sx={headerCellSx}>Item Code</TableCell>
                             <TableCell sx={headerCellSx}>Drawing No.</TableCell>
-                            <TableCell sx={{ ...headerCellSx, width: 60 }}>Rev</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 80 }}>Qty</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 80 }}>Scrap %</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 60 }}>UOM</TableCell>
@@ -179,7 +181,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                     <TableBody>
                         {formik.values.components?.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={12} align="center" sx={{ py: 4 }}>
+                                <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
                                     <Typography variant="body2" color="text.secondary">No components added. Search and add components above.</Typography>
                                 </TableCell>
                             </TableRow>
@@ -202,9 +204,9 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                 {/* Expand/Collapse */}
                                 <TableCell sx={{ pl: 1 + (c?.level || 0) * 2, borderLeft: c?.level > 0 ? '2px solid #e0e0e0' : 'none' }}>
                                     <Box display="flex" alignItems="center" gap={0.25}>
-                                        {c?.hasChildBom ? (
+                                        {c?.hasActiveBom && (c?.level ?? 0) < MAX_TREE_DEPTH - 1 ? (
                                             <Tooltip title={c?.isExpanded ? "Collapse" : "Expand"}>
-                                                <IconButton size="small" onClick={() => showChildBom(i, getChildBomId(c))} sx={{ color: '#1565c0' }}>
+                                                <IconButton size="small" onClick={() => showChildBom(i, getChildItemId(c))} sx={{ color: '#1565c0' }}>
                                                     {c.isExpanded ? <ExpandLess sx={{ fontSize: 18 }} /> : <ExpandMore sx={{ fontSize: 18 }} />}
                                                 </IconButton>
                                             </Tooltip>
@@ -227,11 +229,9 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                     />
                                 </TableCell>
 
-                                <TableCell>{c?.bomName}</TableCell>
-                                <TableCell sx={{ fontWeight: 500 }}>{c?.parentItemName}</TableCell>
-                                <TableCell sx={{ color: '#1565c0', fontWeight: 500 }}>{c?.parentItemCode}</TableCell>
-                                <TableCell>{c?.parentDrawingNumber}</TableCell>
-                                <TableCell>{c?.revision}</TableCell>
+                                <TableCell sx={{ fontWeight: 500 }}>{c?.itemName ?? c?.name}</TableCell>
+                                <TableCell sx={{ color: '#1565c0', fontWeight: 500 }}>{c?.itemCode}</TableCell>
+                                <TableCell>{c?.drawingNumber}</TableCell>
 
                                 {/* Quantity */}
                                 <TableCell>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
+  Alert,
   Button,
   Chip,
   IconButton,
@@ -197,6 +198,12 @@ export default function WorkOrderMaterialsTab({
 
   return (
     <Box>
+      {formik.values.allowBackflush && (
+        <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+          <strong>Backflush Enabled</strong> - Materials will be auto-consumed when the work order is completed. Manual issuance is still allowed for partial quantities.
+        </Alert>
+      )}
+
       <Box
         sx={{
           display: 'flex',
