@@ -26,6 +26,7 @@ import ProductionSchedulePage from "./pages/ProductionSchedulePage";
 import MakeBuyAnalysisPage from "./pages/MakeBuyAnalysisPage";
 import JobWorkChallanPage from "./pages/JobWorkChallanPage";
 import LoginPage from "./pages/LoginPage";
+import MaterialRequestDashboard from "./components/inventory/MaterialRequestDashboard";
 import { AuthProvider } from "./auth/AuthContext";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import PublicOnlyRoute from "./auth/PublicOnlyRoute";
@@ -126,6 +127,17 @@ function AppShell() {
                                 deniedMessage="You are not authorized for inventory."
                             >
                                 <InventoryPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/material-requests/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for material requests."
+                            >
+                                <MaterialRequestDashboard />
                             </RoleProtectedRoute>
                         }
                     />

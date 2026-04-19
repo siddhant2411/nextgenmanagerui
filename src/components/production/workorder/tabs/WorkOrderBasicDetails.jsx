@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Alert } from '@mui/material';
+import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Alert, Paper } from '@mui/material';
 import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
+import { getAllInventoryItems } from '../../../../services/inventoryService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
 import { getWorkOrderList } from '../../../../services/workOrderService';
 
 
 export default function WorkOrderBasicDetails({ formik, setError, workOrderId }) {
   const [searchedItemList, setSearchedItemList] = useState([]);
-  const [inputValue, setInputValue] = useState();
-  const [bomList, setBomList] = useState([]);
+  const [inputValue, setInputValue] = useState('');
   const [referenceOptions, setReferenceOptions] = useState([]);
   const [referenceInputValue, setReferenceInputValue] = useState('');
 
@@ -22,15 +22,10 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
 
   const handleGetBom = async (itemId) => {
     try {
-
       const response = await getActiveBomByItemid(itemId);
-
       formik.setFieldValue('bom', response?.bom);
-
-
     } catch (err) {
-
-      setError(err.response.data.error || 'Error fetching BOMs');
+      setError(err.response?.data?.error || 'Error fetching BOMs');
     }
   };
 
@@ -42,7 +37,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
         sortDir: 'asc',
         search: value
       };
-      const response = await apiService.get(`/inventory_item/all`, params);
+      const response = await getAllInventoryItems(params);
       const filteredData = response.content.map(item => ({
         id: item.inventoryItemId,
         name: item.name,
@@ -55,17 +50,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
       // handled
     }
   };
-
-  const handleCost = (value) => {
-
-    formik.setFieldValue('workOrderProductionTemplate', value?.workOrderProductionTemplate || null);
-    formik.setFieldValue('workOrderJobLists', value?.workOrderJobLists || []);
-    formik.setFieldValue('estimatedCostOfLabour', Number(value?.workOrderProductionTemplate?.estimatedCostOfLabour) || 0);
-    formik.setFieldValue('estimatedCostOfBom', Number(value?.workOrderProductionTemplate?.estimatedCostOfBom) || 0);
-    formik.setFieldValue('overheadCostPercentage', Number(value?.workOrderProductionTemplate?.overheadCostPercentage) || 0);
-    formik.setFieldValue('totalEstimatedCostOfWorkOrder', Number(value?.workOrderProductionTemplate?.totalCostOfWorkOrder) || 0);
-  }
-
 
   useEffect(() => {
     setInputValue(formik.values.selectedItem?.name || '');
@@ -201,195 +185,56 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           ? `/production/work-order/edit/${referenceId}`
           : null
         : null;
+
   return (
-    <Box sx={{ width: '100%', overflowX: 'hidden', minWidth: 0, pb: 1 }}>
-      <Grid container spacing={2}>
-
-        <Grid item xs={12} sm={6}>
-          <Autocomplete
-            fullWidth
-            size="small"
-            options={searchedItemList}
-            value={formik.values.selectedItem}
-            inputValue={inputValue}
-            onChange={(e, newValue) => {
-              handleProductSelect(newValue)
-
-            }}
-            onInputChange={(e, newInputValue, reason) => {
-              if (reason === 'input') {
-                setInputValue(newInputValue);
-                handleProductSearch(e, newInputValue);
-              }
-            }}
-            getOptionLabel={(option) => option?.name || ''}
-            isOptionEqualToValue={(option, value) => option.itemCode === value.itemCode}
-            renderOption={(props, option) => (
-
-              <li
-                {...props}
-                style={{
-                  width: '100%',
-                  padding: '8px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  cursor: 'pointer'
-                }}
-              >
-                <div style={{ fontWeight: 600 }}>{option.name}</div>
-                <div style={{ display: 'flex', gap: 16, fontSize: '0.85rem', color: '#555' }}>
-                  <span>Item Code: {option.itemCode}</span>
-                  <span>HSN: {option.hsnCode}</span>
-                </div>
-              </li>
-            )}
-
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Item Name"
-                fullWidth
-                size="small"
-                autoFocus={!workOrderId}
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {params.InputProps.endAdornment}
-                      <Tooltip title="Open item in new tab">
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={() => openNewTab(`/inventory-item/edit/${inventoryItemId}`)}
-                            disabled={!inventoryItemId}
-                            edge="end"
-                          >
-                            <OpenInNew fontSize="inherit" />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                    </>
-                  ),
-                }}
-                error={!!formik.errors.selectedItem}
-                helperText={formik.errors.selectedItem}
-                sx={{
-                  "& .MuiInputBase-input": { fontSize: 14 },
-                  "& .MuiInputLabel-root": { fontSize: 14 },
-                }}
-              />
-            )}
-          />
-          {formik.values.selectedItem?.id && !formik.values.bom && (
-            <Box mt={0.5}>
-              <Chip
-                size="small"
-                color="warning"
-                variant="outlined"
-                label="No BOM found for this item"
-              />
-            </Box>
-          )}
-          {formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured && (
-            <Alert severity="warning" sx={{ mt: 1 }}>
-              This item is marked as <strong>Purchased Only</strong> and cannot be manufactured. Work orders can only be created for items with manufacturing enabled.
-            </Alert>
-          )}
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <FormControl
-            fullWidth
-            size="small"
-            error={formik.touched.sourceType && Boolean(formik.errors.sourceType)}
-          >
-            <InputLabel id="sourceType-label">
-              Order Source
-            </InputLabel>
-
-            <Select
-              labelId="orderSource-label"
-              id="sourceType"
-              label="Order Source"
-              value={formik.values.sourceType}
-              onChange={handleSourceTypeChange}
-              sx={{
-                "& .MuiInputBase-input": { fontSize: 14 },
-                "& .MuiInputLabel-root": { fontSize: 14 },
-              }}
-            >
-              <MenuItem value="MANUAL">Manual</MenuItem>
-              <MenuItem value="SALES_ORDER">Sales Order</MenuItem>
-              <MenuItem value="PARENT_WORK_ORDER">Work Order</MenuItem>
-            </Select>
-
-            {formik.touched.sourceType && formik.errors.sourceType && (
-              <FormHelperText>
-                {formik.errors.sourceType}
-              </FormHelperText>
-            )}
-          </FormControl>
-
-        </Grid>
-        <Grid item xs={12} sm={6}>
-          {formik.values.sourceType === 'MANUAL' ? (
-            <TextField
-              label="Reference Doc."
-              fullWidth
-              size="small"
-              value={
-                typeof formik.values.referenceDocument === 'string'
-                  ? formik.values.referenceDocument
-                  : ''
-              }
-              onChange={(e) => formik.setFieldValue('referenceDocument', e.target.value)}
-              sx={{
-                "& .MuiInputBase-input": { fontSize: 14 },
-                "& .MuiInputLabel-root": { fontSize: 14 },
-              }}
-            />
-          ) : (
+    <Box sx={{ width: '100%', overflowX: 'hidden', minWidth: 0, pb: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      
+      {/* --- PRIMARY INFORMATION CARD --- */}
+      <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Primary Information
+        </Typography>
+        <Grid container spacing={2.5}>
+          <Grid item xs={12} md={6}>
             <Autocomplete
               fullWidth
               size="small"
-              options={referenceOptions}
-              value={selectedReferenceOption}
-              inputValue={referenceInputValue}
-              onChange={(_, newValue) => {
-                formik.setFieldValue('referenceDocument', newValue || null);
-              }}
-              onInputChange={(_, newInputValue, reason) => {
+              options={searchedItemList}
+              value={formik.values.selectedItem}
+              inputValue={inputValue || ''}
+              onChange={(e, newValue) => handleProductSelect(newValue)}
+              onInputChange={(e, newInputValue, reason) => {
                 if (reason === 'input') {
-                  setReferenceInputValue(newInputValue);
-                  handleReferenceSearch(newInputValue);
+                  setInputValue(newInputValue);
+                  handleProductSearch(e, newInputValue);
                 }
               }}
-              getOptionLabel={(option) => option?.label || ''}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
+              getOptionLabel={(option) => option?.name || ''}
+              isOptionEqualToValue={(option, value) => option.itemCode === value.itemCode}
+              renderOption={(props, option) => (
+                <li {...props} style={{ width: '100%', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' }}>
+                  <div style={{ fontWeight: 600 }}>{option.name}</div>
+                  <div style={{ display: 'flex', gap: 16, fontSize: '0.85rem', color: '#555' }}>
+                    <span>Item Code: {option.itemCode}</span>
+                    <span>HSN: {option.hsnCode}</span>
+                  </div>
+                </li>
+              )}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label={
-                    formik.values.sourceType === 'SALES_ORDER'
-                      ? 'Sales Order'
-                      : 'Work Order'
-                  }
+                  label="Item Name"
                   fullWidth
                   size="small"
+                  autoFocus={!workOrderId}
                   InputProps={{
                     ...params.InputProps,
                     endAdornment: (
                       <>
                         {params.InputProps.endAdornment}
-                        <Tooltip title="Open reference in new tab">
+                        <Tooltip title="Open item in new tab">
                           <span>
-                            <IconButton
-                              size="small"
-                              onClick={() => openNewTab(referencePath)}
-                              disabled={!referencePath}
-                              edge="end"
-                            >
+                            <IconButton size="small" onClick={() => openNewTab(`/inventory-item/edit/${inventoryItemId}`)} disabled={!inventoryItemId} edge="end">
                               <OpenInNew fontSize="inherit" />
                             </IconButton>
                           </span>
@@ -397,278 +242,276 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
                       </>
                     ),
                   }}
-                  sx={{
-                    "& .MuiInputBase-input": { fontSize: 14 },
-                    "& .MuiInputLabel-root": { fontSize: 14 },
-                  }}
+                  error={!!formik.errors.selectedItem}
+                  helperText={formik.errors.selectedItem}
                 />
               )}
             />
-          )}
-          <FormHelperText>
-            {formik.values.sourceType === 'MANUAL'
-              ? "Enter the reference document number."
-              : "Search and select the reference document."}
-          </FormHelperText>
-        </Grid>
+            {formik.values.selectedItem?.id && !formik.values.bom && (
+              <Box mt={0.5}>
+                <Chip size="small" color="warning" variant="outlined" label="No BOM found for this item" />
+              </Box>
+            )}
+            {formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured && (
+              <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
+                This item is marked as <strong>Purchased Only</strong> and cannot be manufactured.
+              </Alert>
+            )}
+          </Grid>
 
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth size="small">
+              <InputLabel id="priority-label">Priority</InputLabel>
+              <Select
+                labelId="priority-label"
+                id="priority"
+                label="Priority"
+                value={formik.values.priority || 'NORMAL'}
+                onChange={(e) => formik.setFieldValue('priority', e.target.value)}
+                renderValue={(selected) => {
+                  const colorMap = { URGENT: '#ef4444', HIGH: '#f97316', NORMAL: '#3b82f6', LOW: '#9ca3af' };
+                  return (
+                    <Chip size="small" label={selected} sx={{ bgcolor: colorMap[selected] || '#3b82f6', color: '#fff', fontWeight: 600, fontSize: '0.75rem', height: 20 }} />
+                  );
+                }}
+              >
+                {[
+                  { value: 'URGENT', color: '#ef4444', label: 'Urgent' },
+                  { value: 'HIGH', color: '#f97316', label: 'High' },
+                  { value: 'NORMAL', color: '#3b82f6', label: 'Normal' },
+                  { value: 'LOW', color: '#9ca3af', label: 'Low' },
+                ].map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: opt.color }} />
+                      <span>{opt.label}</span>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Description"
-            fullWidth
-            size="small"
-            {...formik.getFieldProps('remarks')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth size="small" error={formik.touched.sourceType && Boolean(formik.errors.sourceType)}>
+              <InputLabel id="sourceType-label">Order Source</InputLabel>
+              <Select
+                labelId="sourceType-label"
+                id="sourceType"
+                label="Order Source"
+                value={formik.values.sourceType || 'MANUAL'}
+                onChange={handleSourceTypeChange}
+              >
+                <MenuItem value="MANUAL">Manual</MenuItem>
+                <MenuItem value="SALES_ORDER">Sales Order</MenuItem>
+                <MenuItem value="PARENT_WORK_ORDER">Work Order</MenuItem>
+              </Select>
+              {formik.touched.sourceType && formik.errors.sourceType && (
+                <FormHelperText>{formik.errors.sourceType}</FormHelperText>
+              )}
+            </FormControl>
+          </Grid>
 
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth size="small">
-            <InputLabel id="priority-label" sx={{ fontSize: 14 }}>Priority</InputLabel>
-            <Select
-              labelId="priority-label"
-              id="priority"
-              label="Priority"
-              value={formik.values.priority || 'NORMAL'}
-              onChange={(e) => formik.setFieldValue('priority', e.target.value)}
-              sx={{
-                "& .MuiInputBase-input": { fontSize: 14 },
-                "& .MuiInputLabel-root": { fontSize: 14 },
-              }}
-              renderValue={(selected) => {
-                const colorMap = { URGENT: '#ef4444', HIGH: '#f97316', NORMAL: '#3b82f6', LOW: '#9ca3af' };
-                return (
-                  <Chip
+          <Grid item xs={12} md={6}>
+            {formik.values.sourceType === 'MANUAL' ? (
+              <TextField
+                label="Reference Doc."
+                fullWidth
+                size="small"
+                value={typeof formik.values.referenceDocument === 'string' ? formik.values.referenceDocument : ''}
+                onChange={(e) => formik.setFieldValue('referenceDocument', e.target.value)}
+                helperText="Enter the reference document number."
+              />
+            ) : (
+              <Autocomplete
+                fullWidth
+                size="small"
+                options={referenceOptions}
+                value={selectedReferenceOption}
+                inputValue={referenceInputValue || ''}
+                onChange={(_, newValue) => formik.setFieldValue('referenceDocument', newValue || null)}
+                onInputChange={(_, newInputValue, reason) => {
+                  if (reason === 'input') {
+                    setReferenceInputValue(newInputValue);
+                    handleReferenceSearch(newInputValue);
+                  }
+                }}
+                getOptionLabel={(option) => option?.label || ''}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label={formik.values.sourceType === 'SALES_ORDER' ? 'Sales Order' : 'Work Order'}
+                    fullWidth
                     size="small"
-                    label={selected}
-                    sx={{
-                      bgcolor: colorMap[selected] || '#3b82f6',
-                      color: '#fff',
-                      fontWeight: 600,
-                      fontSize: '0.75rem',
+                    helperText="Search and select the reference document."
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {params.InputProps.endAdornment}
+                          <Tooltip title="Open reference in new tab">
+                            <span>
+                              <IconButton size="small" onClick={() => openNewTab(referencePath)} disabled={!referencePath} edge="end">
+                                <OpenInNew fontSize="inherit" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </>
+                      ),
                     }}
                   />
-                );
-              }}
-            >
-              {[
-                { value: 'URGENT', color: '#ef4444', label: 'Urgent' },
-                { value: 'HIGH', color: '#f97316', label: 'High' },
-                { value: 'NORMAL', color: '#3b82f6', label: 'Normal' },
-                { value: 'LOW', color: '#9ca3af', label: 'Low' },
-              ].map((opt) => (
-                <MenuItem key={opt.value} value={opt.value}>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: opt.color }} />
-                    <span>{opt.label}</span>
-                  </Box>
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={!!formik.values.allowBackflush}
-                onChange={(e) => formik.setFieldValue('allowBackflush', e.target.checked)}
-                disabled={!isPlanningEditable}
-                size="small"
+                )}
               />
-            }
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  Allow Backflush
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Auto-consume materials when work order is completed
-                </Typography>
-              </Box>
-            }
-            sx={{ alignItems: 'flex-start', ml: 0 }}
-          />
+            )}
+          </Grid>
+
+          <Grid item xs={12}>
+            <TextField
+              label="Description / Remarks"
+              fullWidth
+              size="small"
+              multiline
+              rows={2}
+              {...formik.getFieldProps('remarks')}
+            />
+          </Grid>
         </Grid>
+      </Paper>
 
-      </Grid>
-
-      <Box
-        sx={{
-          mt: 4,
-          mb: 2,
-          borderBottom: "1px solid #ddd",
-          width: "100%",
-        }}
-      />
-
-      <Typography
-        variant="subtitle1"
-        fontWeight={600}
-        color="text.secondary"
-        sx={{ mb: 1, marginLeft: 1 }}
-      >
-        PRODUCTION TIMELINE
-      </Typography>
-
-      <Grid container spacing={2} mt={1}>
-
-
-
-
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Planned Start Date"
-            type="date"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            {...formik.getFieldProps('plannedStartDate')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
+      {/* --- QUANTITIES & CONFIGURATION CARD --- */}
+      <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#f8fafc' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Production Quantities & Rules
+          </Typography>
+          {(formik.values.selectedItem?.uom || formik.values.inventoryItem?.uom) && (
+             <Chip size="small" label={`UOM: ${formik.values.selectedItem?.uom || formik.values.inventoryItem?.uom}`} sx={{ fontWeight: 600, color: '#334155', bgcolor: '#e2e8f0' }} />
+          )}
+        </Box>
+        <Grid container spacing={2.5}>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              label="Planned Qty"
+              type="number"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              disabled={!isPlanningEditable}
+              {...formik.getFieldProps('plannedQuantity')}
+              sx={{ bgcolor: '#fff' }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              label="Completed Qty"
+              type="number"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              disabled={!isPlanningEditable}
+              {...formik.getFieldProps('completedQuantity')}
+              sx={{ bgcolor: '#fff' }}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4}>
+            <TextField
+              label="Scrapped Qty"
+              type="number"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              disabled={!isPlanningEditable}
+              {...formik.getFieldProps('scrappedQuantity')}
+              sx={{ bgcolor: '#fff' }}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!formik.values.allowBackflush}
+                  onChange={(e) => formik.setFieldValue('allowBackflush', e.target.checked)}
+                  disabled={!isPlanningEditable}
+                  size="small"
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#334155' }}>Allow Backflush</Typography>
+                  <Typography variant="caption" color="text.secondary">Auto-consume materials proportionally when operation output is recorded</Typography>
+                </Box>
+              }
+              sx={{ m: 0 }}
+            />
+          </Grid>
         </Grid>
+      </Paper>
 
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Start Date"
-            type="date"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            disabled={!isProductionStarted}
-            {...formik.getFieldProps('actualStartDate')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
+      {/* --- TIMELINE CARD --- */}
+      <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Scheduling & Execution Timeline
+        </Typography>
+        <Grid container spacing={2.5}>
+          <Grid item xs={12} sm={4} md={4}>
+            <TextField
+              label="Due Date"
+              type="date"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              {...formik.getFieldProps('dueDate')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4} md={4}>
+            <TextField
+              label="Planned Start Date"
+              type="date"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              {...formik.getFieldProps('plannedStartDate')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={4} md={4}>
+            <TextField
+              label="Planned End Date"
+              type="date"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              {...formik.getFieldProps('plannedEndDate')}
+            />
+          </Grid>
+          <Grid item xs={12} md={12}>
+            <Divider sx={{ my: 0.5 }} />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              label="Actual Start Date"
+              type="date"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              disabled={!isProductionStarted}
+              {...formik.getFieldProps('actualStartDate')}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              label="Actual End Date"
+              type="date"
+              fullWidth
+              size="small"
+              InputLabelProps={{ shrink: true }}
+              disabled={!isProductionStarted}
+              {...formik.getFieldProps('actualEndDate')}
+            />
+          </Grid>
         </Grid>
+      </Paper>
 
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Planned End Date"
-            type="date"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            {...formik.getFieldProps('plannedEndDate')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="End Date"
-            type="date"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            disabled={!isProductionStarted}
-            {...formik.getFieldProps('actualEndDate')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-
-
-        <Grid item xs={12} sm={6}>
-          <TextField
-            label="Due Date"
-            type="date"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            {...formik.getFieldProps('dueDate')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-
-      </Grid>
-
-      <Box
-        sx={{
-          mt: 4,
-          mb: 2,
-          borderBottom: "1px solid #ddd",
-          width: "100%",
-        }}
-      />
-
-      <Typography
-        variant="subtitle1"
-        fontWeight={600}
-        color="text.secondary"
-        sx={{ mb: 1, marginLeft: 1 }}
-      >
-        {`PRODUCTION QUANTITY (${formik.values.selectedItem?.uom || formik.values.inventoryItem?.uom || '-'})`}
-      </Typography>
-
-
-      <Grid container spacing={2} mt={1}>
-
-        <Grid item xs={12} sm={4}>
-          <TextField
-            label="Planned Qty"
-            type="number"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            disabled={!isPlanningEditable}
-            {...formik.getFieldProps('plannedQuantity')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={4} >
-          <TextField
-            label="Completed Qty"
-            type="number"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            disabled={!isPlanningEditable}
-            {...formik.getFieldProps('completedQuantity')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-        <Grid item xs={12} sm={4}>
-          <TextField
-            label="Scrapped Qty"
-            type="number"
-            fullWidth
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            disabled={!isPlanningEditable}
-            {...formik.getFieldProps('scrappedQuantity')}
-            sx={{
-              "& .MuiInputBase-input": { fontSize: 14 },
-              "& .MuiInputLabel-root": { fontSize: 14 },
-            }}
-          />
-        </Grid>
-      </Grid>
     </Box>
   );
 }

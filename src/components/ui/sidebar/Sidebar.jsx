@@ -137,7 +137,16 @@ const Sidebar = ({
             ]
             : []),
         ...(canAccessInventory
-            ? [{ text: "Inventory", icon: <Inventory2 />, path: "/inventory" }]
+            ? [
+                {
+                    text: "Inventory",
+                    icon: <Inventory2 />,
+                    children: [
+                        { text: "Dashboard", path: "/inventory" },
+                        { text: "Material Requests", path: "/inventory/material-requests" },
+                    ],
+                },
+            ]
             : []),
         ...(canAccessItemCode
             ? [

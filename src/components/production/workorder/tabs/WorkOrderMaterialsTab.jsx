@@ -7,6 +7,7 @@ import {
   IconButton,
   MenuItem,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -17,7 +18,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { DeleteOutline, Refresh, WarningAmber } from '@mui/icons-material';
+import { DeleteOutline, Refresh, WarningAmber, AutoFixHigh } from '@mui/icons-material';
 
 const DEFAULT_ISSUE_STATUSES = [
   'NOT_ISSUED',
@@ -43,10 +44,28 @@ const getMaterialRowKey = (material, index) =>
 const getMaterialId = (material) =>
   material?.id ?? material?.workOrderMaterialId ?? material?.materialId ?? null;
 
+const getInventoryItemId = (material) =>
+  material?.inventoryItemId ??
+  material?.component?.inventoryItemId ??
+  material?.component?.id ??
+  material?.childInventoryItem?.inventoryItemId ??
+  null;
+
 const getIssueStatusColor = (status) => {
   if (status === 'ISSUED') return 'success';
   if (status === 'PARTIALLY_ISSUED') return 'warning';
   return 'default';
+};
+
+const getMrStatusChip = (material) => {
+  const status = material?.mrStatus || material?.mrApprovalStatus;
+  const approved = material?.mrApprovedQuantity;
+  const requested = material?.plannedRequiredQuantity;
+  if (!status || status === 'PENDING') return <Chip size="small" label="Awaiting Stores" sx={{ bgcolor: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: '0.65rem', height: 20, border: '1px solid #fde68a' }} />;
+  if (status === 'APPROVED') return <Chip size="small" label="Approved" color="success" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
+  if (status === 'PARTIAL') return <Chip size="small" label={`Partial (${approved ?? '?'} / ${requested ?? '?'})`} color="warning" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
+  if (status === 'REJECTED') return <Chip size="small" label="Rejected" color="error" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
+  return <Chip size="small" label="Awaiting Stores" sx={{ bgcolor: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: '0.65rem', height: 20, border: '1px solid #fde68a' }} />;
 };
 
 const compactCellSx = {
@@ -133,13 +152,16 @@ export default function WorkOrderMaterialsTab({
     const scrappedQuantity = toNumberValue(draft.scrappedQuantity);
     return {
       workOrderMaterialId: getMaterialId(material),
+      inventoryItemId: getInventoryItemId(material),
       issuedQuantity,
       scrappedQuantity,
+      overrideInstanceIds: draft.overrideInstanceIds || material?.overrideInstanceIds,
+      overrideReason: draft.overrideReason || material?.overrideReason,
     };
   };
 
   const canIssuePayload = (payload) =>
-    Boolean(payload?.workOrderMaterialId) &&
+    Boolean(payload?.inventoryItemId) &&
     !Number.isNaN(payload.issuedQuantity) &&
     !Number.isNaN(payload.scrappedQuantity) &&
     payload.issuedQuantity >= 0 &&
@@ -196,11 +218,50 @@ export default function WorkOrderMaterialsTab({
     });
   };
 
+  const handleAutoFillRemaining = () => {
+    const nextDrafts = { ...issueDrafts };
+    materials.forEach((material, index) => {
+      const rowKey = getMaterialRowKey(material, index);
+      const netRequired = toNumberValue(material?.netRequiredQuantity);
+      const issued = toNumberValue(material?.issuedQuantity);
+      const scrapped = toNumberValue(material?.scrappedQuantity);
+      const remaining = Math.max(netRequired - issued - scrapped, 0);
+
+      if (remaining > 0) {
+        nextDrafts[rowKey] = {
+          ...(nextDrafts[rowKey] || {}),
+          issuedQuantity: remaining,
+          scrappedQuantity: nextDrafts[rowKey]?.scrappedQuantity || 0
+        };
+      }
+    });
+    setIssueDrafts(nextDrafts);
+  };
+
   return (
     <Box>
-      {formik.values.allowBackflush && (
-        <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
-          <strong>Backflush Enabled</strong> - Materials will be auto-consumed when the work order is completed. Manual issuance is still allowed for partial quantities.
+      {formik.values.status === 'MATERIAL_PENDING' && (
+        <Alert severity="warning" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
+          <strong>Awaiting Stores Approval</strong> — Material Requests have been sent to the Store Keeper.
+          Production will be enabled once materials are approved.
+        </Alert>
+      )}
+      {formik.values.status === 'PARTIALLY_READY' && (
+        <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
+          <strong>Partially Ready</strong> — Some materials have been approved. Operations with fully approved materials can be started.
+          Remaining items are still awaiting Stores action.
+        </Alert>
+      )}
+      {formik.values.status === 'READY_FOR_PRODUCTION' && (
+        <Alert severity="success" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
+          <strong>All Materials Approved</strong> — Stock is reserved. Use <strong>Move to Floor</strong> to track physical movement (optional).
+          Stock is <strong>consumed</strong> automatically when you <strong>Record a Batch</strong>.
+        </Alert>
+      )}
+      {formik.values.status !== 'CREATED' && formik.values.status !== 'MATERIAL_PENDING' && formik.values.status !== 'PARTIALLY_READY' && formik.values.status !== 'READY_FOR_PRODUCTION' && (
+        <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
+          Materials are <strong>reserved</strong> from the Stores-approved quantity.
+          Stock is <strong>consumed</strong> automatically when you <strong>Record a Batch</strong>.
         </Alert>
       )}
 
@@ -209,35 +270,58 @@ export default function WorkOrderMaterialsTab({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 1.5,
-          gap: 1,
+          mb: 2,
+          gap: 1.5,
           flexWrap: 'wrap',
+          p: 0.5
         }}
       >
-        <Typography variant="subtitle1" fontWeight={600} color="text.secondary">
-          MATERIALS
+        <Typography variant="subtitle2" fontWeight={800} sx={{ color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Material Requirements
         </Typography>
 
-        {isAddMode ? (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<Refresh />}
-            onClick={onLoadFromBom}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Loading...' : 'Reload from BOM'}
-          </Button>
-        ) : (
-          <Button
-            size="small"
-            variant="contained"
-            onClick={handleIssueEnteredMaterials}
-            disabled={isMaterialIssueLoading || !hasAnyIssueDraft}
-          >
-            {isMaterialIssueLoading ? 'Issuing...' : 'Issue Entered'}
-          </Button>
-        )}
+        <Stack direction="row" spacing={1.5}>
+          {isAddMode ? (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={onLoadFromBom}
+              disabled={isLoading}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600 }}
+            >
+              {isLoading ? 'Loading...' : 'Reload from BOM'}
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="small"
+                variant="outlined"
+                color="info"
+                startIcon={<AutoFixHigh />}
+                onClick={handleAutoFillRemaining}
+                disabled={isMaterialIssueLoading}
+                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderStyle: 'dashed' }}
+              >
+                Auto-fill Remaining
+              </Button>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleIssueEnteredMaterials}
+                disabled={isMaterialIssueLoading || !hasAnyIssueDraft}
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                }}
+              >
+                {isMaterialIssueLoading ? 'Moving...' : 'Move to Floor'}
+              </Button>
+            </>
+          )}
+        </Stack>
       </Box>
 
       <TableContainer
@@ -246,6 +330,9 @@ export default function WorkOrderMaterialsTab({
         sx={{
           maxWidth: '100%',
           overflowX: 'auto',
+          borderRadius: 2,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
           '& .MuiTableCell-root': compactCellSx,
         }}
       >
@@ -259,13 +346,14 @@ export default function WorkOrderMaterialsTab({
               <TableCell>Required at Operation</TableCell>
               <TableCell>Net Req</TableCell>
               <TableCell>Planned</TableCell>
+              {!isAddMode && <TableCell>MR Status</TableCell>}
               <TableCell>Issued Qty</TableCell>
               {!isAddMode && <TableCell>Consumed</TableCell>}
-              {!isAddMode && <TableCell>Available</TableCell>}
+              {!isAddMode && <TableCell>On Floor</TableCell>}
               <TableCell>Scrap Qty</TableCell>
               {!isAddMode && <TableCell>Remaining Qty</TableCell>}
               <TableCell>Status</TableCell>
-              {!isAddMode && <TableCell>Issue Now</TableCell>}
+              {!isAddMode && <TableCell>Move to Floor</TableCell>}
               {!isAddMode && <TableCell>Scrap Now</TableCell>}
               <TableCell align="center">Action</TableCell>
             </TableRow>
@@ -292,7 +380,7 @@ export default function WorkOrderMaterialsTab({
                 const consumedQuantity = toNumberValue(material?.consumedQuantity);
                 const availableQuantity = Math.max(issuedQuantity - consumedQuantity, 0);
                 const scrappedQuantity = toNumberValue(material?.scrappedQuantity);
-                const remainingQuantity = Math.max(netRequiredQuantity - issuedQuantity - scrappedQuantity, 0);
+                const remainingQuantity = Math.max(netRequiredQuantity - consumedQuantity - scrappedQuantity, 0);
 
                 return (
                   <TableRow
@@ -342,6 +430,19 @@ export default function WorkOrderMaterialsTab({
                         <Typography variant="caption">{plannedRequiredQuantity}</Typography>
                       )}
                     </TableCell>
+
+                    {!isAddMode && (
+                      <TableCell sx={{ minWidth: 110 }}>
+                        {getMrStatusChip(material)}
+                        {material?.mrRejectionReason && (
+                          <Tooltip title={material.mrRejectionReason} arrow>
+                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', mt: 0.3, cursor: 'help' }}>
+                              {material.mrRejectionReason.length > 18 ? material.mrRejectionReason.slice(0, 18) + '…' : material.mrRejectionReason}
+                            </Typography>
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                    )}
 
                     <TableCell sx={{ minWidth: 88 }}>
                       {isAddMode ? (
@@ -459,14 +560,18 @@ export default function WorkOrderMaterialsTab({
                           </span>
                         </Tooltip>
                       ) : (
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={() => handleIssueSingleMaterial(material, index)}
-                          disabled={!canIssue || isMaterialIssueLoading}
-                        >
-                          Issue
-                        </Button>
+                        <Tooltip title="Record physical movement to shop floor (tracking only — no stock deduction)" arrow>
+                          <span>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleIssueSingleMaterial(material, index)}
+                              disabled={!canIssue || isMaterialIssueLoading}
+                            >
+                              Move
+                            </Button>
+                          </span>
+                        </Tooltip>
                       )}
                     </TableCell>
                   </TableRow>
@@ -485,7 +590,7 @@ export default function WorkOrderMaterialsTab({
               size="small"
               variant="outlined"
               color="primary"
-              label="Issue quantities are treated as incremental batches"
+              label="Floor movements are incremental. Stock is consumed when batches are recorded."
             />
           )}
         </Box>

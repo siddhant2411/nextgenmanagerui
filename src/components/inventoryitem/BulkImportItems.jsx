@@ -7,7 +7,7 @@ import {
 import { Upload, DeleteOutline } from "@mui/icons-material";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { postFile } from "../../services/apiService";
+import { createInventoryItemWithFiles } from "../../services/inventoryService";
 
 const HEADER_BG = '#0f2744';
 const BORDER_COLOR = '#e5e7eb';
@@ -84,7 +84,7 @@ export default function BulkImportItems() {
         const failed = [];
         for (const row of rows) {
             try {
-                await postFile("/inventory_item/add", preparePayload(row), []);
+                await createInventoryItemWithFiles(preparePayload(row), []);
             } catch (err) {
                 failed.push(row);
             }

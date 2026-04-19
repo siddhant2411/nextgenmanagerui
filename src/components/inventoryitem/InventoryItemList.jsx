@@ -15,7 +15,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 import FilterBar from '../ui/filterbar/FilterBar';
-import apiService from '../../services/apiService';
+import { filterInventoryItems } from '../../services/inventoryService';
 import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
 
@@ -29,7 +29,8 @@ const allColumns = [
   { field: 'basicMaterial', headerName: 'Material', width: 110, type: 'string' },
   { field: 'dimension', headerName: 'Dimension', width: 100, type: 'string' },
   { field: 'weight', headerName: 'Weight', width: 80, type: 'number' },
-  { field: 'availableQuantity', headerName: 'Stock', width: 90, type: 'number' },
+  { field: 'availableQuantity', headerName: 'Available', width: 90, type: 'number' },
+  { field: 'reservedQuantity', headerName: 'Reserved', width: 90, type: 'number' },
   { field: 'sellingPrice', headerName: 'Price', width: 100, type: 'number' },
   { field: 'revision', headerName: 'Rev', width: 60, type: 'string' },
   { field: 'drawingNumber', headerName: 'Drawing No.', width: 120, type: 'string' },
@@ -197,7 +198,7 @@ const InventoryItemList = ({
         page, size: itemsPerPage, sortBy: sortKey, sortDir: sortIn,
         filters: appliedFilters.map(f => ({ field: f.field, operator: f.operator, value: f.value })),
       };
-      const response = await apiService.post("/inventory_item/filter", payload);
+      const response = await filterInventoryItems(payload);
       handleFilterApplied(response);
     } catch (err) {
       setError(err.message || "Something went wrong");

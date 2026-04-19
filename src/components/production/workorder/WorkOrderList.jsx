@@ -7,9 +7,11 @@ import {
 } from "@mui/material";
 import {
   Tune as TuneIcon, ArrowUpward, ArrowDownward,
+  BookmarkAdded
 } from "@mui/icons-material";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import Stack from "@mui/material/Stack";
 import dayjs from "dayjs";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import { useNavigate } from "react-router-dom";
@@ -21,12 +23,12 @@ import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
 dayjs.extend(isSameOrBefore);
 
 /* ── Theme constants (matching BOM / Inventory Item) ── */
-const HEADER_BG = '#0f2744';
-const HEADER_TEXT = '#e8edf3';
-const BORDER_COLOR = '#e5e7eb';
-const ROW_EVEN = '#fafbfc';
+const HEADER_BG = '#f8fafc';
+const HEADER_TEXT = '#334155';
+const BORDER_COLOR = '#e2e8f0';
+const ROW_EVEN = '#ffffff';
 const ROW_ODD = '#ffffff';
-const ROW_HOVER = '#e3f2fd';
+const ROW_HOVER = '#f1f5f9';
 
 /* ── Status chip styling ── */
 const statusStyles = {
@@ -61,13 +63,15 @@ const PRIORITY_COLORS = {
 const headerCellSx = {
   background: HEADER_BG,
   color: HEADER_TEXT,
-  fontWeight: 600,
-  fontSize: '0.8rem',
-  letterSpacing: 0.3,
-  borderBottom: `2px solid ${HEADER_TEXT}`,
-  borderRight: '1px solid rgba(255,255,255,0.08)',
+  fontWeight: 700,
+  fontSize: '0.75rem',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+  borderBottom: `2px solid ${BORDER_COLOR}`,
+  borderRight: 'none',
   whiteSpace: 'nowrap',
-  py: 1.25,
+  py: 1.5,
+  px: 2,
   userSelect: 'none',
 };
 
@@ -548,7 +552,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                         indeterminate={selectedRows?.length > 0 && selectedRows?.length < WorkOrderListData?.length}
                         checked={WorkOrderListData?.length > 0 && selectedRows?.length === WorkOrderListData?.length}
                         onChange={handleSelectAll}
-                        sx={{ color: 'rgba(255,255,255,0.7)', '&.Mui-checked': { color: '#fff' }, '&.MuiCheckbox-indeterminate': { color: '#fff' } }}
+                        sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#2563eb' }, '&.MuiCheckbox-indeterminate': { color: '#2563eb' } }}
                       />
                     </TableCell>
 
@@ -570,8 +574,8 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{col.headerName}</span>
                           {sortBy === col.field && (
                             sortDir === 'asc'
-                              ? <ArrowUpward sx={{ fontSize: 14, color: '#90caf9' }} />
-                              : <ArrowDownward sx={{ fontSize: 14, color: '#90caf9' }} />
+                              ? <ArrowUpward sx={{ fontSize: 14, color: '#64748b' }} />
+                              : <ArrowDownward sx={{ fontSize: 14, color: '#64748b' }} />
                           )}
                           {!isMobile && (
                             <div
@@ -590,8 +594,11 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                 <TableBody>
                   {WorkOrderListData?.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={displayedColumns.length + 2} align="center" sx={{ py: 6 }}>
-                        <Typography variant="body2" color="text.secondary">No work orders found. Adjust filters or create a new work order.</Typography>
+                      <TableCell colSpan={displayedColumns.length + 2} align="center" sx={{ py: 10 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="h6" color="text.secondary">No Work Orders Found</Typography>
+                          <Typography variant="body2" color="text.disabled">Adjust your filters or create a new Work Order to get started.</Typography>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   )}
@@ -603,7 +610,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                         cursor: 'pointer',
                         transition: 'background 0.15s ease',
                         '&:hover': { background: ROW_HOVER },
-                        '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.8125rem', py: 0.75 },
+                        '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.85rem', py: 1.5, px: 2, color: '#334155' },
                       }}
                     >
                       <TableCell padding="checkbox" align="center">
@@ -636,7 +643,16 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                                   : col.field === "plannedStartDate" || col.field === "plannedEndDate"
                                     ? formatDate(item[col.field])
                                     : col.field === "salesOrderNumber"
-                                      ? getReferenceDoc(item)
+                                      ? (
+                                          <Stack direction="row" spacing={0.5} alignItems="center">
+                                            <Typography variant="body2">{getReferenceDoc(item)}</Typography>
+                                            {item.status === 'COMPLETED' && item.sourceType === 'SALES_ORDER' && (
+                                              <Tooltip title="Stock Booked / Reserved">
+                                                <BookmarkAdded sx={{ fontSize: 16, color: '#10b981' }} />
+                                              </Tooltip>
+                                            )}
+                                          </Stack>
+                                        )
                                       : col.field === "workOrderNumber"
                                         ? <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>{item[col.field] || "-"}</Typography>
                                         : col.field === "bomName"

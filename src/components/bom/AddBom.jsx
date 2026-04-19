@@ -46,6 +46,7 @@ import {
     getBomHistoryByInventoryItem,
     uploadBomAttachment,
 } from "../../services/bomService";
+import { getAllInventoryItems, searchInventoryItems } from "../../services/inventoryService";
 
 const BORDER_COLOR = "#e5e7eb";
 const CRITICAL_SAVE_STATUSES = ["ACTIVE", "APPROVED"];
@@ -517,7 +518,7 @@ const AddBom = () => {
         setError(null);
         try {
             const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", query: search };
-            const data = await apiService.get("/inventory_item/search", params);
+            const data = await searchInventoryItems(params);
             setSearchedItemList(data.content || []);
         } catch (fetchError) {
             setError(fetchError);
@@ -544,7 +545,7 @@ const AddBom = () => {
 
     const fetchParentItems = useCallback(async () => {
         try {
-            const response = await apiService.get("/inventory_item/all", { page: 0, size: 100 });
+            const response = await getAllInventoryItems({ page: 0, size: 100 });
             setParentItems(response.content || []);
         } catch (fetchError) {
             showSnackbar("Failed to fetch parent items.", "error");

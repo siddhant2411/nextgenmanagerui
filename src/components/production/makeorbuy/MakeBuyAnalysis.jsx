@@ -14,6 +14,7 @@ import {
     Tooltip as RechartsTooltip, XAxis, YAxis,
 } from 'recharts';
 import apiService from '../../../services/apiService';
+import { filterInventoryItems } from '../../../services/inventoryService';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -458,7 +459,7 @@ const MakeBuyAnalysis = ({ initialItemId }) => {
                 page: 0, size: 20, sortBy: 'inventoryItemId', sortDir: 'asc',
                 filters: query ? [{ field: 'name', operator: 'like', value: query }] : [],
             };
-            const res = await apiService.post('/inventory_item/filter', payload);
+            const res = await filterInventoryItems(payload);
             setItems(res.content || []);
         } catch {
             // silently fail — don't break the UI for a dropdown search failure
@@ -474,7 +475,7 @@ const MakeBuyAnalysis = ({ initialItemId }) => {
                 page: 0, size: 1, sortBy: 'inventoryItemId', sortDir: 'asc',
                 filters: [{ field: 'inventoryItemId', operator: 'eq', value: id }],
             };
-            const res = await apiService.post('/inventory_item/filter', payload);
+            const res = await filterInventoryItems(payload);
             if (res.content?.length > 0) {
                 const item = res.content[0];
                 setSelectedItem(item);

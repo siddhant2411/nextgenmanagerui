@@ -10,7 +10,7 @@ import {
     Button,
     Box,
 } from "@mui/material";
-import apiService from "../../services/apiService";
+import { getAllInventoryItems } from "../../services/inventoryService";
 
 const InventoryForm = ({ onClose, onSave, initialData }) => {
     const [items, setItems] = useState([]);
@@ -41,7 +41,7 @@ const InventoryForm = ({ onClose, onSave, initialData }) => {
                 search,
             };
 
-            const data = await apiService.get("/inventory_item/all", params);
+            const data = await getAllInventoryItems(params);
             setItems(data.content);
         } catch (err) {
             setError("Failed to fetch inventory items");

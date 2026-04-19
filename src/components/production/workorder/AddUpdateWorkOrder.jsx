@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip
+  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip, LinearProgress, Grid
 } from '@mui/material';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
@@ -131,9 +131,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         setError('Core work order fields are locked after issue. Use Operations actions to record execution.');
         return;
       }
-      const mapReferencePayload = (payloadValues) => {
-        // Extract ID-based fields for the new DTO contract
-        const bomId = payloadValues.bom?.id || null;
+    const mapReferencePayload = (payloadValues) => {
+      // Extract ID-based fields for the new DTO contract
+      const bomId = payloadValues.bom?.id || null;
         const routingId = payloadValues.bom?.routing?.id || null;
         const workCenterId = payloadValues.workCenter?.id || null; // Assuming workCenter is an object with an ID
         const enriched = { ...payloadValues, bomId, routingId, workCenterId };
@@ -698,15 +698,24 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const handleIssueMaterials = async (materialsPayload = []) => {
     if (!workOrderId) return false;
     if (!Array.isArray(materialsPayload) || materialsPayload.length === 0) {
-      setError('Enter issue/scrap quantity for at least one material.');
+      setError('Enter move-to-floor or scrap quantity for at least one material.');
       return false;
     }
 
-    const normalizedMaterials = materialsPayload.map((material) => ({
-      workOrderMaterialId: material?.workOrderMaterialId,
-      issuedQuantity: Number(material?.issuedQuantity ?? 0),
-      scrappedQuantity: Number(material?.scrappedQuantity ?? 0),
-    }));
+    const normalizedMaterials = materialsPayload.map((material) => {
+      const normalized = {
+        workOrderMaterialId: Number(material?.workOrderMaterialId ?? material?.id ?? 0),
+        issuedQuantity: Number(material?.quantity ?? material?.issuedQuantity ?? 0),
+        scrappedQuantity: Number(material?.scrappedQuantity ?? 0),
+      };
+
+      if (Array.isArray(material?.overrideInstanceIds) && material.overrideInstanceIds.length > 0) {
+        normalized.overrideInstanceIds = material.overrideInstanceIds;
+        normalized.overrideReason = material?.overrideReason || 'Manual Override';
+      }
+
+      return normalized;
+    });
 
     const hasInvalidPayload = normalizedMaterials.some((material) =>
       !material.workOrderMaterialId ||
@@ -718,7 +727,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     );
 
     if (hasInvalidPayload) {
-      setError('Material issue quantities must be valid positive values.');
+      setError('Move-to-floor quantities must be valid positive values.');
       return false;
     }
 
@@ -726,7 +735,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       setMaterialIssueState({ loading: true });
       await issueWorkOrderMaterials(workOrderId, normalizedMaterials);
       await reloadWorkOrder();
-      if (setSnackbar) setSnackbar('Materials issued successfully.', 'success');
+      if (setSnackbar) setSnackbar('Materials moved to floor successfully.', 'success');
       return true;
     } catch (error) {
       const apiError =
@@ -743,7 +752,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           material,
         ])
       );
-      const blockedMaterial = normalizedMaterials
+      const blockedMaterial = materialsPayload
         .map((material) => materialById.get(Number(material?.workOrderMaterialId)))
         .find((material) => material?.operationName);
 
@@ -766,20 +775,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     const operation = operations.find(op => op.id === operationId);
     const status = operation?.status;
 
-    // WAITING_FOR_DEPENDENCY → show blocking dialog, don't call API
-    if (status === 'WAITING_FOR_DEPENDENCY') {
-      const depIds = Array.isArray(operation?.dependsOnOperationIds) ? operation.dependsOnOperationIds : [];
-      const blockingNames = depIds
-        .map(depId => {
-          const dep = operations.find(op => op.id === depId);
-          if (!dep || dep.status === 'COMPLETED') return null;
-          const seq = dep.sequence ?? dep.routingOperation?.sequenceNumber;
-          const name = dep.operationName || dep.routingOperation?.name || '';
-          return `Op ${seq}${name ? ` — ${name}` : ''} (${dep.status || 'unknown'})`;
-        })
-        .filter(Boolean);
-      setBlockedOpDialog({ open: true, blockingNames });
-      return false;
+    // Allow starting if READY or WAITING_FOR_DEPENDENCY
+    // The backend now handles the specific 1-unit readiness gate.
+    if (status !== 'READY' && status !== 'WAITING_FOR_DEPENDENCY') {
+       return false;
     }
 
     // READY — check for parallel siblings already IN_PROGRESS
@@ -892,6 +891,25 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const workOrderStatus = formik.values.status || 'CREATED';
+  const materials = Array.isArray(formik.values?.materials) ? formik.values.materials : [];
+  const operations = Array.isArray(formik.values?.operations) ? formik.values.operations : [];
+  const materialRequiredQuantity = materials.reduce(
+    (total, material) => total + Number(material?.netRequiredQuantity || material?.requiredQuantity || 0),
+    0
+  );
+  const materialIssuedQuantity = materials.reduce(
+    (total, material) => total + Number(material?.issuedQuantity || 0) + Number(material?.scrappedQuantity || 0),
+    0
+  );
+  const materialProgress = materialRequiredQuantity > 0
+    ? Math.min((materialIssuedQuantity / materialRequiredQuantity) * 100, 100)
+    : 0;
+  const completedOperations = operations.filter((operation) =>
+    ['COMPLETED', 'CLOSED'].includes(String(operation?.status || '').toUpperCase())
+  ).length;
+  const operationProgress = operations.length > 0
+    ? (completedOperations / operations.length) * 100
+    : 0;
   const canIssueWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
@@ -986,40 +1004,53 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         >
           <Box display="flex" flexDirection="column" gap={0.5}>
             <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
-              <Typography variant="h6" fontWeight={700} color="primary.main">
-                {workOrderId ? (formik.values.remarks || formik.values.workOrderNumber) : 'NEW WORK ORDER'}
+              <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em', color: '#1e293b' }}>
+                {workOrderId ? 'Work Order Management' : 'Create New Work Order'}
               </Typography>
-              <Chip
-                size="small"
-                label={formik.values.status || 'CREATED'}
-                color={statusColorMap[formik.values.status] || 'default'}
-                sx={{ fontWeight: 600 }}
-              />
-              {formik.values.priority && (
-                <Chip
-                  size="small"
-                  label={formik.values.priority}
-                  sx={{
-                    fontWeight: 600,
-                    bgcolor: PRIORITY_COLORS[formik.values.priority] || '#3b82f6',
-                    color: '#fff',
-                    fontSize: '0.7rem',
-                  }}
-                />
-              )}
-              {formik.values.autoScheduled && (
-                <Chip size="small" label="Auto-Scheduled" color="info" variant="outlined" sx={{ fontWeight: 500, fontSize: '0.7rem' }} />
-              )}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+                {workOrderId && (
+                  <Chip
+                    size="small"
+                    label={workOrderStatus}
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: statusColorMap[workOrderStatus] === 'default' ? '#e2e8f0' : undefined,
+                      color: statusColorMap[workOrderStatus] === 'default' ? '#475569' : undefined,
+                      fontSize: '0.75rem',
+                      px: 0.5,
+                      textTransform: 'uppercase',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                    }}
+                    color={statusColorMap[workOrderStatus] !== 'default' ? statusColorMap[workOrderStatus] : undefined}
+                  />
+                )}
+                {formik.values.priority && (
+                  <Chip
+                    size="small"
+                    label={formik.values.priority}
+                    sx={{
+                      fontWeight: 700,
+                      bgcolor: PRIORITY_COLORS[formik.values.priority] || '#3b82f6',
+                      color: '#fff',
+                      fontSize: '0.75rem',
+                      px: 0.5,
+                      textTransform: 'uppercase',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                    }}
+                  />
+                )}
+                {formik.values.autoScheduled && (
+                  <Chip size="small" label="Auto-Scheduled" color="info" variant="outlined" sx={{ fontWeight: 600, fontSize: '0.75rem', px: 0.5 }} />
+                )}
+              </Box>
             </Box>
             {workOrderId && (
-              <Typography variant="caption" color="text.secondary">
-                Work Order No: {formik.values.workOrderNumber || '-'}
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mt: 0.5, display: 'block' }}>
+                ID: {formik.values.workOrderNumber || '-'}
               </Typography>
             )}
-            <Typography variant="body2" color="text.secondary">
-              {`${formik.values.selectedItem?.name || 'Item'} | Qty: ${formik.values.plannedQuantity ?? '-'} | Due: ${formik.values.dueDate || '-'}`}
-              {formik.values.estimatedProductionMinutes ? ` | Est. ${Math.round(formik.values.estimatedProductionMinutes / 60)}h ${formik.values.estimatedProductionMinutes % 60}m` : ''}
-              {formik.values.estimatedTotalCost ? ` | Cost: ₹${Number(formik.values.estimatedTotalCost).toLocaleString('en-IN')}` : ''}
+            <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, fontWeight: 500 }}>
+              {`${formik.values.selectedItem?.name || 'Item'} | Qty: ${formik.values.plannedQuantity ?? '-'} | Due: ${formik.values.dueDate ? dayjs(formik.values.dueDate).format('DD MMM YYYY') : '-'}`}
             </Typography>
           </Box>
 
@@ -1159,7 +1190,54 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Stack>
         </Box>
 
-        <Divider sx={{ mb: 1.5 }} />
+        <Divider sx={{ mb: 2, borderColor: '#e2e8f0' }} />
+
+        {/* ── PRODUCTION DASHBOARD ── */}
+        {workOrderId && (
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="caption" fontWeight={700} color="#64748b" sx={{ textTransform: 'uppercase' }}>Material Issues</Typography>
+                  <Typography variant="caption" fontWeight={700} color="#0f172a">{Math.round(materialProgress)}%</Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={materialProgress} 
+                  sx={{ height: 8, borderRadius: 4, bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: materialProgress === 100 ? '#10b981' : '#3b82f6' }}} 
+                />
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="caption" fontWeight={700} color="#64748b" sx={{ textTransform: 'uppercase' }}>Operation Completion</Typography>
+                  <Typography variant="caption" fontWeight={700} color="#0f172a">{Math.round(operationProgress)}%</Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={operationProgress} 
+                  sx={{ height: 8, borderRadius: 4, bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { borderRadius: 4, bgcolor: operationProgress === 100 ? '#10b981' : '#f59e0b' }}} 
+                />
+              </Paper>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', bgcolor: '#f8fafc' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="caption" fontWeight={700} color="#64748b" sx={{ textTransform: 'uppercase', display: 'block' }}>Estimated Cost</Typography>
+                    <Typography variant="body1" fontWeight={800} color="#0f172a">₹{Number(formik.values.estimatedTotalCost || 0).toLocaleString('en-IN')}</Typography>
+                  </Box>
+                  <Divider orientation="vertical" flexItem sx={{ mx: 2 }} />
+                  <Box>
+                    <Typography variant="caption" fontWeight={700} color="#64748b" sx={{ textTransform: 'uppercase', display: 'block' }}>Lead Time</Typography>
+                    <Typography variant="body1" fontWeight={800} color="#0f172a">{Math.round((formik.values.estimatedProductionMinutes || 0) / 60)} hrs</Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            </Grid>
+          </Grid>
+        )}
 
         {/* ── Compact Schedule Card (shown when WO is SCHEDULED or a result exists) ── */}
         {workOrderId && (formik.values.status === 'SCHEDULED' || scheduleResult) && (
@@ -1213,12 +1291,36 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Paper>
         )}
 
-        <Tabs value={selectedTab} onChange={handleTabChange} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto">
-          <Tab label="WO DETAILS" />
-          <Tab label="Materials" />
-          <Tab label="Operations" />
-          {<Tab label="Attachments" />}
-          <Tab label="History" />
+        <Tabs 
+          value={selectedTab} 
+          onChange={handleTabChange} 
+          sx={{ 
+            mb: 3,
+            minHeight: 44,
+            '& .MuiTabs-indicator': {
+              height: 3,
+              borderRadius: '3px 3px 0 0',
+              bgcolor: '#3b82f6'
+            },
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.875rem',
+              color: '#64748b',
+              minHeight: 44,
+              '&.Mui-selected': {
+                color: '#2563eb'
+              }
+            }
+          }} 
+          variant="scrollable" 
+          scrollButtons="auto"
+        >
+          <Tab label="Production Details" />
+          <Tab label="Materials & Scrap" />
+          <Tab label="Operations Log" />
+          <Tab label="Attachments" />
+          <Tab label="Timeline & History" />
           <Tab label="Quality Control" />
         </Tabs>
 

@@ -1,4 +1,5 @@
 import apiService from "./apiService";
+import { searchInventoryItems } from "./inventoryService";
 
 export const getJobWorkChallans = async (params = {}) => {
     return apiService.get('/job-work-challans', params);
@@ -62,5 +63,5 @@ export const getWorkOrderForChallan = async (id) => {
 };
 
 export const searchInventoryItemsForChallan = async (search = '') => {
-    return apiService.get('/inventory_item/search', { page: 0, size: 20, query: search });
+    return searchInventoryItems({ page: 0, size: 20, query: search });
 };
