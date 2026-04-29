@@ -111,6 +111,29 @@ export const shortCloseWorkOrder = async (id, remarks = '') => {
     return apiService.patch(`/production/work-order/${id}/short-close${params}`);
 }
 
+// ── Rejection & Yield ──
+
+export const getYieldMetrics = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/yield`);
+}
+
+export const getWorkOrderRejections = async (workOrderId, status) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    const params = status ? `?status=${status}` : '';
+    return apiService.get(`/production/work-order/${workOrderId}/rejections${params}`);
+}
+
+export const disposeRejection = async (rejectionEntryId, payload) => {
+    if (!rejectionEntryId) throw new Error('Rejection entry id is required');
+    return apiService.post(`/production/rejections/${rejectionEntryId}/dispose`, payload);
+}
+
+export const getReasonCodes = async (category) => {
+    const params = category ? `?category=${category}` : '';
+    return apiService.get(`/production/rejections/reason-codes${params}`);
+}
+
 // ── QC Testing ──
 
 export const getWorkOrderTests = async (id) => {
@@ -185,6 +208,20 @@ export const getProductionScheduleMachine = async (machineId, from, to) => {
     if (to) params.to = to;
     return apiService.get(`/production/work-order/schedule/machine/${machineId}`, { params });
 };
+
+// ── Material Re-order ──
+
+export const reorderMaterial = async (workOrderId, materialId, data) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    if (!materialId) throw new Error('Material id is required');
+    return apiService.post(`/production/work-order/${workOrderId}/materials/${materialId}/reorder`, data);
+}
+
+export const getMaterialReorders = async (workOrderId, materialId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    if (!materialId) throw new Error('Material id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/materials/${materialId}/reorders`);
+}
 
 // ── Attachments ──
 

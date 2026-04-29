@@ -4,6 +4,12 @@ import {
   Alert,
   Button,
   Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
   IconButton,
   MenuItem,
   Paper,
@@ -18,7 +24,8 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { DeleteOutline, Refresh, WarningAmber, AutoFixHigh } from '@mui/icons-material';
+import { DeleteOutline, Refresh, WarningAmber, AutoFixHigh, Replay } from '@mui/icons-material';
+import { reorderMaterial, getMaterialReorders } from '../../../../services/workOrderService';
 
 const DEFAULT_ISSUE_STATUSES = [
   'NOT_ISSUED',
@@ -29,8 +36,11 @@ const EMPTY_MATERIALS = [];
 
 const toNumberValue = (value) => {
   if (value === '' || value === null || value === undefined) return 0;
+
   const parsed = Number(value);
-  return Number.isNaN(parsed) ? 0 : parsed;
+  if (Number.isNaN(parsed)) return 0;
+
+  return Number(parsed.toFixed(6));
 };
 
 const getMaterialRowKey = (material, index) =>
@@ -51,27 +61,75 @@ const getInventoryItemId = (material) =>
   material?.childInventoryItem?.inventoryItemId ??
   null;
 
-const getIssueStatusColor = (status) => {
-  if (status === 'ISSUED') return 'success';
-  if (status === 'PARTIALLY_ISSUED') return 'warning';
-  return 'default';
+const ISSUE_STATUS_STYLE = {
+  ISSUED:           { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
+  PARTIALLY_ISSUED: { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+  NOT_ISSUED:       { bg: '#f5f5f5', color: '#6b6b6b', border: '#ddd' },
+};
+const IssueStatusChip = ({ status = 'NOT_ISSUED' }) => {
+  const s = ISSUE_STATUS_STYLE[status] || ISSUE_STATUS_STYLE.NOT_ISSUED;
+  const label = status.replace(/_/g, ' ');
+  return (
+    <Box component="span" sx={{
+      display: 'inline-block', borderRadius: '4px', px: '8px', py: '2px',
+      fontSize: '0.6875rem', fontWeight: 600, whiteSpace: 'nowrap',
+      bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`,
+    }}>
+      {label}
+    </Box>
+  );
+};
+
+const MR_STATUS_STYLE = {
+  PENDING:  { bg: '#fef9c3', color: '#92400e', border: '#fde68a', label: 'Awaiting Stores' },
+  APPROVED: { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf', label: 'Approved' },
+  PARTIAL:  { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0', label: null },
+  REJECTED: { bg: '#fdf0f0', color: '#b84040', border: '#f0c8c8', label: 'Rejected' },
 };
 
 const getMrStatusChip = (material) => {
   const status = material?.mrStatus || material?.mrApprovalStatus;
   const approved = material?.mrApprovedQuantity;
   const requested = material?.plannedRequiredQuantity;
-  if (!status || status === 'PENDING') return <Chip size="small" label="Awaiting Stores" sx={{ bgcolor: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: '0.65rem', height: 20, border: '1px solid #fde68a' }} />;
-  if (status === 'APPROVED') return <Chip size="small" label="Approved" color="success" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
-  if (status === 'PARTIAL') return <Chip size="small" label={`Partial (${approved ?? '?'} / ${requested ?? '?'})`} color="warning" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
-  if (status === 'REJECTED') return <Chip size="small" label="Rejected" color="error" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20 }} />;
-  return <Chip size="small" label="Awaiting Stores" sx={{ bgcolor: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: '0.65rem', height: 20, border: '1px solid #fde68a' }} />;
+  const key = status || 'PENDING';
+  const s = MR_STATUS_STYLE[key] || MR_STATUS_STYLE.PENDING;
+  const reorderQty = material?.approvedReorderQuantity;
+  let label = s.label;
+  if (key === 'PARTIAL') {
+    label = `Partial (${approved ?? '?'} / ${requested ?? '?'})${reorderQty ? ` + ${reorderQty}` : ''}`;
+  } else if (key === 'APPROVED') {
+    label = `Approved (${approved ?? '?'} / ${requested ?? '?'})${reorderQty ? ` + ${reorderQty}` : ''}`;
+  }
+  return (
+    <Box component="span" sx={{
+      display: 'inline-block', borderRadius: '4px', px: '8px', py: '2px',
+      fontSize: '0.6875rem', fontWeight: 600, whiteSpace: 'nowrap',
+      bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}`,
+    }}>
+      {label}
+    </Box>
+  );
 };
 
 const compactCellSx = {
-  px: 0.75,
-  py: 0.5,
-  fontSize: '0.74rem',
+  px: '12px',
+  py: '9px',
+  fontSize: '0.8125rem',
+  whiteSpace: 'nowrap',
+  borderBottom: '1px solid #f1f5f9',
+  color: '#475569',
+};
+
+const headerCellSx = {
+  px: '12px',
+  py: '8px',
+  fontSize: 11,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: '.04em',
+  color: '#475569',
+  bgcolor: '#f8fafc',
+  borderBottom: '1px solid #e2e8f0',
   whiteSpace: 'nowrap',
 };
 
@@ -86,6 +144,193 @@ const compactInputSx = {
   },
 };
 
+const REORDER_BLOCKED_STATUSES = new Set([
+  'CREATED', 'SCHEDULED', 'COMPLETED', 'CLOSED', 'CANCELLED', 'SHORT_CLOSED',
+]);
+
+const MR_STATUS_CHIP_COLORS = {
+  PENDING:  'warning',
+  APPROVED: 'success',
+  PARTIAL:  'info',
+  REJECTED: 'error',
+};
+
+function ReorderDialog({ open, material, workOrderId, onClose, onSuccess }) {
+  const [qty, setQty] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const effectiveReqForDialog = toNumberValue(material?.effectiveRequiredQuantity)
+    || toNumberValue(material?.plannedRequiredQuantity);
+  const shortfall = toNumberValue(Math.max(effectiveReqForDialog - toNumberValue(material?.issuedQuantity), 0));
+
+  useEffect(() => {
+    if (!open || !material || !workOrderId) return;
+    setQty(shortfall > 0 ? String(shortfall) : '');
+    setRemarks('');
+    setError('');
+    setHistory([]);
+    const materialId = getMaterialId(material);
+    if (!materialId) return;
+    setHistoryLoading(true);
+    getMaterialReorders(workOrderId, materialId)
+      .then((data) => setHistory(Array.isArray(data) ? data : []))
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [open, material, workOrderId]);
+
+  const handleSubmit = async () => {
+    const parsedQty = parseFloat(qty);
+    if (!parsedQty || parsedQty <= 0) {
+      setError('Requested quantity must be greater than zero');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await reorderMaterial(workOrderId, getMaterialId(material), {
+        requestedQuantity: parsedQty,
+        remarks: remarks.trim() || null,
+      });
+      onSuccess?.();
+      onClose();
+    } catch (e) {
+      setError(e?.response?.data?.error || e?.message || 'Failed to submit re-order');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!material) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography fontWeight={700} fontSize="1rem">Material Re-order</Typography>
+        <Typography variant="caption" color="text.secondary">
+          {material?.component?.itemCode} · {material?.component?.name}
+        </Typography>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 1 }}>
+        {/* Shortfall summary */}
+        <Box sx={{ display: 'flex', gap: 3, mb: 2.5, p: 1.5, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              {toNumberValue(material?.approvedReorderQuantity) > 0 ? 'Effective Required' : 'Planned'}
+            </Typography>
+            <Typography fontWeight={600} fontSize="0.9rem">
+              {effectiveReqForDialog}
+              {toNumberValue(material?.approvedReorderQuantity) > 0 && (
+                <Typography component="span" variant="caption" sx={{ color: '#d97706', ml: 0.5 }}>
+                  ({toNumberValue(material?.plannedRequiredQuantity)} + {toNumberValue(material?.approvedReorderQuantity)} reorder)
+                </Typography>
+              )}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Issued</Typography>
+            <Typography fontWeight={600} fontSize="0.9rem">{toNumberValue(material?.issuedQuantity)}</Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">Shortfall</Typography>
+            <Typography fontWeight={700} fontSize="0.9rem" color={shortfall > 0 ? 'error.main' : 'success.main'}>
+              {shortfall}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Stack spacing={2}>
+          <TextField
+            label="Requested Quantity"
+            type="number"
+            size="small"
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+            inputProps={{ min: 0, step: '0.001' }}
+            fullWidth
+            required
+          />
+          <TextField
+            label="Remarks"
+            size="small"
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            fullWidth
+            multiline
+            rows={2}
+            placeholder="Reason for re-order (optional)"
+          />
+        </Stack>
+
+        {error && (
+          <Alert severity="error" sx={{ mt: 2, fontSize: '0.8rem' }}>{error}</Alert>
+        )}
+
+        {/* Re-order history */}
+        {(historyLoading || history.length > 0) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Previous Re-orders
+            </Typography>
+            {historyLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
+                <CircularProgress size={20} />
+              </Box>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 700, color: '#64748b', py: 0.5 }}>Ref</TableCell>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 700, color: '#64748b', py: 0.5 }}>Qty</TableCell>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 700, color: '#64748b', py: 0.5 }}>Status</TableCell>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 700, color: '#64748b', py: 0.5 }}>Approved</TableCell>
+                    <TableCell sx={{ fontSize: 11, fontWeight: 700, color: '#64748b', py: 0.5 }}>By</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {history.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell sx={{ fontSize: 11, py: 0.5, fontFamily: 'monospace' }}>{r.referenceNumber || '—'}</TableCell>
+                      <TableCell sx={{ fontSize: 11, py: 0.5 }}>{r.requestedQuantity}</TableCell>
+                      <TableCell sx={{ fontSize: 11, py: 0.5 }}>
+                        <Chip
+                          label={r.mrStatus || 'PENDING'}
+                          color={MR_STATUS_CHIP_COLORS[r.mrStatus] || 'default'}
+                          size="small"
+                          sx={{ fontSize: 10, height: 18 }}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontSize: 11, py: 0.5 }}>{r.mrApprovedQuantity ?? '—'}</TableCell>
+                      <TableCell sx={{ fontSize: 11, py: 0.5, color: '#94a3b8' }}>{r.createdBy || '—'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={submitting} sx={{ textTransform: 'none' }}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={submitting}
+          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 2 }}
+        >
+          {submitting ? 'Submitting…' : 'Submit Re-order'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function WorkOrderMaterialsTab({
   formik,
   isLoading,
@@ -98,6 +343,13 @@ export default function WorkOrderMaterialsTab({
     ? formik.values.materials
     : EMPTY_MATERIALS;
   const [issueDrafts, setIssueDrafts] = useState({});
+  const [reorderDialog, setReorderDialog] = useState({ open: false, material: null });
+
+  const workOrderId = formik.values?.id;
+  const woStatus = formik.values?.status;
+  const isWoTerminal = ['COMPLETED', 'CLOSED', 'CANCELLED'].includes(woStatus);
+  const canReorder = !isAddMode && !REORDER_BLOCKED_STATUSES.has(woStatus);
+  const canIssueToFloor = !isAddMode && !isWoTerminal;
 
   useEffect(() => {
     const validKeys = new Set(materials.map((material, index) => getMaterialRowKey(material, index)));
@@ -258,7 +510,13 @@ export default function WorkOrderMaterialsTab({
           Stock is <strong>consumed</strong> automatically when you <strong>Record a Batch</strong>.
         </Alert>
       )}
-      {formik.values.status !== 'CREATED' && formik.values.status !== 'MATERIAL_PENDING' && formik.values.status !== 'PARTIALLY_READY' && formik.values.status !== 'READY_FOR_PRODUCTION' && (
+      {formik.values.status === 'MATERIAL_REORDER' && (
+        <Alert severity="warning" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
+          <strong>Re-order Pending</strong> — Additional material has been requested due to scrap.
+          Production is paused until Stores approves the re-order.
+        </Alert>
+      )}
+      {formik.values.status !== 'CREATED' && formik.values.status !== 'MATERIAL_PENDING' && formik.values.status !== 'PARTIALLY_READY' && formik.values.status !== 'READY_FOR_PRODUCTION' && formik.values.status !== 'MATERIAL_REORDER' && (
         <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem', borderRadius: 2 }}>
           Materials are <strong>reserved</strong> from the Stores-approved quantity.
           Stock is <strong>consumed</strong> automatically when you <strong>Record a Batch</strong>.
@@ -294,6 +552,7 @@ export default function WorkOrderMaterialsTab({
             </Button>
           ) : (
             <>
+              {canIssueToFloor && (
               <Button
                 size="small"
                 variant="outlined"
@@ -305,6 +564,8 @@ export default function WorkOrderMaterialsTab({
               >
                 Auto-fill Remaining
               </Button>
+              )}
+              {canIssueToFloor && (
               <Button
                 size="small"
                 variant="contained"
@@ -319,6 +580,7 @@ export default function WorkOrderMaterialsTab({
               >
                 {isMaterialIssueLoading ? 'Moving...' : 'Move to Floor'}
               </Button>
+              )}
             </>
           )}
         </Stack>
@@ -328,45 +590,35 @@ export default function WorkOrderMaterialsTab({
         component={Paper}
         variant="outlined"
         sx={{
-          maxWidth: '100%',
+          width: '100%',
           overflowX: 'auto',
-          borderRadius: 2,
+          borderRadius: '8px',
           border: '1px solid #e2e8f0',
-          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-          '& .MuiTableCell-root': compactCellSx,
+          boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
         }}
       >
-        <Table size="small" sx={{ minWidth: isAddMode ? 800 : 1100 }}>
+        {/* Columns: # | Component (code+name+uom) | Required (net/planned) | MR Status | Issued | Remaining | Status | Issue / Scrap | Action */}
+        <Table size="small" sx={{ minWidth: isAddMode ? 620 : 820, borderCollapse: 'collapse' }}>
           <TableHead>
             <TableRow>
-              <TableCell>#</TableCell>
-              <TableCell>Item Code</TableCell>
-              <TableCell>Component</TableCell>
-              <TableCell>UOM</TableCell>
-              <TableCell>Required at Operation</TableCell>
-              <TableCell>Net Req</TableCell>
-              <TableCell>Planned</TableCell>
-              {!isAddMode && <TableCell>MR Status</TableCell>}
-              <TableCell>Issued Qty</TableCell>
-              {!isAddMode && <TableCell>Consumed</TableCell>}
-              {!isAddMode && <TableCell>On Floor</TableCell>}
-              <TableCell>Scrap Qty</TableCell>
-              {!isAddMode && <TableCell>Remaining Qty</TableCell>}
-              <TableCell>Status</TableCell>
-              {!isAddMode && <TableCell>Move to Floor</TableCell>}
-              {!isAddMode && <TableCell>Scrap Now</TableCell>}
-              <TableCell align="center">Action</TableCell>
+              <TableCell sx={headerCellSx}>#</TableCell>
+              <TableCell sx={headerCellSx}>Component</TableCell>
+              <TableCell sx={headerCellSx}>Required</TableCell>
+              {!isAddMode && <TableCell sx={headerCellSx}>MR Status</TableCell>}
+              <TableCell sx={headerCellSx}>Issued</TableCell>
+              {!isAddMode && <TableCell sx={headerCellSx}>Consumed</TableCell>}
+              <TableCell sx={headerCellSx}>Status</TableCell>
+              {!isAddMode && <TableCell sx={headerCellSx}>Issue / Scrap</TableCell>}
+              <TableCell sx={{ ...headerCellSx, textAlign: 'center' }}>Action</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {materials.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAddMode ? 11 : 16} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {isAddMode
-                      ? 'No materials found. Select item/BOM and open this tab to load.'
-                      : 'No materials available.'}
-                  </Typography>
+                <TableCell colSpan={isAddMode ? 5 : 9} align="center" sx={{ py: 5, color: '#94a3b8', fontSize: '0.8125rem' }}>
+                  {isAddMode
+                    ? 'No materials found. Select item/BOM and open this tab to load.'
+                    : 'No materials available.'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -376,183 +628,149 @@ export default function WorkOrderMaterialsTab({
                 const canIssue = canIssuePayload(issuePayload);
                 const netRequiredQuantity = toNumberValue(material?.netRequiredQuantity);
                 const plannedRequiredQuantity = toNumberValue(material?.plannedRequiredQuantity);
+                const approvedReorderQty = toNumberValue(material?.approvedReorderQuantity);
+                const effectiveRequiredQty = toNumberValue(material?.effectiveRequiredQuantity) || plannedRequiredQuantity;
+                const reorderCount = material?.reorderCount || 0;
                 const issuedQuantity = toNumberValue(material?.issuedQuantity);
                 const consumedQuantity = toNumberValue(material?.consumedQuantity);
-                const availableQuantity = Math.max(issuedQuantity - consumedQuantity, 0);
                 const scrappedQuantity = toNumberValue(material?.scrappedQuantity);
-                const remainingQuantity = Math.max(netRequiredQuantity - consumedQuantity - scrappedQuantity, 0);
+                const remainingQuantity = toNumberValue(Math.max(netRequiredQuantity - consumedQuantity - scrappedQuantity, 0));
 
                 return (
                   <TableRow
                     key={material?.id || material?.workOrderMaterialId || `${material?.component?.inventoryItemId}-${index}`}
+                    sx={{ transition: 'background .1s', '&:hover': { bgcolor: '#f8fafc' } }}
                   >
-                    <TableCell>{index + 1}</TableCell>
-                    <TableCell>{material?.component?.itemCode || '-'}</TableCell>
-                    <TableCell>{material?.component?.name || '-'}</TableCell>
-                    <TableCell>{material?.component?.uom || '-'}</TableCell>
-                    <TableCell>
-                      {material?.operationName || 'All / On Start'}
-                      {!material?.operationName && !material?.workOrderOperationId && material?.issueStatus !== 'ISSUED' && !isAddMode && (
-                        <Tooltip title="This material must be fully issued before any operation can start" arrow>
-                          <WarningAmber sx={{ fontSize: 16, color: 'warning.main', ml: 0.5, verticalAlign: 'middle', cursor: 'help' }} />
+                    {/* # */}
+                    <TableCell sx={{ ...compactCellSx, width: 36, color: '#94a3b8', fontWeight: 600 }}>{index + 1}</TableCell>
+
+                    {/* Component — code + name + UOM + operation tooltip */}
+                    <TableCell sx={{ ...compactCellSx, minWidth: 160 }}>
+                      <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: '#94a3b8', lineHeight: 1 }}>
+                        {material?.component?.itemCode || '—'}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px', mt: '2px' }}>
+                        <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500, color: '#1e293b' }}>
+                          {material?.component?.name || '—'}
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>
+                          {material?.component?.uom ? `· ${material.component.uom}` : ''}
+                        </Typography>
+                        {(material?.operationName || material?.workOrderOperationId) ? (
+                          <Tooltip title={`Required at: ${material.operationName || 'linked operation'}`} arrow>
+                            <Typography sx={{ fontSize: 10, color: '#4a8fc0', fontWeight: 600, cursor: 'default', ml: '2px' }}>
+                              @{(material.operationName || 'op').split(' ')[0]}
+                            </Typography>
+                          </Tooltip>
+                        ) : (!isAddMode && material?.issueStatus !== 'ISSUED') ? (
+                          <Tooltip title="Must be issued before any operation can start" arrow>
+                            <WarningAmber sx={{ fontSize: 13, color: 'warning.main', cursor: 'help' }} />
+                          </Tooltip>
+                        ) : null}
+                      </Box>
+                    </TableCell>
+
+                    {/* Required — net / planned stacked, or editable in add mode */}
+                    <TableCell sx={{ ...compactCellSx, minWidth: 90, fontVariantNumeric: 'tabular-nums' }}>
+                      {isAddMode ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <TextField size="small" type="number" value={material?.netRequiredQuantity ?? 0}
+                            onChange={(e) => handleMaterialChange(index, 'netRequiredQuantity', e.target.value)}
+                            inputProps={{ min: 0 }} sx={compactInputSx} placeholder="Net" />
+                          <TextField size="small" type="number" value={material?.plannedRequiredQuantity ?? 0}
+                            onChange={(e) => handleMaterialChange(index, 'plannedRequiredQuantity', e.target.value)}
+                            inputProps={{ min: 0 }} sx={compactInputSx} placeholder="Planned" />
+                        </Box>
+                      ) : (
+                        <Tooltip
+                          title={approvedReorderQty > 0
+                            ? `Planned: ${plannedRequiredQuantity} + Reorder approved: ${approvedReorderQty} = Effective: ${effectiveRequiredQty}`
+                            : `Net required: ${netRequiredQuantity} · Planned: ${plannedRequiredQuantity}`}
+                          arrow
+                        >
+                          <Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Typography sx={{ fontSize: '0.8125rem', color: '#1e293b', fontWeight: 500 }}>
+                                {effectiveRequiredQty}
+                              </Typography>
+                              {reorderCount > 0 && (
+                                <Typography component="span" sx={{ fontSize: 10, fontWeight: 800, color: '#fff', bgcolor: approvedReorderQty > 0 ? '#d97706' : '#94a3b8', borderRadius: '9999px', px: '5px', py: '1px', lineHeight: 1.4 }}>
+                                  +{reorderCount}R
+                                </Typography>
+                              )}
+                            </Box>
+                            <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>of {plannedRequiredQuantity}</Typography>
+                          </Box>
                         </Tooltip>
                       )}
                     </TableCell>
 
-                    <TableCell sx={{ minWidth: 88 }}>
-                      {isAddMode ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={material?.netRequiredQuantity ?? 0}
-                          onChange={(e) => handleMaterialChange(index, 'netRequiredQuantity', e.target.value)}
-                          inputProps={{ min: 0 }}
-                          sx={compactInputSx}
-                        />
-                      ) : (
-                        <Typography variant="caption">{netRequiredQuantity}</Typography>
-                      )}
-                    </TableCell>
-
-                    <TableCell sx={{ minWidth: 88 }}>
-                      {isAddMode ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={material?.plannedRequiredQuantity ?? 0}
-                          onChange={(e) =>
-                            handleMaterialChange(index, 'plannedRequiredQuantity', e.target.value)
-                          }
-                          inputProps={{ min: 0 }}
-                          sx={compactInputSx}
-                        />
-                      ) : (
-                        <Typography variant="caption">{plannedRequiredQuantity}</Typography>
-                      )}
-                    </TableCell>
-
+                    {/* MR Status */}
                     {!isAddMode && (
-                      <TableCell sx={{ minWidth: 110 }}>
+                      <TableCell sx={{ ...compactCellSx, minWidth: 110 }}>
                         {getMrStatusChip(material)}
                         {material?.mrRejectionReason && (
                           <Tooltip title={material.mrRejectionReason} arrow>
-                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', mt: 0.3, cursor: 'help' }}>
-                              {material.mrRejectionReason.length > 18 ? material.mrRejectionReason.slice(0, 18) + '…' : material.mrRejectionReason}
+                            <Typography variant="caption" sx={{ display: 'block', color: 'error.main', mt: 0.3, cursor: 'help', fontSize: 11 }}>
+                              {material.mrRejectionReason.length > 16 ? material.mrRejectionReason.slice(0, 16) + '…' : material.mrRejectionReason}
                             </Typography>
                           </Tooltip>
                         )}
                       </TableCell>
                     )}
 
-                    <TableCell sx={{ minWidth: 88 }}>
+                    {/* Issued */}
+                    <TableCell sx={{ ...compactCellSx, minWidth: 80, fontVariantNumeric: 'tabular-nums' }}>
                       {isAddMode ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={material?.issuedQuantity ?? 0}
+                        <TextField size="small" type="number" value={material?.issuedQuantity ?? 0}
                           onChange={(e) => handleMaterialChange(index, 'issuedQuantity', e.target.value)}
-                          inputProps={{ min: 0 }}
-                          sx={compactInputSx}
-                        />
-                      ) : (
-                        <Typography variant="caption">{issuedQuantity}</Typography>
-                      )}
+                          inputProps={{ min: 0 }} sx={compactInputSx} />
+                      ) : issuedQuantity}
                     </TableCell>
 
+                    {/* Remaining */}
                     {!isAddMode && (
-                      <TableCell sx={{ minWidth: 78 }}>
-                        <Typography variant="caption">{consumedQuantity}</Typography>
+                      <TableCell sx={{ ...compactCellSx, minWidth: 80, fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: remainingQuantity === 0 ? '#2a6640' : '#8a4a1c' }}>
+                        {consumedQuantity}
                       </TableCell>
                     )}
 
-                    {!isAddMode && (
-                      <TableCell sx={{ minWidth: 78 }}>
-                        <Typography variant="caption" fontWeight={600} color={availableQuantity === 0 ? 'text.secondary' : 'success.main'}>
-                          {availableQuantity}
-                        </Typography>
-                      </TableCell>
-                    )}
-
-                    <TableCell sx={{ minWidth: 88 }}>
+                    {/* Status */}
+                    <TableCell sx={{ ...compactCellSx, minWidth: 98 }}>
                       {isAddMode ? (
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={material?.scrappedQuantity ?? 0}
-                          onChange={(e) => handleMaterialChange(index, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.01' }}
-                          sx={compactInputSx}
-                        />
-                      ) : (
-                        <Typography variant="caption">{scrappedQuantity}</Typography>
-                      )}
-                    </TableCell>
-
-                    {!isAddMode && (
-                      <TableCell sx={{ minWidth: 88 }}>
-                        <Typography variant="caption">{remainingQuantity}</Typography>
-                      </TableCell>
-                    )}
-
-                    <TableCell sx={{ minWidth: 98 }}>
-                      {isAddMode ? (
-                        <TextField
-                          select
-                          size="small"
-                          value={material?.issueStatus || 'NOT_ISSUED'}
+                        <TextField select size="small" value={material?.issueStatus || 'NOT_ISSUED'}
                           onChange={(e) => handleMaterialChange(index, 'issueStatus', e.target.value)}
-                          fullWidth
-                          sx={compactInputSx}
-                        >
-                          {statusOptions.map((status) => (
-                            <MenuItem key={status} value={status}>
-                              {status}
-                            </MenuItem>
-                          ))}
+                          fullWidth sx={compactInputSx}>
+                          {statusOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                         </TextField>
                       ) : (
-                        <Chip
-                          size="small"
-                          variant="outlined"
-                          label={material?.issueStatus || 'NOT_ISSUED'}
-                          color={getIssueStatusColor(material?.issueStatus)}
-                        />
+                        <IssueStatusChip status={material?.issueStatus || 'NOT_ISSUED'} />
                       )}
                     </TableCell>
 
+                    {/* Issue / Scrap inputs — merged into one cell */}
                     {!isAddMode && (
-                      <TableCell sx={{ minWidth: 92 }}>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={issueDrafts[rowKey]?.issuedQuantity ?? ''}
-                          onChange={(e) => handleIssueDraftChange(rowKey, 'issuedQuantity', e.target.value)}
-                          inputProps={{ min: 0 }}
-                          placeholder="0"
-                          disabled={isMaterialIssueLoading}
-                          sx={compactInputSx}
-                        />
+                      <TableCell sx={{ ...compactCellSx, minWidth: 140 }}>
+                        <Box sx={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          <TextField size="small" type="number"
+                            value={issueDrafts[rowKey]?.issuedQuantity ?? ''}
+                            onChange={(e) => handleIssueDraftChange(rowKey, 'issuedQuantity', e.target.value)}
+                            inputProps={{ min: 0 }} placeholder="Issue"
+                            disabled={isMaterialIssueLoading} sx={{ ...compactInputSx, width: 64 }} />
+                          <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>/</Typography>
+                          <TextField size="small" type="number"
+                            value={issueDrafts[rowKey]?.scrappedQuantity ?? ''}
+                            onChange={(e) => handleIssueDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
+                            inputProps={{ min: 0, step: '0.01' }} placeholder="Scrap"
+                            disabled={isMaterialIssueLoading} sx={{ ...compactInputSx, width: 64 }} />
+                        </Box>
                       </TableCell>
                     )}
 
-                    {!isAddMode && (
-                      <TableCell sx={{ minWidth: 92 }}>
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={issueDrafts[rowKey]?.scrappedQuantity ?? ''}
-                          onChange={(e) => handleIssueDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
-                          inputProps={{ min: 0, step: '0.01' }}
-                          placeholder="0"
-                          disabled={isMaterialIssueLoading}
-                          sx={compactInputSx}
-                        />
-                      </TableCell>
-                    )}
-
-                    <TableCell align="center">
+                    {/* Action */}
+                    <TableCell align="center" sx={{ ...compactCellSx, minWidth: 80 }}>
                       {isAddMode ? (
-                        <Tooltip title="Remove material">
+                        <Tooltip title="Remove">
                           <span>
                             <IconButton color="error" size="small" onClick={() => handleRemove(index)}>
                               <DeleteOutline fontSize="small" />
@@ -560,18 +778,32 @@ export default function WorkOrderMaterialsTab({
                           </span>
                         </Tooltip>
                       ) : (
-                        <Tooltip title="Record physical movement to shop floor (tracking only — no stock deduction)" arrow>
-                          <span>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => handleIssueSingleMaterial(material, index)}
-                              disabled={!canIssue || isMaterialIssueLoading}
-                            >
-                              Move
-                            </Button>
-                          </span>
-                        </Tooltip>
+                        <Stack spacing={0.5} alignItems="center">
+                          <Tooltip title="Move to floor & record scrap" arrow>
+                            <span>
+                              <Button size="small" variant="outlined"
+                                onClick={() => handleIssueSingleMaterial(material, index)}
+                                disabled={!canIssue || isMaterialIssueLoading}
+                                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', borderRadius: '5px', borderColor: '#c8dcf0', color: '#2a6496', '&:hover': { bgcolor: '#eef4fb', borderColor: '#2a6496' } }}>
+                                Issue
+                              </Button>
+                            </span>
+                          </Tooltip>
+                          {canReorder && (
+                            <Tooltip title="Request additional material" arrow>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<Replay sx={{ fontSize: '12px !important' }} />}
+                                onClick={() => setReorderDialog({ open: true, material })}
+                                sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.7rem', borderRadius: '5px', borderStyle: 'dashed', py: '1px' }}
+                              >
+                                Re-order
+                              </Button>
+                            </Tooltip>
+                          )}
+                        </Stack>
                       )}
                     </TableCell>
                   </TableRow>
@@ -583,18 +815,25 @@ export default function WorkOrderMaterialsTab({
       </TableContainer>
 
       {materials.length > 0 && (
-        <Box mt={1} display="flex" flexWrap="wrap" gap={1}>
-          <Chip size="small" variant="outlined" label={`Total items: ${materials.length}`} />
+        <Box mt={1.5} display="flex" flexWrap="wrap" gap={1} alignItems="center">
+          <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '8px', py: '2px', fontSize: '0.6875rem', fontWeight: 600, bgcolor: '#f4f6f8', color: '#5a6474', border: '1px solid #dde3ec' }}>
+            {materials.length} item{materials.length !== 1 ? 's' : ''}
+          </Box>
           {!isAddMode && (
-            <Chip
-              size="small"
-              variant="outlined"
-              color="primary"
-              label="Floor movements are incremental. Stock is consumed when batches are recorded."
-            />
+            <Typography sx={{ fontSize: '0.6875rem', color: '#94a3b8' }}>
+              Floor movements are incremental — stock is consumed when batches are recorded.
+            </Typography>
           )}
         </Box>
       )}
+
+      <ReorderDialog
+        open={reorderDialog.open}
+        material={reorderDialog.material}
+        workOrderId={workOrderId}
+        onClose={() => setReorderDialog({ open: false, material: null })}
+        onSuccess={() => setReorderDialog({ open: false, material: null })}
+      />
     </Box>
   );
 }

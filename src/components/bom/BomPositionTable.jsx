@@ -267,6 +267,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                                 const selectedOperation = operations.find((op) => String(getOperationId(op)) === selectedValue);
                                                 const arr = [...formik.values.components];
                                                 arr[i].routingOperationId = operationId;
+                                                arr[i].routingOperationSequenceNumber = selectedOperation?.sequenceNumber || null;
                                                 arr[i].routingOperationName = getOperationName(selectedOperation) || null;
                                                 formik.setFieldValue("components", arr);
                                             }}

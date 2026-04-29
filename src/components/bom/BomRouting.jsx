@@ -590,7 +590,7 @@ export default function BomRouting({
                                                 const currentDeps = selectedOperation.dependencies || [];
                                                 const nextDeps = isSelected
                                                     ? currentDeps.filter(d => d.dependsOnRoutingOperationId !== depOpId)
-                                                    : [...currentDeps, { dependsOnRoutingOperationId: depOpId, dependencyType: 'SEQUENTIAL', isRequired: true }];
+                                                    : [...currentDeps, { dependsOnRoutingOperationId: depOpId, dependsOnSequenceNumber: depOp.sequenceNumber, dependencyType: 'SEQUENTIAL', isRequired: true }];
                                                 setSelectedOperation({ ...selectedOperation, dependencies: nextDeps });
                                             };
 

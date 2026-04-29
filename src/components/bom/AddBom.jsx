@@ -458,6 +458,7 @@ const AddBom = () => {
                         position: toFiniteNumber(component.position),
                         scrapPercentage: toFiniteNumber(component.scrapPercentage),
                         routingOperationId: component.routingOperationId ?? null,
+                        routingOperationSequenceNumber: component.routingOperationSequenceNumber ?? null,
                     })),
             };
 

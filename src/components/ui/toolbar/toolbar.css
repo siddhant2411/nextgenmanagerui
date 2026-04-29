@@ -1,28 +1,29 @@
-.toolbar{
+.toolbar {
     width: 100%;
-    background-color: white;
-    height: 75px;
-    border-bottom: 1px solid rgba(54, 54, 54, 0.158);
+    background-color: #ffffff;
+    height: 56px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
-    padding: 0 10px;
+    padding: 0 24px;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 
-.toolbar-left, .toolbar-right{
+.toolbar-left, .toolbar-right {
     flex: 1;
     display: flex;
     align-items: center;
     min-width: 0;
 }
 
-.toolbar-right{
+.toolbar-right {
     justify-content: flex-end;
 }
 
 @media (max-width: 900px) {
-    .toolbar{
-        height: 64px;
-        padding: 0 6px;
+    .toolbar {
+        height: 48px;
+        padding: 0 12px;
     }
 }

@@ -5,12 +5,14 @@ import {
   Inventory2 as StockIcon,
   Assignment as RequestIcon,
   LocalShipping as ProcurementIcon,
+  ReceiptLong as GRNIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
 import InventoryDashboard from './InventoryDashboard';
 import InventoryItemPage from './InventoryItemPage';
 import InventoryRequestList from './InventoryRequestList';
 import ProcurementOrdersTab from './ProcurementOrdersTab';
+import GRNList from './GRNList';
 import ReceiveStockDrawer from './ReceiveStockDrawer';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
@@ -20,6 +22,7 @@ const tabs = [
   { label: 'Stock Register',icon: <StockIcon fontSize="small" />,       component: InventoryItemPage },
   { label: 'Requests',      icon: <RequestIcon fontSize="small" />,     component: InventoryRequestList },
   { label: 'Procurement',   icon: <ProcurementIcon fontSize="small" />, component: ProcurementOrdersTab },
+  { label: 'GRN',           icon: <GRNIcon fontSize="small" />,         component: GRNList },
 ];
 
 const InventoryModule = () => {

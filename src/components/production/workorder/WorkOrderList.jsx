@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box, Button, Typography, Paper, Table, TableCell, TableContainer, TableHead,
-  TableRow, Divider, CircularProgress, Checkbox, Toolbar, Chip, Tooltip,
+  TableRow, Divider, CircularProgress, Checkbox, Toolbar, Tooltip,
   useMediaQuery, useTheme, TableBody, IconButton, TablePagination,
   Menu, MenuItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, Alert,
 } from "@mui/material";
@@ -22,41 +22,43 @@ import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
 
 dayjs.extend(isSameOrBefore);
 
-/* ── Theme constants (matching BOM / Inventory Item) ── */
+/* ── Theme constants ── */
 const HEADER_BG = '#f8fafc';
-const HEADER_TEXT = '#334155';
+const HEADER_TEXT = '#475569';
 const BORDER_COLOR = '#e2e8f0';
+const ROW_BORDER = '#f1f5f9';
 const ROW_EVEN = '#ffffff';
 const ROW_ODD = '#ffffff';
-const ROW_HOVER = '#f1f5f9';
+const ROW_HOVER = '#f8fafc';
 
 /* ── Status chip styling ── */
 const statusStyles = {
-  DRAFT: { bg: '#f1f5f9', color: '#64748b' },
-  CREATED: { bg: '#f1f5f9', color: '#64748b' },
-  SCHEDULED: { bg: '#e0f2fe', color: '#0369a1' },
-  RELEASED: { bg: '#e3f2fd', color: '#1565c0' },
-  IN_PROGRESS: { bg: '#ede9fe', color: '#7c3aed' },
-  READY: { bg: '#fff7ed', color: '#c2410c' },
-  COMPLETED: { bg: '#e8f5e9', color: '#2e7d32' },
-  BLOCKED: { bg: '#ffebee', color: '#c62828' },
-  CLOSED: { bg: '#fafafa', color: '#9e9e9e' },
-  CANCELLED: { bg: '#ffebee', color: '#c62828' },
-  SHORT_CLOSED: { bg: '#fef3c7', color: '#92400e' },
+  DRAFT:        { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+  CREATED:      { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+  SCHEDULED:    { bg: '#eef4fb', color: '#2a6496', border: '#c8dcf0' },
+  RELEASED:     { bg: '#eaf0f9', color: '#1c4f87', border: '#bad0ec' },
+  IN_PROGRESS:      { bg: '#f0edf9', color: '#5b3b9e', border: '#d4caea' },
+  MATERIAL_REORDER: { bg: '#fff3e0', color: '#e65100', border: '#ffcc80' },
+  READY:            { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+  COMPLETED:    { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
+  BLOCKED:      { bg: '#fbeeee', color: '#8a2222', border: '#e8c0c0' },
+  CLOSED:       { bg: '#f5f5f5', color: '#6b6b6b', border: '#ddd' },
+  CANCELLED:    { bg: '#fbeeee', color: '#8a2222', border: '#e8c0c0' },
+  SHORT_CLOSED: { bg: '#fdf8ec', color: '#7a5a18', border: '#eddcaa' },
 };
 
 const statusLabels = {
   DRAFT: 'Draft', CREATED: 'Created', SCHEDULED: 'Scheduled', RELEASED: 'Released',
-  IN_PROGRESS: 'In Progress', READY: 'Ready', COMPLETED: 'Completed',
+  IN_PROGRESS: 'In Progress', MATERIAL_REORDER: 'Material Re-order', READY: 'Ready', COMPLETED: 'Completed',
   BLOCKED: 'Blocked', CLOSED: 'Closed', CANCELLED: 'Cancelled',
   SHORT_CLOSED: 'Short Closed',
 };
 
 const PRIORITY_COLORS = {
-  URGENT: { bg: '#fef2f2', color: '#dc2626' },
-  HIGH: { bg: '#fff7ed', color: '#ea580c' },
-  NORMAL: { bg: '#eff6ff', color: '#2563eb' },
-  LOW: { bg: '#f9fafb', color: '#6b7280' },
+  URGENT: { bg: '#fbeeee', color: '#8a2828', border: '#e8c0c0' },
+  HIGH:   { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+  NORMAL: { bg: '#eef0fb', color: '#2a3a87', border: '#c0caec' },
+  LOW:    { bg: '#f5f6f7', color: '#52606d', border: '#d8dde3' },
 };
 
 /* ── Header cell style ── */
@@ -64,14 +66,14 @@ const headerCellSx = {
   background: HEADER_BG,
   color: HEADER_TEXT,
   fontWeight: 700,
-  fontSize: '0.75rem',
+  fontSize: '0.6875rem',
   textTransform: 'uppercase',
-  letterSpacing: 0.5,
-  borderBottom: `2px solid ${BORDER_COLOR}`,
+  letterSpacing: '0.04em',
+  borderBottom: `1px solid ${BORDER_COLOR}`,
   borderRight: 'none',
   whiteSpace: 'nowrap',
-  py: 1.5,
-  px: 2,
+  py: '9px',
+  px: '14px',
   userSelect: 'none',
 };
 
@@ -134,26 +136,23 @@ const getReferenceDoc = (item) => {
 };
 
 /* ── Summary stat card ── */
-const StatCard = ({ title, value, subtitle, accent = '#1565c0', onClick }) => (
+const StatCard = ({ title, value, accent = '#1565c0', onClick }) => (
   <Paper
     elevation={0}
     onClick={onClick}
     sx={{
-      p: 1.5,
-      borderRadius: 2,
+      p: '11px 14px',
+      borderRadius: 1.5,
       border: `1px solid ${BORDER_COLOR}`,
-      background: 'linear-gradient(180deg, rgba(255,255,255,1) 0%, rgba(248,250,252,1) 100%)',
-      position: 'relative',
-      overflow: 'hidden',
+      borderLeft: `3px solid ${accent}`,
+      background: '#fff',
       cursor: onClick ? 'pointer' : 'default',
-      transition: 'box-shadow 0.2s ease, transform 0.15s ease',
-      '&:hover': onClick ? { boxShadow: '0 8px 20px rgba(2, 12, 27, 0.10)', transform: 'translateY(-1px)' } : undefined,
+      transition: 'box-shadow 0.15s',
+      '&:hover': onClick ? { boxShadow: '0 4px 12px rgba(0,0,0,0.07)' } : undefined,
     }}
   >
-    <Box sx={{ position: 'absolute', top: -16, right: -16, width: 52, height: 52, borderRadius: '50%', background: accent, opacity: 0.12 }} />
-    <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 600 }}>{title}</Typography>
-    <Typography sx={{ fontSize: 22, fontWeight: 700, color: 'text.primary', mt: 0.25 }}>{value}</Typography>
-    {subtitle && <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>{subtitle}</Typography>}
+    <Typography sx={{ fontSize: '0.65625rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', mb: '5px' }}>{title}</Typography>
+    <Typography sx={{ fontSize: '1.625rem', fontWeight: 500, color: '#1e293b', lineHeight: 1 }}>{value}</Typography>
   </Paper>
 );
 
@@ -166,11 +165,11 @@ const DueDateCell = ({ dueDate }) => {
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-      <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: overdue ? '#dc2626' : almostDue ? '#ea580c' : 'text.primary', fontWeight: overdue ? 600 : 400 }}>
+      <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: overdue ? '#8a2222' : almostDue ? '#8a4a1c' : '#475569', fontWeight: overdue || almostDue ? 500 : 400 }}>
         {date.format("DD MMM YYYY")}
       </Typography>
-      {overdue && <Chip label="Overdue" size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: '#fef2f2', color: '#dc2626', fontWeight: 600 }} />}
-      {almostDue && <Chip label="Soon" size="small" sx={{ height: 18, fontSize: '0.6rem', bgcolor: '#fff7ed', color: '#ea580c', fontWeight: 600 }} />}
+      {overdue && <Box component="span" sx={{ ml: '6px', fontSize: '0.625rem', fontWeight: 600, bgcolor: '#fbeeee', color: '#8a2222', border: '1px solid #e8c0c0', borderRadius: '4px', px: '6px', py: '1px' }}>Overdue</Box>}
+      {almostDue && <Box component="span" sx={{ ml: '6px', fontSize: '0.625rem', fontWeight: 600, bgcolor: '#fdf4ec', color: '#8a4a1c', border: '1px solid #efd0b0', borderRadius: '4px', px: '6px', py: '1px' }}>Soon</Box>}
     </Box>
   );
 };
@@ -354,17 +353,21 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
 
   /* ── Render helpers ── */
   const renderStatusChip = (status) => {
-    const style = statusStyles[status] || { bg: '#fafafa', color: '#757575' };
+    const style = statusStyles[status] || { bg: '#f5f5f5', color: '#6b6b6b', border: '#ddd' };
     const label = statusLabels[status] || status || '-';
     return (
-      <Chip label={label} size="small" sx={{ backgroundColor: style.bg, color: style.color, fontWeight: 500, fontSize: '0.7rem', height: 24 }} />
+      <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '9px', py: '2px', fontSize: '0.6875rem', fontWeight: 600, border: `1px solid ${style.border}`, bgcolor: style.bg, color: style.color, whiteSpace: 'nowrap' }}>
+        {label}
+      </Box>
     );
   };
 
   const renderPriorityChip = (priority) => {
     const style = PRIORITY_COLORS[priority] || PRIORITY_COLORS.NORMAL;
     return (
-      <Chip label={priority || '-'} size="small" sx={{ backgroundColor: style.bg, color: style.color, fontWeight: 600, fontSize: '0.7rem', height: 24 }} />
+      <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '9px', py: '2px', fontSize: '0.6875rem', fontWeight: 600, border: `1px solid ${style.border}`, bgcolor: style.bg, color: style.color, whiteSpace: 'nowrap' }}>
+        {priority || '-'}
+      </Box>
     );
   };
 
@@ -460,12 +463,12 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
             gap: 1.5,
           }}
         >
-          <StatCard title="Overdue" value={isSummaryLoading ? "..." : summaryValue(summary?.overdue)} subtitle="Past due date" accent="#dc2626" onClick={() => handleSummaryCardClick("overdue")} />
-          <StatCard title="Due Soon" value={isSummaryLoading ? "..." : summaryValue(summary?.dueSoon)} subtitle="Due within 72 hrs" accent="#ea580c" onClick={() => handleSummaryCardClick("dueSoon")} />
-          <StatCard title="Ready" value={isSummaryLoading ? "..." : summaryValue(summary?.ready)} subtitle="Queued" accent="#0ea5e9" onClick={() => handleSummaryCardClick("ready")} />
-          <StatCard title="In Progress" value={isSummaryLoading ? "..." : summaryValue(summary?.inProgress)} subtitle="Active" accent="#7c3aed" onClick={() => handleSummaryCardClick("inProgress")} />
-          <StatCard title="Completed Today" value={isSummaryLoading ? "..." : summaryValue(summary?.completedToday)} subtitle="Finished today" accent="#16a34a" onClick={() => handleSummaryCardClick("completingToday")} />
-          <StatCard title="Blocked" value={isSummaryLoading ? "..." : summaryValue(summary?.blocked)} subtitle="Needs attention" accent="#dc2626" onClick={() => handleSummaryCardClick("blocked")} />
+          <StatCard title="Overdue" value={isSummaryLoading ? "..." : summaryValue(summary?.overdue)} accent="#b84040" onClick={() => handleSummaryCardClick("overdue")} />
+          <StatCard title="Due Soon" value={isSummaryLoading ? "..." : summaryValue(summary?.dueSoon)} accent="#c47830" onClick={() => handleSummaryCardClick("dueSoon")} />
+          <StatCard title="Ready" value={isSummaryLoading ? "..." : summaryValue(summary?.ready)} accent="#4a8fc0" onClick={() => handleSummaryCardClick("ready")} />
+          <StatCard title="In Progress" value={isSummaryLoading ? "..." : summaryValue(summary?.inProgress)} accent="#7c5cbf" onClick={() => handleSummaryCardClick("inProgress")} />
+          <StatCard title="Completed Today" value={isSummaryLoading ? "..." : summaryValue(summary?.completedToday)} accent="#4a9460" onClick={() => handleSummaryCardClick("completingToday")} />
+          <StatCard title="Blocked" value={isSummaryLoading ? "..." : summaryValue(summary?.blocked)} accent="#b84040" onClick={() => handleSummaryCardClick("blocked")} />
         </Box>
 
         {/* ── Filter Bar + Column Toggle ── */}
@@ -610,7 +613,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                         cursor: 'pointer',
                         transition: 'background 0.15s ease',
                         '&:hover': { background: ROW_HOVER },
-                        '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.85rem', py: 1.5, px: 2, color: '#334155' },
+                        '& td': { borderBottom: `1px solid ${ROW_BORDER}`, fontSize: '0.8125rem', py: '10px', px: '14px', color: '#475569' },
                       }}
                     >
                       <TableCell padding="checkbox" align="center">
@@ -636,7 +639,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
                               ? renderPriorityChip(item.priority)
                               : col.field === "autoScheduled"
                                 ? (item.autoScheduled
-                                  ? <Chip size="small" label="Auto" sx={{ height: 22, fontSize: '0.7rem', bgcolor: '#e0f2fe', color: '#0369a1', fontWeight: 600 }} />
+                                  ? <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '9px', py: '2px', fontSize: '0.6875rem', fontWeight: 600, border: '1px solid #c8dcf0', bgcolor: '#eef4fb', color: '#2a6496', whiteSpace: 'nowrap' }}>Auto</Box>
                                   : <span style={{ color: '#9ca3af' }}>—</span>)
                                 : col.field === "dueDate"
                                   ? (item.dueDate ? <DueDateCell dueDate={item.dueDate} /> : "-")

@@ -191,7 +191,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
       
       {/* --- PRIMARY INFORMATION CARD --- */}
       <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#475569', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Primary Information
         </Typography>
         <Grid container spacing={2.5}>
@@ -382,7 +382,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
       {/* --- QUANTITIES & CONFIGURATION CARD --- */}
       <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#f8fafc' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Production Quantities & Rules
           </Typography>
           {(formik.values.selectedItem?.uom || formik.values.inventoryItem?.uom) && (
@@ -450,7 +450,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
 
       {/* --- TIMELINE CARD --- */}
       <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#0f172a', mb: 2, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#475569', mb: 2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Scheduling & Execution Timeline
         </Typography>
         <Grid container spacing={2.5}>
