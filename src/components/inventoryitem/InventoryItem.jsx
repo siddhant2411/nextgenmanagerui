@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import InventoryItemList from './InventoryItemList';
 import AddInventoryItem from './AddInventoryItem';
-import apiService from '../../services/apiService';
+import { deleteInventoryItem as deleteInventoryItemRequest } from '../../services/inventoryService';
 import { Alert, Box, Snackbar } from '@mui/material';
 import RoleProtectedRoute from '../../auth/RoleProtectedRoute';
 import { ACTION_KEYS, INVENTORY_ITEM_APPROVAL_ROLES, INVENTORY_MANAGE_ROLES } from '../../auth/roles';
@@ -30,7 +30,7 @@ const InventoryItem = () => {
       return;
     }
     try {
-      await apiService.delete(`/inventory_item/${id}`);
+      await deleteInventoryItemRequest(id);
     } catch (err) {
       // handled
     }

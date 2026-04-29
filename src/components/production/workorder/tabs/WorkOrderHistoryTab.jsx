@@ -26,6 +26,15 @@ const formatTimestamp = (value) => {
   return parsed.isValid() ? parsed.format("DD-MM-YYYY HH:mm") : String(value);
 };
 
+const EVENT_TYPE_CONFIG = {
+  SHORT_CLOSED: { label: "Short Closed", color: "warning" },
+  MATERIAL_RETURNED: { label: "Material Returned", color: "info" },
+};
+
+const getEventTypeConfig = (eventType) => (
+  EVENT_TYPE_CONFIG[eventType] || { label: eventType, color: "default" }
+);
+
 export default function WorkOrderHistoryTab({
   rows = [],
   loading = false,
@@ -104,7 +113,12 @@ export default function WorkOrderHistoryTab({
               <TableRow key={row?.id ?? `${row?.eventType}-${row?.performedAt}`}>
                 <TableCell>
                   {row?.eventType ? (
-                    <Chip size="small" label={row.eventType} variant="outlined" />
+                    <Chip
+                      size="small"
+                      label={getEventTypeConfig(row.eventType).label}
+                      color={getEventTypeConfig(row.eventType).color}
+                      variant="outlined"
+                    />
                   ) : (
                     "-"
                   )}

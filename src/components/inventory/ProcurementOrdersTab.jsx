@@ -1,52 +1,82 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+    Alert,
     Box,
-    TextField,
     Button,
+    Chip,
+    CircularProgress,
+    InputAdornment,
     MenuItem,
+    Paper,
+    Snackbar,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
-    TableRow,
-    Paper,
     TablePagination,
-    CircularProgress,
-    Snackbar,
-    Alert
+    TableRow,
+    TextField,
+    Typography,
+    Stack,
+    Tooltip,
+    IconButton,
+    Fade
 } from "@mui/material";
-import { Search } from "@mui/icons-material";
-import InputAdornment from "@mui/material/InputAdornment";
-import apiService, { resolveApiErrorMessage } from "../../services/apiService";
+import { Search, LocalShipping, CheckCircleOutline, History as HistoryIcon, MoreVert } from "@mui/icons-material";
+import {
+    getProcurementOrders,
+    markProcurementOrderReceived,
+    resolveApiErrorMessage
+} from "../../services/inventoryService";
 import { useAuth } from "../../auth/AuthContext";
 import { ACTION_KEYS } from "../../auth/roles";
+import { format } from "date-fns";
 
-const ProcurementOrdersTabContent = () => {
+const statusColor = (status) => {
+    switch (status) {
+        case "CREATED": return "info";
+        case "IN_PROGRESS": return "warning";
+        case "COMPLETED": return "success";
+        case "CANCELED": return "error";
+        default: return "default";
+    }
+};
+
+const decisionText = (decision) => {
+    switch (decision) {
+        case "PURCHASE_ORDER": return "Purchase Order";
+        case "WORK_ORDER": return "Work Order";
+        default: return decision || "-";
+    }
+};
+
+const headerCellSx = {
+    bgcolor: '#f8fafc',
+    color: '#475569',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    py: 1.5,
+    borderBottom: '2px solid #e2e8f0',
+};
+
+const ProcurementOrdersTabContent = ({ refreshKey }) => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
-
-    // Pagination
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalElements, setTotalElements] = useState(0);
-
-    // Filters
     const [statusFilter, setStatusFilter] = useState("");
     const [itemCodeFilter, setItemCodeFilter] = useState("");
-    const [createdByFilter, setCreatedByFilter] = useState("");
-
-    // Snackbar
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
     const debounceTimeout = useRef(null);
-    const { canAction } = useAuth();
+    const { canAction, user } = useAuth();
     const canManageProcurement = canAction(ACTION_KEYS.INVENTORY_PROCUREMENT_WRITE);
 
     const showSnackbar = (message, severity = "success") => {
         setSnackbar({ open: true, message, severity });
-    };
-    const handleCloseSnackbar = () => {
-        setSnackbar({ ...snackbar, open: false });
     };
 
     const fetchOrders = async () => {
@@ -56,11 +86,9 @@ const ProcurementOrdersTabContent = () => {
                 page,
                 size: rowsPerPage,
                 status: statusFilter || undefined,
-                createdBy: createdByFilter || undefined,
-                // you can add itemCode mapping to id if backend supports it
                 itemCode: itemCodeFilter || undefined
             };
-            const res = await apiService.get("/inventory/inventory-procurement-orders", params);
+            const res = await getProcurementOrders(params);
             setOrders(res.content || []);
             setTotalElements(res.totalElements || 0);
         } catch (err) {
@@ -70,166 +98,149 @@ const ProcurementOrdersTabContent = () => {
         }
     };
 
-    // Debounced fetch on filter change
-    useEffect(() => {
-        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-        debounceTimeout.current = setTimeout(() => {
-            setPage(0);
-            fetchOrders();
-        }, 500);
-
-        return () => {
-            if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, itemCodeFilter, createdByFilter]);
-
-    // Fetch on page/rowsPerPage change
     useEffect(() => {
         fetchOrders();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [page, rowsPerPage]);
+    }, [page, rowsPerPage, statusFilter, itemCodeFilter, refreshKey]);
 
-    const handleComplete = async (id) => {
-        if (!canManageProcurement) {
-            return;
-        }
+    const handleMarkReceived = async (id) => {
+        if (!canManageProcurement) return;
         try {
-            const completedBy = "managerUser"; // replace with logged in user
-            await apiService.put(`/inventory/inventory-procurement-orders/${id}/complete`, null, {
-                params: { completedBy }
-            });
-            showSnackbar("Procurement order marked as completed!", "success");
+            const completedBy = user?.username || "System";
+            await markProcurementOrderReceived(id, completedBy);
+            showSnackbar("Stock marked as received and added to inventory.", "success");
             fetchOrders();
         } catch (err) {
-            showSnackbar(resolveApiErrorMessage(err, "Failed to complete order"), "error");
+            showSnackbar(resolveApiErrorMessage(err, "Failed to complete procurement."), "error");
         }
     };
 
     return (
-        <Box sx={{ p: 3, backgroundColor: "#fff", borderRadius: 2 }}>
-            {/* Filters */}
-            <Box
-                display="flex"
-                justifyContent="space-between"
-                alignItems="center"
-                mb={2}
-                flexWrap="wrap"
-                gap={2}
-            >
-                <TextField
-                    select
-                    label="Status"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    size="small"
-                    sx={{ width: "160px" }}
-                >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="CREATED">Created</MenuItem>
-                    <MenuItem value="IN_PROGRESS">IN Progress</MenuItem>
-                    <MenuItem value="COMPLETED">Completed</MenuItem>
-                    <MenuItem value="CANCELED">Canceled</MenuItem>
-                </TextField>
+        <Fade in={true} timeout={400}>
+            <Box>
+                <Box display="flex" justifyContent="space-between" alignItems="flex-end" mb={3} gap={2} flexWrap="wrap">
+                    <Box>
+                        <Typography variant="h5" fontWeight={800} sx={{ color: '#0f172a' }}>
+                            Procurement Tracking
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            Track external purchases and internal work orders for material replenishment
+                        </Typography>
+                    </Box>
 
-                <TextField
-                    label="Item Code"
-                    value={itemCodeFilter}
-                    onChange={(e) => setItemCodeFilter(e.target.value)}
-                    size="small"
-                    sx={{ width: "160px" }}
-                    InputProps={{
-                        endAdornment: (
-                            <InputAdornment position="end">
-                                <Search fontSize="small" />
-                            </InputAdornment>
-                        )
-                    }}
-                />
-
-                <TextField
-                    label="Created By"
-                    value={createdByFilter}
-                    onChange={(e) => setCreatedByFilter(e.target.value)}
-                    size="small"
-                    sx={{ width: "160px" }}
-                />
-
-                <Button
-                    variant="contained"
-                    onClick={() => {
-                        setPage(0);
-                        fetchOrders();
-                    }}
-                >
-                    Apply Filters
-                </Button>
-            </Box>
-
-            {/* Snackbar */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-            >
-                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: "100%" }}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
-
-            {/* Table */}
-            {loading ? (
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-                    <CircularProgress />
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <TextField
+                            placeholder="Find by Item Code..."
+                            value={itemCodeFilter}
+                            onChange={(e) => setItemCodeFilter(e.target.value)}
+                            size="small"
+                            sx={{ width: 240, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8fafc' } }}
+                            InputProps={{
+                                startAdornment: <Search sx={{ color: '#64748b', fontSize: 18, mr: 0.5 }} />,
+                            }}
+                        />
+                        <TextField
+                            select
+                            label="Status"
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            size="small"
+                            sx={{ width: 160, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8fafc' } }}
+                        >
+                            <MenuItem value="">All Orders</MenuItem>
+                            <MenuItem value="CREATED">Created</MenuItem>
+                            <MenuItem value="IN_PROGRESS">Active</MenuItem>
+                            <MenuItem value="COMPLETED">Completed</MenuItem>
+                            <MenuItem value="CANCELED">Canceled</MenuItem>
+                        </TextField>
+                    </Stack>
                 </Box>
-            ) : (
-                <>
-                    <TableContainer component={Paper}>
+
+                <Paper elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 4, overflow: 'hidden' }}>
+                    <TableContainer>
                         <Table size="small">
                             <TableHead>
                                 <TableRow>
-                                    <TableCell><b>ID</b></TableCell>
-                                    <TableCell><b>Item Code</b></TableCell>
-                                    <TableCell><b>Item Name</b></TableCell>
-                                    <TableCell><b>Status</b></TableCell>
-                                    <TableCell><b>Decision</b></TableCell>
-                                    <TableCell><b>Total Instances</b></TableCell>
-                                    <TableCell><b>Request ID</b></TableCell>
-                                    <TableCell><b>Created By</b></TableCell>
-                                    <TableCell><b>Creation Date</b></TableCell>
-                                    <TableCell align="center"><b>Action</b></TableCell>
+                                    <TableCell sx={headerCellSx}>Resource Details</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Strategy</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Quantity</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Status</TableCell>
+                                    <TableCell sx={headerCellSx}>Created By</TableCell>
+                                    <TableCell sx={headerCellSx}>Timeline</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Actions</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {orders.map((order) => (
-                                    <TableRow key={order.id} hover>
-                                        <TableCell>{order.id}</TableCell>
-                                        <TableCell>{order.itemCode}</TableCell>
-                                        <TableCell>{order.itemName}</TableCell>
-                                        <TableCell>{order.status}</TableCell>
-                                        <TableCell>{order.decision}</TableCell>
-                                        <TableCell>{order.totalInstances}</TableCell>
-                                        <TableCell>{order.requestId}</TableCell>
-                                        <TableCell>{order.createdBy}</TableCell>
-                                        <TableCell>
-                                            {order.creationDate ? new Date(order.creationDate).toLocaleDateString() : ""}
+                                {loading ? (
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                                ) : orders.map((order) => (
+                                    <TableRow key={order.id} hover sx={{ '&:hover': { bgcolor: '#f9fafb !important' } }}>
+                                        <TableCell sx={{ py: 1.5 }}>
+                                            <Stack direction="row" spacing={1.5} alignItems="center">
+                                                <Box sx={{ p: 1, bgcolor: '#f1f5f9', borderRadius: 1.5, display: 'flex' }}>
+                                                    <LocalShipping sx={{ fontSize: 18, color: '#475569' }} />
+                                                </Box>
+                                                <Box>
+                                                    <Typography variant="body2" fontWeight={700} color="primary.main">{order.itemCode}</Typography>
+                                                    <Typography variant="caption" color="text.secondary">{order.itemName}</Typography>
+                                                </Box>
+                                            </Stack>
                                         </TableCell>
                                         <TableCell align="center">
-                                            {(order.status === "IN_PROGRESS" || order.status === "CREATED") && (
+                                            <Chip 
+                                                label={decisionText(order.decision)} 
+                                                size="small" 
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, borderColor: '#e2e8f0' }} 
+                                            />
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Typography variant="body2" fontWeight={800}>{order.totalInstances}</Typography>
+                                            <Typography variant="caption" color="text.secondary">ORD: #{order.orderId || '-'}</Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            <Chip 
+                                                label={order.status} 
+                                                color={statusColor(order.status)} 
+                                                size="small" 
+                                                sx={{ fontWeight: 800, fontSize: '0.6rem', height: 20 }} 
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2" fontWeight={500}>{order.createdBy || 'System'}</Typography>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {order.creationDate ? format(new Date(order.creationDate), 'dd MMM yy') : '-'}
+                                            </Typography>
+                                        </TableCell>
+                                        <TableCell align="center">
+                                            {(order.status === "IN_PROGRESS" || order.status === "CREATED") ? (
                                                 <Button
                                                     variant="contained"
                                                     size="small"
-                                                    color="success"
-                                                    onClick={() => handleComplete(order.id)}
+                                                    startIcon={<CheckCircleOutline />}
+                                                    onClick={() => handleMarkReceived(order.id)}
                                                     disabled={!canManageProcurement}
+                                                    sx={{ 
+                                                        textTransform: "none", 
+                                                        fontWeight: 700, 
+                                                        fontSize: '0.75rem',
+                                                        borderRadius: 1.5,
+                                                        bgcolor: '#0f172a',
+                                                        '&:hover': { bgcolor: '#1e293b' }
+                                                    }}
                                                 >
-                                                    Complete
+                                                    Mark Received
                                                 </Button>
+                                            ) : (
+                                                <IconButton size="small"><MoreVert /></IconButton>
                                             )}
                                         </TableCell>
                                     </TableRow>
                                 ))}
+                                {!loading && orders.length === 0 && (
+                                    <TableRow><TableCell colSpan={7} align="center" sx={{ py: 10 }}>No procurement orders found.</TableCell></TableRow>
+                                )}
                             </TableBody>
                         </Table>
                     </TableContainer>
@@ -238,17 +249,27 @@ const ProcurementOrdersTabContent = () => {
                         component="div"
                         count={totalElements}
                         page={page}
-                        onPageChange={(e, newPage) => setPage(newPage)}
+                        onPageChange={(_, p) => setPage(p)}
                         rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(e) => {
-                            setRowsPerPage(parseInt(e.target.value, 10));
-                            setPage(0);
+                        onRowsPerPageChange={(e) => { 
+                            setRowsPerPage(parseInt(e.target.value, 10)); 
+                            setPage(0); 
                         }}
-                        rowsPerPageOptions={[5, 10, 25, 50]}
+                        rowsPerPageOptions={[10, 25, 50]}
                     />
-                </>
-            )}
-        </Box>
+                </Paper>
+
+                <Snackbar
+                    open={snackbar.open}
+                    autoHideDuration={4000}
+                    onClose={() => setSnackbar((prev) => ({ ...prev, open: false }))}
+                >
+                    <Alert severity={snackbar.severity} sx={{ borderRadius: 2, boxShadow: 3 }}>
+                        {snackbar.message}
+                    </Alert>
+                </Snackbar>
+            </Box>
+        </Fade>
     );
 };
 

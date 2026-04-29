@@ -68,6 +68,15 @@ export default function BomSidebar({ bomId, formik, operations = [], setError, s
             const res = await apiService.post("/bom/changeStatus/" + bomId, finalPayload);
             showSnackbar("Status changed to: " + res.bomStatus);
             formik.setFieldValue("bomStatus", res.bomStatus);
+            formik.setFieldValue("revision", res.revision);
+            formik.setFieldValue("ecoNumber", res.ecoNumber);
+            formik.setFieldValue("changeReason", res.changeReason);
+            formik.setFieldValue("approvedBy", res.approvedBy);
+            formik.setFieldValue("approvalDate", res.approvalDate);
+            formik.setFieldValue("approvalComments", res.approvalComments);
+            formik.setFieldValue("effectiveFrom", res.effectiveFrom);
+            formik.setFieldValue("effectiveTo", res.effectiveTo);
+            formik.setFieldValue("updatedDate", res.updatedDate);
         } catch (e) {
             showSnackbar(resolveApiErrorMessage(e, "Failed to change BOM status."), "error");
         }

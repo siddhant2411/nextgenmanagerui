@@ -1,13 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Alert,
+  Snackbar,
   Box,
   Button,
   Chip,
-  Checkbox,
-  IconButton,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  InputLabel,
   MenuItem,
   Paper,
+  Select,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -19,24 +26,30 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
+  LinearProgress,
+  Divider,
 } from '@mui/material';
-import { DeleteOutline, TableChart, BarChart } from '@mui/icons-material';
+import {
+  TableChart,
+  BarChart,
+  PlayArrow,
+  Save,
+  CheckCircle,
+  Error as ErrorIcon,
+  Info,
+  Schedule,
+  PrecisionManufacturing,
+  AssignmentTurnedIn,
+  Block,
+  Warning,
+} from '@mui/icons-material';
 import dayjs from 'dayjs';
 import WorkOrderOperationsTimeline from './WorkOrderOperationsTimeline';
+import { getReasonCodes } from '../../../../services/workOrderService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_OPERATION_STATUSES = [
-  'PLANNED',
-  'WAITING_FOR_DEPENDENCY',
-  'READY',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'HOLD',
-  'CANCELLED',
-];
 const EMPTY_OPERATIONS = [];
 
-// ─── Parallel path colours ────────────────────────────────────────────────────
 const PATH_PALETTE = [
   '#1677ff', '#52c41a', '#fa8c16', '#722ed1', '#eb2f96',
   '#13c2c2', '#faad14', '#a0d911',
@@ -55,10 +68,6 @@ const toNumberValue = (value) => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const DATE_FIELDS = new Set([
-  'plannedStartDate', 'plannedEndDate', 'actualStartDate', 'actualEndDate',
-]);
-
 const formatDateTime = (value) => {
   if (!value) return '-';
   const parsed = dayjs(value);
@@ -67,43 +76,106 @@ const formatDateTime = (value) => {
 };
 
 const compactCellSx = {
-  px: 0.75,
-  py: 0.5,
-  fontSize: '0.74rem',
-  whiteSpace: 'nowrap',
-};
-
-const compactInputSx = {
-  '& .MuiInputBase-root': { height: 32, fontSize: '0.74rem', width: '5rem' },
-  '& .MuiInputBase-input': { px: 1, py: 0.5 },
+  px: 1.5,
+  py: 1.25,
+  fontSize: '0.82rem',
+  borderBottom: '1px solid rgba(224, 224, 224, 0.4)',
 };
 
 const getOperationRowKey = (operation, index) =>
   String(operation?.id ?? operation?.routingOperation?.id ?? index);
 
-// ─── Enhanced status colour/config ───────────────────────────────────────────
+// ─── Status config ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  PLANNED: { color: 'default', muiColor: '#8c8c8c', rowBg: 'transparent' },
-  WAITING_FOR_DEPENDENCY: { color: 'warning', muiColor: '#fa8c16', rowBg: '#fff7e6' },
-  READY: { color: 'info', muiColor: '#1677ff', rowBg: '#e6f4ff' },
-  IN_PROGRESS: { color: 'primary', muiColor: '#1677ff', rowBg: 'transparent' },
-  COMPLETED: { color: 'success', muiColor: '#237804', rowBg: 'transparent' },
-  HOLD: { color: 'error', muiColor: '#cf1322', rowBg: 'transparent' },
-  CANCELLED: { color: 'default', muiColor: '#bfbfbf', rowBg: 'transparent' },
+  PLANNED:                { color: 'default', icon: <Schedule fontSize="inherit" />, colorMain: '#5a6474', bg: '#f4f6f8', border: '#dde3ec' },
+  WAITING_FOR_DEPENDENCY: { color: 'warning', icon: <Block fontSize="inherit" />, colorMain: '#8a4a1c', bg: '#fdf4ec', border: '#efd0b0' },
+  READY:                  { color: 'info',    icon: <PlayArrow fontSize="inherit" />, colorMain: '#8a4a1c', bg: '#fdf4ec', border: '#efd0b0' },
+  IN_PROGRESS:            { color: 'primary', icon: <PrecisionManufacturing fontSize="inherit" />, colorMain: '#5b3b9e', bg: '#f0edf9', border: '#d4caea' },
+  COMPLETED:              { color: 'success', icon: <CheckCircle fontSize="inherit" />, colorMain: '#2a6640', bg: '#eef6f0', border: '#b8d8bf' },
+  HOLD:                   { color: 'error',   icon: <Info fontSize="inherit" />, colorMain: '#b84040', bg: '#fdf0f0', border: '#f0c8c8' },
+  CANCELLED:              { color: 'default', icon: <Block fontSize="inherit" />, colorMain: '#6b6b6b', bg: '#f5f5f5', border: '#ddd' },
 };
 
-const getStatusColor = (status) => STATUS_CONFIG[status]?.color || 'default';
-const getRowBg = (status) => STATUS_CONFIG[status]?.rowBg || 'transparent';
+// ─── Reason Code Dialog ───────────────────────────────────────────────────────
+function ReasonCodeDialog({ open, onClose, onSubmit, rejectedQty, scrapQty, rejectionCodes, scrapCodes }) {
+  const [rejectionReasonCode, setRejectionReasonCode] = useState('');
+  const [scrapReasonCode, setScrapReasonCode] = useState('');
 
-const canStartOperation = (operation) =>
-  Boolean(operation?.id) && ['READY'].includes(operation?.status);
+  useEffect(() => {
+    if (open) { setRejectionReasonCode(''); setScrapReasonCode(''); }
+  }, [open]);
 
-// WAITING_FOR_DEPENDENCY: show blocked dialog; READY: show start dialog; others: disable
-const canInitiateStart = (operation) =>
-  Boolean(operation?.id) && ['READY', 'WAITING_FOR_DEPENDENCY'].includes(operation?.status);
+  const canSubmit =
+    (rejectedQty <= 0 || rejectionReasonCode) &&
+    (scrapQty <= 0 || scrapReasonCode);
 
-const canRecordPartialCompletion = (operation) =>
-  Boolean(operation?.id) && ['READY', 'IN_PROGRESS'].includes(operation?.status);
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle sx={{ fontWeight: 700, color: '#0f2744', pb: 1 }}>
+        Reason Codes Required
+      </DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {rejectedQty > 0 && scrapQty > 0
+            ? `Recording ${rejectedQty} rejected and ${scrapQty} scrap units.`
+            : rejectedQty > 0
+            ? `Recording ${rejectedQty} rejected units.`
+            : `Recording ${scrapQty} scrap units.`}
+        </Typography>
+        <Stack spacing={2}>
+          {rejectedQty > 0 && (
+            <FormControl size="small" fullWidth required>
+              <InputLabel>Rejection Reason *</InputLabel>
+              <Select
+                value={rejectionReasonCode}
+                label="Rejection Reason *"
+                onChange={(e) => setRejectionReasonCode(e.target.value)}
+              >
+                {rejectionCodes.map(rc => (
+                  <MenuItem key={rc.code} value={rc.code}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={600}>{rc.code}</Typography>
+                      <Typography variant="caption" color="text.secondary">{rc.description}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {scrapQty > 0 && (
+            <FormControl size="small" fullWidth required>
+              <InputLabel>Scrap Reason *</InputLabel>
+              <Select
+                value={scrapReasonCode}
+                label="Scrap Reason *"
+                onChange={(e) => setScrapReasonCode(e.target.value)}
+              >
+                {scrapCodes.map(rc => (
+                  <MenuItem key={rc.code} value={rc.code}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={600}>{rc.code}</Typography>
+                      <Typography variant="caption" color="text.secondary">{rc.description}</Typography>
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ textTransform: 'none' }}>Cancel</Button>
+        <Button
+          variant="contained" disableElevation disabled={!canSubmit}
+          onClick={() => onSubmit({ rejectionReasonCode, scrapReasonCode })}
+          sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2 }}
+        >
+          Submit Batch
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function WorkOrderOperationsTab({
@@ -117,8 +189,22 @@ export default function WorkOrderOperationsTab({
   const operations = Array.isArray(formik.values?.operations)
     ? formik.values.operations
     : EMPTY_OPERATIONS;
+
+  const woStatus = formik.values?.status;
+  const isWoTerminal = ['COMPLETED', 'CLOSED', 'CANCELLED'].includes(woStatus);
+
   const [partialDrafts, setPartialDrafts] = useState({});
-  const [viewMode, setViewMode] = useState('table'); // 'table' | 'timeline'
+  const [viewMode, setViewMode] = useState('table');
+  const [rejectionCodes, setRejectionCodes] = useState([]);
+  const [scrapCodes, setScrapCodes] = useState([]);
+  const [reasonDialog, setReasonDialog] = useState({ open: false, operation: null, index: null });
+  const [overCompletionWarning, setOverCompletionWarning] = useState(null);
+
+  // Load reason codes once
+  useEffect(() => {
+    getReasonCodes('REJECTION').then(r => setRejectionCodes(r || [])).catch(() => {});
+    getReasonCodes('SCRAP').then(r => setScrapCodes(r || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const validKeys = new Set(operations.map((op, i) => getOperationRowKey(op, i)));
@@ -133,48 +219,73 @@ export default function WorkOrderOperationsTab({
     });
   }, [operations]);
 
-  // Build path list for colour coding
-  const allPathList = [...new Set(operations.map(o => o.parallelPath).filter(Boolean))];
+  const allPathList = useMemo(() => [...new Set(operations.map(o => o.parallelPath).filter(Boolean))], [operations]);
 
-  // Build op lookup maps: id → sequence and id → name
-  const opSeqMap = {};
-  const opNameMap = {};
-  const opStatusMap = {};
-  for (const op of operations) {
-    if (op.id) {
-      opSeqMap[op.id] = op.sequence ?? op.routingOperation?.sequenceNumber;
-      opNameMap[op.id] = op.operationName || op.routingOperation?.name || '';
-      opStatusMap[op.id] = op.status;
-    }
-  }
+  const stats = useMemo(() => ({
+    total: operations.length,
+    completed: operations.filter(o => o.status === 'COMPLETED').length,
+    inProgress: operations.filter(o => o.status === 'IN_PROGRESS').length,
+    ready: operations.filter(o => o.status === 'READY').length,
+  }), [operations]);
 
-  // Determine if Available Input column should be shown
-  // Hide when every operation's availableInputQuantity equals its plannedQuantity
-  const showAvailInput = isEditMode && operations.some(op => {
-    const avail = Number(op?.availableInputQuantity ?? 0);
-    const planned = Number(op?.plannedQuantity ?? 0);
-    return avail !== planned;
-  });
+  const qualityAlerts = useMemo(() =>
+    operations
+      .filter(o => toNumberValue(o.scrappedQuantity) > 0 || toNumberValue(o.rejectedQuantity) > 0)
+      .map(o => ({
+        id: o.id,
+        name: o.operationName,
+        sequence: o.sequence,
+        scrapped: toNumberValue(o.scrappedQuantity),
+        rejected: toNumberValue(o.rejectedQuantity),
+      })),
+  [operations]);
 
-  const statusOptions = Array.from(new Set([
-    ...DEFAULT_OPERATION_STATUSES,
-    ...operations.map((op) => op?.status).filter(Boolean),
-  ]));
+  const sortedOps = [...operations].sort((a, b) => (a?.sequence ?? Infinity) - (b?.sequence ?? Infinity));
+  const firstOperationId = sortedOps.length > 0 ? sortedOps[0]?.id : null;
+  const allowBackflush = !!formik.values?.allowBackflush;
 
-  const handleOperationChange = (index, field, value) => {
-    const updated = [...operations];
-    updated[index] = {
-      ...updated[index],
-      [field]:
-        field === 'isMilestone' || field === 'allowOverCompletion'
-          ? Boolean(value)
-          : DATE_FIELDS.has(field)
-            ? value
-            : field === 'status'
-              ? value
-              : toNumberValue(value),
+  const getReadiness = (op) => {
+    const plannedTotal = toNumberValue(op.plannedQuantity) || 1;
+    const inputQty = toNumberValue(op.availableInputQuantity);
+
+    const opMaterials = materials.filter(m =>
+      m.workOrderOperationId === op.id ||
+      (op.id === firstOperationId && !m.workOrderOperationId && !m.operationName)
+    );
+
+    let materialReady = Infinity;
+    let issuedReady = Infinity;
+    const shortages = [];
+
+    opMaterials.forEach(m => {
+      const onFloor = Math.max(toNumberValue(m.issuedQuantity) - toNumberValue(m.consumedQuantity), 0);
+      const totalReq = toNumberValue(m.netRequiredQuantity || m.plannedRequiredQuantity);
+
+      const reqPerUnit = totalReq / plannedTotal;
+      console.log(reqPerUnit,onFloor);
+      const issuedReadyFor = reqPerUnit > 0 ? onFloor / reqPerUnit : Infinity;
+      if (issuedReadyFor < issuedReady) issuedReady = issuedReadyFor;
+
+      if (allowBackflush) return;
+
+      const warehouseAvailable = toNumberValue(m.component?.availableQuantity);
+      const warehouseReserved = toNumberValue(m.component?.reservedQuantity);
+      const totalAccessible = onFloor + warehouseAvailable + warehouseReserved;
+      const readyFor = reqPerUnit > 0 ? totalAccessible / reqPerUnit : Infinity;
+
+      if (readyFor < materialReady) materialReady = readyFor;
+      if (readyFor < 1) {
+        shortages.push(`${m.component?.itemCode || 'Material'}: ${totalAccessible.toFixed(2)} available / ${reqPerUnit.toFixed(2)} needed per unit`);
+      }
+    });
+
+    const finalReadiness = Math.min(inputQty, materialReady);
+    return {
+      units: finalReadiness === Infinity ? inputQty : finalReadiness,
+      shortages,
+      isStartable: finalReadiness >= 1,
+      issuedUnits: issuedReady,
     };
-    formik.setFieldValue('operations', updated);
   };
 
   const handlePartialDraftChange = (rowKey, field, value) => {
@@ -184,464 +295,373 @@ export default function WorkOrderOperationsTab({
     }));
   };
 
-  const handleRemove = (index) => {
-    formik.setFieldValue('operations', operations.filter((_, idx) => idx !== index));
-  };
-
-  const getCompletionPayload = (rowKey) => {
+  const handleBatchClick = (operation, index) => {
+    const rowKey = getOperationRowKey(operation, index);
     const draft = partialDrafts[rowKey] || {};
-    return {
-      completedQuantity: toNumberValue(draft.completedQuantity),
-      scrappedQuantity: toNumberValue(draft.scrappedQuantity),
-      remarks: draft.remarks || '',
-    };
+    const completedQty = toNumberValue(draft.completedQuantity);
+    const rejectedQty  = toNumberValue(draft.rejectedQuantity);
+    const scrapQty     = toNumberValue(draft.scrappedQuantity);
+
+    if (completedQty + rejectedQty + scrapQty <= 0) return;
+
+    // If rejection or scrap present, require reason codes first
+    if (rejectedQty > 0 || scrapQty > 0) {
+      setReasonDialog({ open: true, operation, index });
+    } else {
+      submitBatch(operation, index, {});
+    }
   };
 
-  const canSubmitCompletionPayload = (payload) =>
-    !Number.isNaN(payload.completedQuantity) &&
-    !Number.isNaN(payload.scrappedQuantity) &&
-    payload.completedQuantity >= 0 &&
-    payload.scrappedQuantity >= 0 &&
-    payload.completedQuantity + payload.scrappedQuantity > 0;
-
-  const hasAnyCompletionDraft = operations.some((op, index) => {
-    if (!canRecordPartialCompletion(op)) return false;
-    return canSubmitCompletionPayload(getCompletionPayload(getOperationRowKey(op, index)));
-  });
-
-  // Material gate for first operation
-  const sortedOps = [...operations].sort((a, b) => (a?.sequence ?? Infinity) - (b?.sequence ?? Infinity));
-  const firstOperationId = sortedOps.length > 0 ? sortedOps[0]?.id : null;
-  const blockingMaterials = (materials || []).filter(
-    (m) => !m?.workOrderOperationId && !m?.operationName && m?.issueStatus !== 'ISSUED'
-  );
-  const hasBlockingMaterials = blockingMaterials.length > 0;
-  const blockingItemCodes = blockingMaterials
-    .map((m) => m?.component?.itemCode || m?.component?.name || 'Unknown')
-    .join(', ');
-  const materialGateTooltip = hasBlockingMaterials
-    ? `WO-level materials must be fully issued before this operation can start: ${blockingItemCodes}`
-    : '';
-
-  const handleStart = async (operationId) => {
-    if (!onStartOperation) return;
-    await onStartOperation(operationId);
-  };
-
-  const handleRecordPartialCompletion = async (operation, index) => {
+  const submitBatch = async (operation, index, reasonCodes) => {
     if (!onCompleteOperation) return;
     const rowKey = getOperationRowKey(operation, index);
-    const payload = getCompletionPayload(rowKey);
-    if (!canSubmitCompletionPayload(payload)) return;
-    const success = await onCompleteOperation(operation?.id, payload);
-    if (!success) return;
-    setPartialDrafts((prev) => ({
-      ...prev,
-      [rowKey]: { completedQuantity: '', scrappedQuantity: '', remarks: '' },
-    }));
+    const draft = partialDrafts[rowKey] || {};
+    const payload = {
+      completedQuantity:   toNumberValue(draft.completedQuantity),
+      rejectedQuantity:    toNumberValue(draft.rejectedQuantity),
+      scrappedQuantity:    toNumberValue(draft.scrappedQuantity),
+      rejectionReasonCode: reasonCodes.rejectionReasonCode || '',
+      scrapReasonCode:     reasonCodes.scrapReasonCode || '',
+      remarks: draft.remarks || '',
+    };
+
+    setReasonDialog({ open: false, operation: null, index: null });
+    const result = await onCompleteOperation(operation?.id, payload);
+    if (result) {
+      if (result.warnings?.length) {
+        setOverCompletionWarning(result.warnings[0]);
+      }
+      setPartialDrafts(prev => ({
+        ...prev,
+        [rowKey]: { completedQuantity: '', rejectedQuantity: '', scrappedQuantity: '', remarks: '' },
+      }));
+    }
   };
 
-  const colSpanBase = isEditMode ? 16 : 12;
-
   return (
-    <Box>
-      {/* Header row */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="subtitle1" fontWeight={600} color="text.secondary">
-          OPERATIONS
-        </Typography>
-        <Box display="flex" alignItems="center" gap={1}>
-          {isEditMode && (
-            <Chip
-              size="small"
-              color={hasAnyCompletionDraft ? 'primary' : 'default'}
-              variant="outlined"
-              label="Partial completion uses incremental quantities"
-            />
-          )}
-          <ToggleButtonGroup
-            size="small"
-            value={viewMode}
-            exclusive
-            onChange={(_, v) => { if (v) setViewMode(v); }}
-            sx={{ height: 28 }}
-          >
-            <ToggleButton value="table" sx={{ px: 1, py: 0.25 }}>
-              <Tooltip title="Table view"><TableChart fontSize="small" /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="timeline" sx={{ px: 1, py: 0.25 }}>
-              <Tooltip title="Timeline view"><BarChart fontSize="small" /></Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-      </Box>
+    <Box sx={{ pb: 4 }}>
+      {/* ── Summary Stats ── */}
+      <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap">
+        {[
+          { label: 'Total Operations', value: stats.total,      color: '#3b82f6', icon: <AssignmentTurnedIn /> },
+          { label: 'Ready to Start',   value: stats.ready,      color: '#1677ff', icon: <PlayArrow /> },
+          { label: 'In Progress',      value: stats.inProgress, color: '#52c41a', icon: <PrecisionManufacturing /> },
+          { label: 'Completed',        value: stats.completed,  color: '#237804', icon: <CheckCircle /> },
+        ].map((stat, i) => (
+          <Paper key={i} elevation={0} sx={{
+            p: 2, flex: 1, minWidth: 160, borderRadius: 3,
+            bgcolor: 'white', border: '1px solid #e2e8f0',
+            display: 'flex', alignItems: 'center', gap: 2,
+          }}>
+            <Box sx={{ bgcolor: stat.color + '15', p: 1, borderRadius: 2, color: stat.color, display: 'flex' }}>
+              {stat.icon}
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight={600} display="block">
+                {stat.label}
+              </Typography>
+              <Typography variant="h6" fontWeight={800}>{stat.value}</Typography>
+            </Box>
+          </Paper>
+        ))}
+      </Stack>
 
-      {isEditMode && hasBlockingMaterials && (
-        <Alert severity="warning" sx={{ mb: 1.5, fontSize: '0.8rem' }}>
-          <strong>Material gate:</strong> WO-level materials must be fully issued before the first operation can start —{' '}
-          <strong>{blockingItemCodes}</strong>
+      {/* ── Quality Alerts Banner ── */}
+      {qualityAlerts.length > 0 && (
+        <Alert
+          severity="warning"
+          icon={<Warning fontSize="inherit" />}
+          sx={{ mb: 2, borderRadius: 2, alignItems: 'flex-start' }}
+        >
+          <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>
+            Quality losses recorded — upstream output may need to be increased
+          </Typography>
+          <Stack spacing={0.25}>
+            {qualityAlerts.map(a => {
+              const parts = [];
+              if (a.scrapped > 0) parts.push(`${a.scrapped} scrapped`);
+              if (a.rejected > 0) parts.push(`${a.rejected} pending disposition`);
+              return (
+                <Typography key={a.id} variant="caption" color="text.secondary">
+                  • Op {a.sequence} — {a.name}: {parts.join(', ')}. Consider recording additional units on the preceding operation to compensate.
+                </Typography>
+              );
+            })}
+          </Stack>
         </Alert>
       )}
 
-      {/* ── Timeline View ── */}
-      {viewMode === 'timeline' && (
-        <WorkOrderOperationsTimeline operations={operations} />
-      )}
-
-      {/* ── Table View ── */}
-      {viewMode === 'table' && (
-        <TableContainer
-          component={Paper}
-          variant="outlined"
-          sx={{ maxWidth: '100%', overflowX: 'auto', '& .MuiTableCell-root': compactCellSx }}
+      {/* ── View Toggle & Header ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', color: '#1e293b' }}>
+          Execution Pipeline
+        </Typography>
+        <ToggleButtonGroup
+          size="small" value={viewMode} exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          sx={{ height: 32, bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2, '& .MuiToggleButton-root': { border: 'none', borderRadius: 1.5, px: 2 } }}
         >
-          <Table size="small" sx={{ minWidth: isEditMode ? 1350 : 1000 }}>
-            <TableHead>
+          <ToggleButton value="table">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TableChart fontSize="small" />
+              <Typography variant="caption" fontWeight={700}>List</Typography>
+            </Stack>
+          </ToggleButton>
+          <ToggleButton value="timeline">
+            <Stack direction="row" spacing={1} alignItems="center">
+              <BarChart fontSize="small" />
+              <Typography variant="caption" fontWeight={700}>Timeline</Typography>
+            </Stack>
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      {viewMode === 'timeline' && <WorkOrderOperationsTimeline operations={operations} />}
+
+      {viewMode === 'table' && (
+        <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 4, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+          <Table size="small">
+            <TableHead sx={{ bgcolor: '#f8fafc' }}>
               <TableRow>
-                <TableCell>#</TableCell>
-                <TableCell>Seq</TableCell>
-                <TableCell>Operation Name</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Dependencies</TableCell>
-                <TableCell>Parallel Path</TableCell>
-                <TableCell>Planned Qty</TableCell>
-                {showAvailInput && (
-                  <TableCell>
-                    <Tooltip title="Available Input / Planned Qty — input forwarded from previous operation">
-                      <span>Avail. Input</span>
-                    </Tooltip>
-                  </TableCell>
-                )}
-                <TableCell>Completed Qty</TableCell>
-                <TableCell>Scrapped Qty</TableCell>
-                {isEditMode && <TableCell>Remaining Qty</TableCell>}
-                {isEditMode && <TableCell>Remaining Input</TableCell>}
-                <TableCell>Actual Start</TableCell>
-                <TableCell>Actual End</TableCell>
-                {isEditMode && <TableCell>Complete Now</TableCell>}
-                {isEditMode && <TableCell>Scrap Now</TableCell>}
-                <TableCell align="center">Action</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#64748b' }}>Operation Details</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#64748b' }}>Readiness</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#64748b' }}>Execution Progress</TableCell>
+                <TableCell sx={{ fontWeight: 700, color: '#64748b' }}>Actual Timeline</TableCell>
+                {isEditMode && <TableCell sx={{ fontWeight: 700, color: '#64748b' }}>Recording</TableCell>}
+                <TableCell align="center" sx={{ fontWeight: 700, color: '#64748b' }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {operations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={colSpanBase} align="center">
-                    <Typography variant="body2" color="text.secondary">No operations available.</Typography>
-                  </TableCell>
-                </TableRow>
+                <TableRow><TableCell colSpan={6} align="center" sx={{ py: 6 }}>No operations scheduled.</TableCell></TableRow>
               ) : (
-                operations.map((operation, index) => {
-                  const rowKey = getOperationRowKey(operation, index);
-                  const completionPayload = getCompletionPayload(rowKey);
-                  const isCurrentAction = operationActionState?.loading && operationActionState?.operationId === operation?.id;
-                  const startAllowed = isEditMode && canStartOperation(operation);
-                  const canInitiate = isEditMode && canInitiateStart(operation);
-                  const partialCompletionAllowed = isEditMode && canRecordPartialCompletion(operation);
-                  const canRecord = partialCompletionAllowed && canSubmitCompletionPayload(completionPayload) && !isCurrentAction;
+                operations.map((op, index) => {
+                  const rowKey = getOperationRowKey(op, index);
+                  const isCurrentAction = operationActionState?.loading && operationActionState?.operationId === op?.id;
+                  const readiness = getReadiness(op);
 
-                  const plannedQty = toNumberValue(operation?.plannedQuantity);
-                  const availableInputQty = toNumberValue(operation?.availableInputQuantity);
-                  const completedQty = toNumberValue(operation?.completedQuantity);
-                  const scrappedQty = toNumberValue(operation?.scrappedQuantity);
-                  const remainingQty = Math.max(plannedQty - completedQty, 0);
-                  const remainingInput = Math.max(availableInputQty - completedQty, 0);
+                  const planned   = toNumberValue(op.plannedQuantity);
+                  const completed = toNumberValue(op.completedQuantity);
+                  const scrapped  = toNumberValue(op.scrappedQuantity);
+                  const rejected  = toNumberValue(op.rejectedQuantity);
+                  const progress  = planned > 0 ? (completed / planned) * 100 : 0;
 
-                  const status = operation?.status || 'PLANNED';
-                  const rowBg = getRowBg(status);
-                  const isWaiting = status === 'WAITING_FOR_DEPENDENCY';
-                  const isReady = status === 'READY';
+                  const draft = partialDrafts[rowKey] || {};
+                  const draftGood     = toNumberValue(draft.completedQuantity);
+                  const draftRejected = toNumberValue(draft.rejectedQuantity);
+                  const draftScrap    = toNumberValue(draft.scrappedQuantity);
+                  const draftTotal    = draftGood + draftRejected + draftScrap;
 
-                  // Dependencies chips — green if dep is COMPLETED, amber if not
-                  const depIds = Array.isArray(operation?.dependsOnOperationIds) ? operation.dependsOnOperationIds : [];
-                  const depChips = depIds.map(id => {
-                    const seq = opSeqMap[id];
-                    const name = opNameMap[id] || '';
-                    const depStatus = opStatusMap[id];
-                    const isDone = depStatus === 'COMPLETED';
-                    return { id, label: seq != null ? `Op ${seq}` : `#${id}`, name, isDone };
-                  });
+                  const cfg = STATUS_CONFIG[op.status] || STATUS_CONFIG.PLANNED;
 
-                  // Parallel path colour
-                  const pathColour = getPathColour(operation?.parallelPath, allPathList);
-
+                  const insufficientIssued = !allowBackflush && readiness.issuedUnits !== Infinity && draftGood > readiness.issuedUnits;
+                  const batchDisabled = isCurrentAction || draftTotal <= 0 || insufficientIssued;
                   return (
                     <TableRow
-                      key={operation?.id || `${operation?.routingOperation?.id || index}`}
+                      key={rowKey}
                       sx={{
-                        bgcolor: rowBg,
-                        '&:hover': { bgcolor: isWaiting ? '#fff3d6' : isReady ? '#d6eaff' : '#fafafa' },
-                        transition: 'background 0.15s',
+                        '&:hover': { bgcolor: '#f8fafc' },
+                        transition: 'background-color 0.2s',
+                        borderLeft: `4px solid ${op.parallelPath ? getPathColour(op.parallelPath, allPathList) : 'transparent'}`,
                       }}
                     >
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{operation?.sequence ?? operation?.routingOperation?.sequenceNumber ?? '-'}</TableCell>
-                      <TableCell>{operation?.operationName || operation?.routingOperation?.name || '-'}</TableCell>
-
-                      {/* ── Status badge ── */}
-                      <TableCell sx={{ minWidth: 140 }}>
-                        {isEditMode ? (
-                          <Chip
-                            size="small"
-                            label={status}
-                            color={getStatusColor(status)}
-                            variant={isWaiting ? 'filled' : 'outlined'}
-                            sx={{
-                              fontWeight: 700,
-                              fontSize: '0.68rem',
-                              ...(isWaiting && { bgcolor: '#fa8c16', color: '#fff' }),
-                              ...(isReady && { borderColor: '#1677ff', color: '#1677ff' }),
-                            }}
-                          />
-                        ) : (
-                          <TextField
-                            select size="small" fullWidth
-                            value={status}
-                            onChange={(e) => handleOperationChange(index, 'status', e.target.value)}
-                            sx={compactInputSx}
-                          >
-                            {statusOptions.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                          </TextField>
-                        )}
+                      {/* Details */}
+                      <TableCell sx={compactCellSx}>
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#1e293b' }}>
+                            {op.sequence}. {op.operationName || op.routingOperation?.name}
+                          </Typography>
+                          <Stack direction="row" spacing={1} mt={0.5} alignItems="center">
+                            <Chip
+                              icon={cfg.icon} label={op.status} size="small"
+                              sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: cfg.bg, color: cfg.colorMain, border: `1px solid ${cfg.colorMain}40` }}
+                            />
+                            {op.parallelPath && (
+                              <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600 }}>
+                                Path: {op.parallelPath}
+                              </Typography>
+                            )}
+                          </Stack>
+                        </Box>
                       </TableCell>
 
-                      {/* ── Dependencies chips (green=done, amber=blocking) ── */}
-                      <TableCell sx={{ minWidth: 110 }}>
-                        {depChips.length > 0 ? (
-                          <Box display="flex" flexWrap="wrap" gap={0.3}>
-                            {depChips.map((chip) => (
-                              <Tooltip
-                                key={chip.id}
-                                title={
-                                  chip.name
-                                    ? `${chip.label}${chip.name ? ` — ${chip.name}` : ''} (${chip.isDone ? 'Completed ✓' : 'Not done yet'})`
-                                    : chip.isDone ? 'Completed ✓' : 'Not done yet'
-                                }
-                                arrow
-                              >
-                                <Chip
-                                  size="small"
-                                  label={chip.label}
-                                  sx={{
-                                    height: 18,
-                                    fontSize: '0.65rem',
-                                    fontWeight: 700,
-                                    bgcolor: chip.isDone ? '#237804' : '#fa8c16',
-                                    color: '#fff',
-                                    cursor: 'default',
-                                  }}
-                                />
-                              </Tooltip>
-                            ))}
+                      {/* Readiness */}
+                      <TableCell sx={compactCellSx}>
+                        {op.status === 'COMPLETED' ? (
+                          <Box sx={{ minWidth: 100 }}>
+                            <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                              <Typography variant="caption" fontWeight={700} color="success.main">
+                                {completed > planned ? 'OVER-RUN' : 'DONE'}
+                              </Typography>
+                              <Typography variant="caption" fontWeight={700} sx={{ color: completed > planned ? '#d97706' : 'text.secondary' }}>
+                                {completed} / {planned}
+                              </Typography>
+                            </Stack>
+                            <LinearProgress
+                              variant="determinate"
+                              value={100}
+                              sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#10b981', borderRadius: '9999px' } }}
+                            />
                           </Box>
                         ) : (
-                          <Typography variant="caption" color="text.disabled">—</Typography>
-                        )}
-                      </TableCell>
-
-                      {/* ── Parallel Path chip ── */}
-                      <TableCell sx={{ minWidth: 90 }}>
-                        {operation?.parallelPath ? (
-                          <Chip
-                            size="small"
-                            label={operation.parallelPath}
-                            sx={{
-                              bgcolor: pathColour,
-                              color: '#fff',
-                              fontWeight: 700,
-                              fontSize: '0.65rem',
-                              height: 18,
-                            }}
-                          />
-                        ) : (
-                          <Typography variant="caption" color="text.disabled">—</Typography>
-                        )}
-                      </TableCell>
-
-                      {/* Planned Qty */}
-                      <TableCell sx={{ width: '4rem' }}>
-                        {isEditMode ? (
-                          <Typography variant="caption">{plannedQty}</Typography>
-                        ) : (
-                          <TextField size="small" type="number"
-                            value={operation?.plannedQuantity ?? 0}
-                            onChange={(e) => handleOperationChange(index, 'plannedQuantity', e.target.value)}
-                            inputProps={{ min: 0 }} sx={compactInputSx} />
-                        )}
-                      </TableCell>
-
-                      {/* ── Available Input (50 / 100 ratio) ── */}
-                      {showAvailInput && (
-                        <TableCell sx={{ width: '5rem' }}>
-                          <Tooltip title={`Available input forwarded from upstream operations: ${availableInputQty} of ${plannedQty} needed`} arrow>
-                            <Box display="inline-flex" alignItems="center" gap={0.5}>
-                              <Typography
-                                variant="caption"
-                                fontWeight={700}
-                                sx={{
-                                  color: availableInputQty >= plannedQty
-                                    ? '#237804'
-                                    : availableInputQty > 0
-                                      ? '#d46b08'
-                                      : '#8c8c8c',
-                                }}
-                              >
-                                {availableInputQty}
-                              </Typography>
-                              <Typography variant="caption" color="text.disabled">/</Typography>
-                              <Typography variant="caption" color="text.secondary">{plannedQty}</Typography>
+                          <Tooltip
+                            title={readiness.shortages.length > 0
+                              ? `Missing: ${readiness.shortages.join(', ')}`
+                              : `Ready for ${readiness.units.toFixed(1)} units`}
+                            arrow
+                          >
+                            <Box sx={{ minWidth: 100 }}>
+                              <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                                <Typography variant="caption" fontWeight={700} color={readiness.isStartable ? 'success.main' : 'warning.main'}>
+                                  {readiness.isStartable ? 'READY' : 'UNREADY'}
+                                </Typography>
+                                <Typography variant="caption" fontWeight={700}>
+                                  {readiness.units.toFixed(1)} / {planned}
+                                </Typography>
+                              </Stack>
+                              <LinearProgress
+                                variant="determinate"
+                                value={Math.min((readiness.units / planned) * 100, 100)}
+                                sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: readiness.isStartable ? '#10b981' : '#f59e0b', borderRadius: '9999px' } }}
+                              />
                             </Box>
                           </Tooltip>
-                        </TableCell>
-                      )}
-
-                      {/* Completed Qty */}
-                      <TableCell sx={{ width: '4rem' }}>
-                        {isEditMode ? (
-                          <Typography variant="caption">{completedQty}</Typography>
-                        ) : (
-                          <TextField size="small" type="number"
-                            value={operation?.completedQuantity ?? 0}
-                            onChange={(e) => handleOperationChange(index, 'completedQuantity', e.target.value)}
-                            inputProps={{ min: 0 }} sx={compactInputSx} />
                         )}
                       </TableCell>
 
-                      {/* Scrapped Qty */}
-                      <TableCell sx={{ width: '4rem' }}>
-                        {isEditMode ? (
-                          <Typography variant="caption">{scrappedQty}</Typography>
-                        ) : (
-                          <TextField size="small" type="number"
-                            value={operation?.scrappedQuantity ?? 0}
-                            onChange={(e) => handleOperationChange(index, 'scrappedQuantity', e.target.value)}
-                            inputProps={{ min: 0, step: '0.01' }} sx={compactInputSx} />
-                        )}
+                      {/* Progress — shows good / rejected / scrap breakdown */}
+                      <TableCell sx={compactCellSx}>
+                        <Box sx={{ minWidth: 150 }}>
+                          <Stack direction="row" justifyContent="space-between" mb={0.5} flexWrap="wrap" gap={0.5}>
+                            <Typography variant="caption" fontWeight={700} color="text.secondary">
+                              Good: {completed}{completed > planned && <Typography component="span" variant="caption" sx={{ color: '#d97706', fontWeight: 800 }}> (+{completed - planned})</Typography>}
+                            </Typography>
+                            {rejected > 0 && (
+                              <Typography variant="caption" fontWeight={700} sx={{ color: '#b45309' }}>
+                                Rej: {rejected}
+                              </Typography>
+                            )}
+                            {scrapped > 0 && (
+                              <Typography variant="caption" fontWeight={700} color="error.main">
+                                Scrap: {scrapped}
+                              </Typography>
+                            )}
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={Math.min(progress, 100)}
+                            sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#1565c0', borderRadius: '9999px' } }}
+                          />
+                          {op.rejectionReasonCode && (
+                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.68rem' }}>
+                              Rej: {op.rejectionReasonCode}
+                            </Typography>
+                          )}
+                        </Box>
                       </TableCell>
 
-                      {isEditMode && (
-                        <TableCell sx={{ width: '4rem' }}>
-                          <Typography variant="caption">{remainingQty}</Typography>
-                        </TableCell>
-                      )}
-
-                      {isEditMode && (
-                        <TableCell sx={{ width: '4rem' }}>
-                          <Typography variant="caption" fontWeight={600} color={remainingInput === 0 ? 'text.secondary' : 'warning.main'}>
-                            {remainingInput}
-                          </Typography>
-                        </TableCell>
-                      )}
-
-                      {/* Actual Start */}
-                      <TableCell sx={{ width: 50 }}>
-                        {isEditMode ? (
-                          <Typography variant="caption">{formatDateTime(operation?.actualStartDate)}</Typography>
-                        ) : (
-                          <TextField size="small" type="datetime-local"
-                            value={operation?.actualStartDate ?? ''}
-                            onChange={(e) => handleOperationChange(index, 'actualStartDate', e.target.value)}
-                            fullWidth sx={compactInputSx} />
-                        )}
+                      {/* Timeline */}
+                      <TableCell sx={compactCellSx}>
+                        <Box sx={{ color: '#64748b' }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Schedule sx={{ fontSize: 14 }} />
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualStartDate)}</Typography>
+                          </Stack>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <CheckCircle sx={{ fontSize: 14 }} />
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualEndDate)}</Typography>
+                          </Stack>
+                        </Box>
                       </TableCell>
 
-                      {/* Actual End */}
-                      <TableCell sx={{ width: 50 }}>
-                        {isEditMode ? (
-                          <Typography variant="caption">{formatDateTime(operation?.actualEndDate)}</Typography>
-                        ) : (
-                          <TextField size="small" type="datetime-local"
-                            value={operation?.actualEndDate ?? ''}
-                            onChange={(e) => handleOperationChange(index, 'actualEndDate', e.target.value)}
-                            fullWidth sx={compactInputSx} />
-                        )}
-                      </TableCell>
-
-                      {/* Complete Now */}
+                      {/* Recording — 3 compact inputs: Good / Reject / Scrap */}
                       {isEditMode && (
-                        <TableCell sx={{ width: 40 }}>
-                          <TextField size="small" type="number"
-                            value={partialDrafts[rowKey]?.completedQuantity ?? ''}
-                            onChange={(e) => handlePartialDraftChange(rowKey, 'completedQuantity', e.target.value)}
-                            inputProps={{ min: 0 }} placeholder="0"
-                            disabled={!partialCompletionAllowed || isCurrentAction}
-                            sx={compactInputSx} />
-                        </TableCell>
-                      )}
-
-                      {/* Scrap Now */}
-                      {isEditMode && (
-                        <TableCell sx={{ width: 40 }}>
-                          <TextField size="small" type="number"
-                            value={partialDrafts[rowKey]?.scrappedQuantity ?? ''}
-                            onChange={(e) => handlePartialDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
-                            inputProps={{ min: 0, step: '0.01' }} placeholder="0"
-                            disabled={!partialCompletionAllowed || isCurrentAction}
-                            sx={compactInputSx} />
+                        <TableCell sx={compactCellSx}>
+                          <Stack spacing={0.75}>
+                            <Stack direction="row" spacing={0.75}>
+                              <Tooltip title="Good units completed" arrow>
+                                <TextField
+                                  size="small" placeholder="Good" type="number" inputProps={{ min: 0 }}
+                                  value={draft.completedQuantity ?? ''}
+                                  onChange={(e) => handlePartialDraftChange(rowKey, 'completedQuantity', e.target.value)}
+                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5 } }}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Rejected (pending MRB)" arrow>
+                                <TextField
+                                  size="small" placeholder="Rej" type="number" inputProps={{ min: 0 }}
+                                  value={draft.rejectedQuantity ?? ''}
+                                  onChange={(e) => handlePartialDraftChange(rowKey, 'rejectedQuantity', e.target.value)}
+                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 55, borderRadius: 1.5,
+                                    ...(draftRejected > 0 && { color: '#b45309' }) } }}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Scrap (permanent loss)" arrow>
+                                <TextField
+                                  size="small" placeholder="Scrap" type="number" inputProps={{ min: 0 }}
+                                  value={draft.scrappedQuantity ?? ''}
+                                  onChange={(e) => handlePartialDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
+                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5,
+                                    ...(draftScrap > 0 && { color: '#b84040' }) } }}
+                                />
+                              </Tooltip>
+                            </Stack>
+                            {/* Reason code indicator */}
+                            {(draftRejected > 0 || draftScrap > 0) && (
+                              <Typography variant="caption" sx={{ color: '#b45309', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <Warning sx={{ fontSize: 11 }} />
+                                Reason code required on Submit
+                              </Typography>
+                            )}
+                          </Stack>
                         </TableCell>
                       )}
 
                       {/* Action */}
-                      <TableCell align="center">
-                        {isEditMode ? (
-                          <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center', flexWrap: 'wrap' }}>
-                            <Tooltip
-                              title={
-                                isWaiting
-                                  ? 'Cannot start — waiting for dependencies'
-                                  : hasBlockingMaterials && operation?.id === firstOperationId
-                                    ? materialGateTooltip
-                                    : ''
-                              }
-                              arrow
-                            >
-                              <span>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color={isWaiting ? 'warning' : 'primary'}
-                                  onClick={() => handleStart(operation?.id)}
-                                  disabled={
-                                    !canInitiate ||
-                                    isCurrentAction ||
-                                    (hasBlockingMaterials && operation?.id === firstOperationId)
-                                  }
-                                >
-                                  {isCurrentAction && operationActionState?.action === 'start'
-                                    ? 'Starting…'
-                                    : isWaiting
-                                      ? 'Blocked'
-                                      : 'Start'}
-                                </Button>
-                              </span>
-                            </Tooltip>
-                            <Tooltip
-                              title={hasBlockingMaterials && operation?.id === firstOperationId ? materialGateTooltip : ''}
-                              arrow
-                            >
-                              <span>
-                                <Button
-                                  size="small"
-                                  variant="contained"
-                                  onClick={() => handleRecordPartialCompletion(operation, index)}
-                                  disabled={!canRecord || (hasBlockingMaterials && operation?.id === firstOperationId)}
-                                >
-                                  {isCurrentAction && operationActionState?.action === 'complete'
-                                    ? 'Saving…'
-                                    : 'Record Batch'}
-                                </Button>
-                              </span>
-                            </Tooltip>
-                          </Box>
-                        ) : (
-                          <Tooltip title="Remove operation">
-                            <span>
-                              <IconButton color="error" size="small" onClick={() => handleRemove(index)}>
-                                <DeleteOutline fontSize="small" />
-                              </IconButton>
-                            </span>
-                          </Tooltip>
-                        )}
+                      <TableCell align="center" sx={compactCellSx}>
+                        <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                          {isEditMode && !isWoTerminal && (
+                            <>
+                              {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && (
+                                <Tooltip title={!readiness.isStartable ? 'Insufficient input quantity to start' : 'Start execution'}>
+                                  <span>
+                                    <Button
+                                      variant="outlined" size="small"
+                                      disabled={!readiness.isStartable || isCurrentAction}
+                                      onClick={() => onStartOperation(op.id)}
+                                      sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2 }}
+                                    >
+                                      {isCurrentAction && operationActionState?.action === 'start' ? 'Starting...' : 'Start'}
+                                    </Button>
+                                  </span>
+                                </Tooltip>
+                              )}
+
+                              {['READY', 'IN_PROGRESS', 'COMPLETED'].includes(op.status) && (() => {
+                                const batchTooltip = insufficientIssued
+                                  ? op.status === 'COMPLETED'
+                                    ? `Operation completed — issue additional materials to the floor before recording extra units (${readiness.issuedUnits.toFixed(2)} units available).`
+                                    : `Insufficient issued qty on floor (${readiness.issuedUnits.toFixed(2)} units available). Issue materials first.`
+                                  : (draftRejected > 0 || draftScrap > 0) ? 'Reason codes will be prompted' : '';
+                                return (
+                                  <Tooltip title={batchTooltip} arrow>
+                                    <span>
+                                      <Button
+                                        variant="contained" size="small" disableElevation
+                                        disabled={batchDisabled}
+                                        onClick={() => handleBatchClick(op, index)}
+                                        startIcon={<Save fontSize="small" />}
+                                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2 }}
+                                      >
+                                        {isCurrentAction && operationActionState?.action === 'complete' ? 'Saving...' : 'Batch'}
+                                      </Button>
+                                    </span>
+                                  </Tooltip>
+                                );
+                              })()}
+                            </>
+                          )}
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   );
@@ -652,19 +672,42 @@ export default function WorkOrderOperationsTab({
         </TableContainer>
       )}
 
-      {operations.length > 0 && (
-        <Box mt={1} display="flex" flexWrap="wrap" gap={1}>
-          <Chip size="small" variant="outlined" label={`Total: ${operations.length} operation(s)`} />
-          {allPathList.length > 0 && (
-            <Chip size="small" variant="outlined" color="info"
-              label={`${allPathList.length} parallel path(s): ${allPathList.join(', ')}`} />
-          )}
-          {isEditMode && (
-            <Chip size="small" variant="outlined" color="primary"
-              label="Use Complete Now / Scrap Now as incremental batch values" />
-          )}
-        </Box>
-      )}
+      {/* ── Legend ── */}
+      <Box sx={{ mt: 3, p: 2, bgcolor: '#f8fafc', borderRadius: 3, border: '1px solid #e2e8f0' }}>
+        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, display: 'block', mb: 1 }}>
+          <Info sx={{ fontSize: 14, verticalAlign: 'middle', mr: 0.5 }} />
+          RECORDING GUIDE
+        </Typography>
+        <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+          • <b>Good</b>: units that passed this operation and flow downstream.&nbsp;
+          • <b>Rej</b>: units pending MRB disposition (repairable / under review) — creates a rejection entry.&nbsp;
+          • <b>Scrap</b>: units permanently scrapped.&nbsp;
+          Reason codes are required for Rej/Scrap. All three quantities consume input materials.
+        </Typography>
+      </Box>
+
+      {/* ── Reason Code Dialog ── */}
+      <ReasonCodeDialog
+        open={reasonDialog.open}
+        onClose={() => setReasonDialog({ open: false, operation: null, index: null })}
+        onSubmit={(codes) => submitBatch(reasonDialog.operation, reasonDialog.index, codes)}
+        rejectedQty={toNumberValue(partialDrafts[getOperationRowKey(reasonDialog.operation, reasonDialog.index)]?.rejectedQuantity)}
+        scrapQty={toNumberValue(partialDrafts[getOperationRowKey(reasonDialog.operation, reasonDialog.index)]?.scrappedQuantity)}
+        rejectionCodes={rejectionCodes}
+        scrapCodes={scrapCodes}
+      />
+
+      {/* ── Over-completion warning snackbar ── */}
+      <Snackbar
+        open={!!overCompletionWarning}
+        autoHideDuration={8000}
+        onClose={() => setOverCompletionWarning(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="warning" onClose={() => setOverCompletionWarning(null)} sx={{ width: '100%' }}>
+          {overCompletionWarning}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

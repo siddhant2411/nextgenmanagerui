@@ -1,5 +1,6 @@
 import apiClient from "./apiService";
 import apiService from "./apiService";
+import { searchInventoryItems } from "./inventoryService";
 
 export const searchContacts = async (search='') => {
     try {
@@ -28,7 +29,7 @@ export const inventoryItemSearch = async (search='') => {
             sortDir: "asc",
             query: search
         };
-        const response = await apiClient.get('/inventory_item/search',params);
+        const response = await searchInventoryItems(params);
         return response.content;
     } catch (error) {
         throw error;

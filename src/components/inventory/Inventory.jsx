@@ -3,7 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import InventoryList from './InventoryList';
 import { Button } from 'react-bootstrap';
 import InventoryForm from './InventoryForm';
-import apiService from '../../services/apiService';
+import { addInventory, getPresentInventory, updateInventory } from '../../services/inventoryService';
 
 const Inventory = () => {
     const [loading, setLoading] = useState(false);
@@ -53,9 +53,9 @@ const Inventory = () => {
     const handleSave = async (data) => {
         try {
             if (data.id) {
-                await apiService.put(`/inventory/${data.id}`, data); // Update
+                await updateInventory(data.id, data); // Update
             } else {
-                await apiService.post('/inventory/add?qty=' + data.quantity, data); // Create
+                await addInventory(data); // Create
             }
             navigate(-1);
         } catch (err) {
@@ -76,7 +76,7 @@ const Inventory = () => {
                     ...filters, // Pass filters in API request
                 };
 
-                const data = await apiService.get('/inventory/present', params);
+                const data = await getPresentInventory(params);
                 setInventoryList(data.content || []);
                 setTotalPages(data.totalPages || 1);
                 setCurrentPage(page);

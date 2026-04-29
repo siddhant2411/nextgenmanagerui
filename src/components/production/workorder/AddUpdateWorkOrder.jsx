@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip
+  Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip, LinearProgress, Grid, Menu, MenuItem
 } from '@mui/material';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
@@ -9,10 +9,11 @@ import WorkOrderOperationsTab from './tabs/WorkOrderOperationsTab';
 import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
 import WorkOrderQCTab from './tabs/WorkOrderQCTab';
 import WorkOrderAttachmentsTab from './tabs/WorkOrderAttachmentsTab';
+import WorkOrderRejectionsTab from './tabs/WorkOrderRejectionsTab';
 import ScheduleDialog from './ScheduleDialog';
 import { useFormik } from 'formik';
 import dayjs from 'dayjs';
-import { FileDownload, Schedule, EventRepeat } from '@mui/icons-material';
+import { FileDownload, Schedule, EventRepeat, KeyboardArrowDown } from '@mui/icons-material';
 import {
   cancelWorkOrder,
   closeWorkOrder,
@@ -23,6 +24,7 @@ import {
   getWorkOrderHistory,
   issueWorkOrderMaterials,
   releaseWorkOrder,
+  shortCloseWorkOrder,
   startOperation,
   updateWorkOrder,
   scheduleWorkOrder,
@@ -51,6 +53,7 @@ const getDefaultValues = () => ({
   actualEndDate: '',
   status: 'CREATED',
   priority: 'NORMAL',
+  allowBackflush: false,
   remarks: '',
   referenceDocument: '',
   selectedItem: null,
@@ -86,6 +89,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     open: false,
     action: '',
   });
+  const [shortCloseDialog, setShortCloseDialog] = useState({
+    open: false,
+    remarks: '',
+  });
   const [isWorkOrderActionLoading, setIsWorkOrderActionLoading] = useState(false);
   const [hasFetchedAddMaterials, setHasFetchedAddMaterials] = useState(false);
   const [hasFetchedAddOperations, setHasFetchedAddOperations] = useState(false);
@@ -111,10 +118,12 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     SCHEDULED: "info",
     RELEASED: "primary",
     IN_PROGRESS: "primary",
+    MATERIAL_REORDER: "warning",
     READY: "warning",
     COMPLETED: "success",
     CLOSED: "default",
     CANCELLED: "error",
+    SHORT_CLOSED: "warning",
   };
   const formik = useFormik({
     initialValues,
@@ -124,9 +133,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         setError('Core work order fields are locked after issue. Use Operations actions to record execution.');
         return;
       }
-      const mapReferencePayload = (payloadValues) => {
-        // Extract ID-based fields for the new DTO contract
-        const bomId = payloadValues.bom?.id || null;
+    const mapReferencePayload = (payloadValues) => {
+      // Extract ID-based fields for the new DTO contract
+      const bomId = payloadValues.bom?.id || null;
         const routingId = payloadValues.bom?.routing?.id || null;
         const workCenterId = payloadValues.workCenter?.id || null; // Assuming workCenter is an object with an ID
         const enriched = { ...payloadValues, bomId, routingId, workCenterId };
@@ -318,6 +327,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         response?.referenceDocument ||
         '',
       priority: response?.priority || 'NORMAL',
+      allowBackflush: response?.allowBackflush ?? false,
       autoScheduled: response?.autoScheduled || false,
     };
   }, []);
@@ -606,8 +616,12 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const openWorkOrderActionDialog = (action) => {
-    if (action === 'cancel' && !canManageWorkOrderAdminActions) {
-      setError('You are not authorized to cancel work orders.');
+    if ((action === 'cancel' || action === 'short_close') && !canManageWorkOrderAdminActions) {
+      setError('You are not authorized to perform this action.');
+      return;
+    }
+    if (action === 'short_close') {
+      setShortCloseDialog({ open: true, remarks: '' });
       return;
     }
     setWorkOrderActionDialog({ open: true, action });
@@ -662,18 +676,48 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     }
   };
 
+  const handleConfirmShortClose = async () => {
+    if (!workOrderId) return;
+    if (!canManageWorkOrderAdminActions) {
+      setError('You are not authorized to short-close work orders.');
+      setShortCloseDialog({ open: false, remarks: '' });
+      return;
+    }
+
+    try {
+      setIsWorkOrderActionLoading(true);
+      await shortCloseWorkOrder(workOrderId, shortCloseDialog.remarks);
+      await reloadWorkOrder();
+      if (setSnackbar) setSnackbar('Work order short-closed successfully.', 'success');
+    } catch (error) {
+      setError(error?.response?.data?.error || 'Failed to short-close work order.');
+    } finally {
+      setIsWorkOrderActionLoading(false);
+      setShortCloseDialog({ open: false, remarks: '' });
+    }
+  };
+
   const handleIssueMaterials = async (materialsPayload = []) => {
     if (!workOrderId) return false;
     if (!Array.isArray(materialsPayload) || materialsPayload.length === 0) {
-      setError('Enter issue/scrap quantity for at least one material.');
+      setError('Enter move-to-floor or scrap quantity for at least one material.');
       return false;
     }
 
-    const normalizedMaterials = materialsPayload.map((material) => ({
-      workOrderMaterialId: material?.workOrderMaterialId,
-      issuedQuantity: Number(material?.issuedQuantity ?? 0),
-      scrappedQuantity: Number(material?.scrappedQuantity ?? 0),
-    }));
+    const normalizedMaterials = materialsPayload.map((material) => {
+      const normalized = {
+        workOrderMaterialId: Number(material?.workOrderMaterialId ?? material?.id ?? 0),
+        issuedQuantity: Number(material?.quantity ?? material?.issuedQuantity ?? 0),
+        scrappedQuantity: Number(material?.scrappedQuantity ?? 0),
+      };
+
+      if (Array.isArray(material?.overrideInstanceIds) && material.overrideInstanceIds.length > 0) {
+        normalized.overrideInstanceIds = material.overrideInstanceIds;
+        normalized.overrideReason = material?.overrideReason || 'Manual Override';
+      }
+
+      return normalized;
+    });
 
     const hasInvalidPayload = normalizedMaterials.some((material) =>
       !material.workOrderMaterialId ||
@@ -685,7 +729,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     );
 
     if (hasInvalidPayload) {
-      setError('Material issue quantities must be valid positive values.');
+      setError('Move-to-floor quantities must be valid positive values.');
       return false;
     }
 
@@ -693,7 +737,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       setMaterialIssueState({ loading: true });
       await issueWorkOrderMaterials(workOrderId, normalizedMaterials);
       await reloadWorkOrder();
-      if (setSnackbar) setSnackbar('Materials issued successfully.', 'success');
+      if (setSnackbar) setSnackbar('Materials moved to floor successfully.', 'success');
       return true;
     } catch (error) {
       const apiError =
@@ -710,7 +754,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           material,
         ])
       );
-      const blockedMaterial = normalizedMaterials
+      const blockedMaterial = materialsPayload
         .map((material) => materialById.get(Number(material?.workOrderMaterialId)))
         .find((material) => material?.operationName);
 
@@ -733,20 +777,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     const operation = operations.find(op => op.id === operationId);
     const status = operation?.status;
 
-    // WAITING_FOR_DEPENDENCY → show blocking dialog, don't call API
-    if (status === 'WAITING_FOR_DEPENDENCY') {
-      const depIds = Array.isArray(operation?.dependsOnOperationIds) ? operation.dependsOnOperationIds : [];
-      const blockingNames = depIds
-        .map(depId => {
-          const dep = operations.find(op => op.id === depId);
-          if (!dep || dep.status === 'COMPLETED') return null;
-          const seq = dep.sequence ?? dep.routingOperation?.sequenceNumber;
-          const name = dep.operationName || dep.routingOperation?.name || '';
-          return `Op ${seq}${name ? ` — ${name}` : ''} (${dep.status || 'unknown'})`;
-        })
-        .filter(Boolean);
-      setBlockedOpDialog({ open: true, blockingNames });
-      return false;
+    // Allow starting if READY or WAITING_FOR_DEPENDENCY
+    // The backend now handles the specific 1-unit readiness gate.
+    if (status !== 'READY' && status !== 'WAITING_FOR_DEPENDENCY') {
+       return false;
     }
 
     // READY — check for parallel siblings already IN_PROGRESS
@@ -789,20 +823,18 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const handleCompleteOperation = async (operationId, completionPayload = {}) => {
     if (!operationId) return false;
     const completedQuantity = Number(completionPayload?.completedQuantity ?? 0);
-    const scrappedQuantity = Number(completionPayload?.scrappedQuantity ?? 0);
-
+    const scrappedQuantity  = Number(completionPayload?.scrappedQuantity  ?? 0);
+    const rejectedQuantity  = Number(completionPayload?.rejectedQuantity  ?? 0);
     if (
-      Number.isNaN(completedQuantity) ||
-      Number.isNaN(scrappedQuantity) ||
-      completedQuantity < 0 ||
-      scrappedQuantity < 0
+      Number.isNaN(completedQuantity) || Number.isNaN(scrappedQuantity) || Number.isNaN(rejectedQuantity) ||
+      completedQuantity < 0 || scrappedQuantity < 0 || rejectedQuantity < 0
     ) {
-      setError('Completed and scrapped quantities must be zero or greater.');
+      setError('All quantities must be zero or greater.');
       return false;
     }
 
-    if (completedQuantity + scrappedQuantity <= 0) {
-      setError('Enter completed or scrapped quantity greater than zero.');
+    if (completedQuantity + scrappedQuantity + rejectedQuantity <= 0) {
+      setError('Enter at least one quantity greater than zero.');
       return false;
     }
 
@@ -813,10 +845,13 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
 
     try {
       setOperationActionState({ loading: true, operationId, action: 'complete' });
-      await completeOperationPartial(operationId, {
+      const response = await completeOperationPartial(operationId, {
         completedQuantity,
         scrappedQuantity,
-        remarks: completionPayload?.remarks || '',
+        rejectedQuantity,
+        rejectionReasonCode: completionPayload?.rejectionReasonCode || '',
+        scrapReasonCode:     completionPayload?.scrapReasonCode     || '',
+        remarks:             completionPayload?.remarks             || '',
       });
       await reloadWorkOrder();
 
@@ -841,7 +876,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         }
       }, 300);
 
-      return true;
+      return response?.data ?? true;
     } catch (error) {
       const apiError = error?.response?.data;
       const errMsg = apiError?.error || '';
@@ -859,11 +894,31 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   };
 
   const workOrderStatus = formik.values.status || 'CREATED';
+  const materials = Array.isArray(formik.values?.materials) ? formik.values.materials : [];
+  const operations = Array.isArray(formik.values?.operations) ? formik.values.operations : [];
+  const materialRequiredQuantity = materials.reduce(
+    (total, material) => total + Number(material?.netRequiredQuantity || material?.requiredQuantity || 0),
+    0
+  );
+  const materialIssuedQuantity = materials.reduce(
+    (total, material) => total + Number(material?.issuedQuantity || 0) + Number(material?.scrappedQuantity || 0),
+    0
+  );
+  const materialProgress = materialRequiredQuantity > 0
+    ? Math.min((materialIssuedQuantity / materialRequiredQuantity) * 100, 100)
+    : 0;
+  const completedOperations = operations.filter((operation) =>
+    ['COMPLETED', 'CLOSED'].includes(String(operation?.status || '').toUpperCase())
+  ).length;
+  const operationProgress = operations.length > 0
+    ? (completedOperations / operations.length) * 100
+    : 0;
   const canIssueWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
-  const canCancelWorkOrderStatus = !['CANCELLED', 'CLOSED'].includes(workOrderStatus);
+  const canCancelWorkOrderStatus = ['CREATED', 'SCHEDULED', 'RELEASED', 'IN_PROGRESS','MATERIAL_PENDING','READY_FOR_PRODUCTION','PARTIALLY_READY'].includes(workOrderStatus);
+  const canShortCloseWorkOrderStatus = ['RELEASED', 'IN_PROGRESS','PARTIALLY_READY'].includes(workOrderStatus);
   const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
   const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
@@ -912,10 +967,13 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     whiteSpace: 'nowrap',
   };
 
+  const [actionsMenuAnchor, setActionsMenuAnchor] = useState(null);
+  const actionsMenuOpen = Boolean(actionsMenuAnchor);
+
   return (
     <Box sx={{
-      fontFamily: "'IBM Plex Sans', system-ui",
-      background: 'linear-gradient(180deg, #f7f9fc 0%, #eef2f7 100%)',
+      fontFamily: "'Inter', system-ui",
+      background: '#f8fafc',
       p: { xs: 1, sm: 2, md: 3 },
       borderRadius: 2,
       width: '100%',
@@ -928,8 +986,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         sx={{
           p: { xs: 1.5, sm: 2, md: 2.5 },
           borderRadius: 2,
-          border: '1px solid #e3e8ef',
-          boxShadow: '0 10px 26px rgba(2, 12, 27, 0.08)',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 4px 16px rgba(2,12,27,.06)',
           backgroundColor: '#ffffff',
           minHeight: '500px',
           width: '100%',
@@ -952,40 +1010,57 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         >
           <Box display="flex" flexDirection="column" gap={0.5}>
             <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
-              <Typography variant="h6" fontWeight={700} color="primary.main">
-                {workOrderId ? (formik.values.remarks || formik.values.workOrderNumber) : 'NEW WORK ORDER'}
+              <Typography variant="h5" fontWeight={800} sx={{ letterSpacing: '-0.02em', color: '#1e293b' }}>
+                {workOrderId ? 'Work Order Management' : 'Create New Work Order'}
               </Typography>
-              <Chip
-                size="small"
-                label={formik.values.status || 'CREATED'}
-                color={statusColorMap[formik.values.status] || 'default'}
-                sx={{ fontWeight: 600 }}
-              />
-              {formik.values.priority && (
-                <Chip
-                  size="small"
-                  label={formik.values.priority}
-                  sx={{
-                    fontWeight: 600,
-                    bgcolor: PRIORITY_COLORS[formik.values.priority] || '#3b82f6',
-                    color: '#fff',
-                    fontSize: '0.7rem',
-                  }}
-                />
-              )}
-              {formik.values.autoScheduled && (
-                <Chip size="small" label="Auto-Scheduled" color="info" variant="outlined" sx={{ fontWeight: 500, fontSize: '0.7rem' }} />
-              )}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 0.5, flexWrap: 'wrap' }}>
+                {workOrderId && (() => {
+                  const WO_STATUS_CHIP = {
+                    DRAFT:        { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+                    CREATED:      { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+                    SCHEDULED:    { bg: '#eef4fb', color: '#2a6496', border: '#c8dcf0' },
+                    RELEASED:     { bg: '#eef4fb', color: '#2a6496', border: '#c8dcf0' },
+                    IN_PROGRESS:      { bg: '#f0edf9', color: '#5b3b9e', border: '#d4caea' },
+                    MATERIAL_REORDER: { bg: '#fff3e0', color: '#e65100', border: '#ffcc80' },
+                    READY:            { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+                    COMPLETED:    { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
+                    CLOSED:       { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+                    CANCELLED:    { bg: '#fdf0f0', color: '#b84040', border: '#f0c8c8' },
+                    SHORT_CLOSED: { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+                  };
+                  const s = WO_STATUS_CHIP[workOrderStatus] || WO_STATUS_CHIP.CREATED;
+                  return (
+                    <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '9px', py: '3px', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', bgcolor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                      {workOrderStatus.replace(/_/g, ' ')}
+                    </Box>
+                  );
+                })()}
+                {formik.values.priority && (() => {
+                  const PRIORITY_CHIP = {
+                    URGENT: { bg: '#fdf0f0', color: '#b84040', border: '#f0c8c8' },
+                    HIGH:   { bg: '#fdf4ec', color: '#8a4a1c', border: '#efd0b0' },
+                    NORMAL: { bg: '#eef4fb', color: '#2a6496', border: '#c8dcf0' },
+                    LOW:    { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
+                  };
+                  const p = PRIORITY_CHIP[formik.values.priority] || PRIORITY_CHIP.NORMAL;
+                  return (
+                    <Box component="span" sx={{ display: 'inline-block', borderRadius: '4px', px: '9px', py: '3px', fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', bgcolor: p.bg, color: p.color, border: `1px solid ${p.border}` }}>
+                      {formik.values.priority}
+                    </Box>
+                  );
+                })()}
+                {formik.values.autoScheduled && (
+                  <Chip size="small" label="Auto-Scheduled" color="info" variant="outlined" sx={{ fontWeight: 600, fontSize: '0.75rem', px: 0.5 }} />
+                )}
+              </Box>
             </Box>
             {workOrderId && (
-              <Typography variant="caption" color="text.secondary">
-                Work Order No: {formik.values.workOrderNumber || '-'}
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500, mt: 0.5, display: 'block' }}>
+                ID: {formik.values.workOrderNumber || '-'}
               </Typography>
             )}
-            <Typography variant="body2" color="text.secondary">
-              {`${formik.values.selectedItem?.name || 'Item'} | Qty: ${formik.values.plannedQuantity ?? '-'} | Due: ${formik.values.dueDate || '-'}`}
-              {formik.values.estimatedProductionMinutes ? ` | Est. ${Math.round(formik.values.estimatedProductionMinutes / 60)}h ${formik.values.estimatedProductionMinutes % 60}m` : ''}
-              {formik.values.estimatedTotalCost ? ` | Cost: ₹${Number(formik.values.estimatedTotalCost).toLocaleString('en-IN')}` : ''}
+            <Typography variant="body2" sx={{ color: '#475569', mt: 0.5, fontWeight: 500 }}>
+              {`${formik.values.selectedItem?.name || 'Item'} | Qty: ${formik.values.plannedQuantity ?? '-'} | Due: ${formik.values.dueDate ? dayjs(formik.values.dueDate).format('DD MMM YYYY') : '-'}`}
             </Typography>
           </Box>
 
@@ -996,102 +1071,93 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
             flexWrap="wrap"
             sx={{ width: { xs: '100%', sm: 'auto' } }}
           >
-            {(workOrderId &&
+            {workOrderId && (
               <>
                 <Button
                   size="small"
                   variant="outlined"
-                  startIcon={<FileDownload fontSize="small" />}
-                  sx={compactButtonSx}
-                  onClick={() => { "TODO" }}
+                  endIcon={<KeyboardArrowDown fontSize="small" />}
+                  onClick={(e) => setActionsMenuAnchor(e.currentTarget)}
+                  sx={{ ...compactButtonSx, borderColor: '#e2e8f0', color: '#475569', '&:hover': { borderColor: '#1565c0', color: '#1565c0', bgcolor: '#f0f7ff' } }}
                 >
-                  Excel
+                  Actions
                 </Button>
-                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="info"
-                      startIcon={<Schedule fontSize="small" />}
-                      sx={compactButtonSx}
-                      onClick={handleAutoSchedule}
-                      disabled={isScheduleLoading || !canScheduleWorkOrder}
-                    >
-                      {isScheduleLoading ? 'Scheduling...' : 'Auto Schedule'}
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="info"
-                      startIcon={<EventRepeat fontSize="small" />}
-                      sx={compactButtonSx}
-                      onClick={() => setRescheduleDialogOpen(true)}
-                      disabled={isScheduleLoading || !canScheduleWorkOrder}
-                    >
-                      Reschedule
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title={!canIssueWorkOrder ? `Must be in CREATED or SCHEDULED status to issue (current: ${workOrderStatus})` : !canManageWorkOrderAdminActions ? 'Admin role required to issue work orders' : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="secondary"
-                      sx={compactButtonSx}
-                      onClick={handleRelease}
-                      disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
-                    >
-                      {isReleaseLoading ? 'Issuing...' : 'Issue WO'}
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title={!canCompleteWorkOrderStatus ? `Must be RELEASED or IN_PROGRESS to complete (current: ${workOrderStatus})` : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={compactButtonSx}
-                      onClick={() => openWorkOrderActionDialog('complete')}
-                      disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
-                    >
-                      Complete WO
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title={!canCloseWorkOrderStatus ? `Must be COMPLETED before closing (current: ${workOrderStatus})` : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      sx={compactButtonSx}
-                      onClick={() => openWorkOrderActionDialog('close')}
-                      disabled={isWorkOrderActionLoading || !canCloseWorkOrderStatus}
-                    >
-                      Close WO
-                    </Button>
-                  </span>
-                </Tooltip>
-                <Tooltip title={!canCancelWorkOrderStatus ? `Work Order is already ${workOrderStatus.toLowerCase()} and cannot be cancelled` : !canManageWorkOrderAdminActions ? 'Admin role required to cancel work orders' : ''}>
-                  <span>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      sx={compactButtonSx}
-                      onClick={() => openWorkOrderActionDialog('cancel')}
-                      disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
-                    >
-                      Cancel WO
-                    </Button>
-                  </span>
-                </Tooltip>
-
+                <Menu
+                  anchorEl={actionsMenuAnchor}
+                  open={actionsMenuOpen}
+                  onClose={() => setActionsMenuAnchor(null)}
+                  PaperProps={{ elevation: 0, sx: { border: '1px solid #e2e8f0', borderRadius: '6px', boxShadow: '0 4px 16px rgba(2,12,27,.08)', minWidth: 180, mt: '4px' } }}
+                  transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                  anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                >
+                  <MenuItem dense onClick={() => { setActionsMenuAnchor(null); }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                    <FileDownload fontSize="small" /> Export Excel
+                  </MenuItem>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isScheduleLoading || !canScheduleWorkOrder}
+                        onClick={() => { setActionsMenuAnchor(null); handleAutoSchedule(); }}
+                        sx={{ fontSize: '0.8125rem', color: '#1565c0', gap: 1 }}>
+                        <Schedule fontSize="small" /> Auto Schedule
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isScheduleLoading || !canScheduleWorkOrder}
+                        onClick={() => { setActionsMenuAnchor(null); setRescheduleDialogOpen(true); }}
+                        sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                        <EventRepeat fontSize="small" /> Reschedule
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Tooltip title={!canIssueWorkOrder ? `Must be CREATED or SCHEDULED to issue (current: ${workOrderStatus})` : !canManageWorkOrderAdminActions ? 'Admin role required' : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isReleaseLoading || !canIssueWorkOrder || !canManageWorkOrderAdminActions}
+                        onClick={() => { setActionsMenuAnchor(null); handleRelease(); }}
+                        sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                        Issue WO
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={!canCompleteWorkOrderStatus ? `Must be RELEASED or IN_PROGRESS to complete (current: ${workOrderStatus})` : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
+                        onClick={() => { setActionsMenuAnchor(null); openWorkOrderActionDialog('complete'); }}
+                        sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                        Complete WO
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={!canCloseWorkOrderStatus ? `Must be COMPLETED before closing (current: ${workOrderStatus})` : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isWorkOrderActionLoading || !canCloseWorkOrderStatus}
+                        onClick={() => { setActionsMenuAnchor(null); openWorkOrderActionDialog('close'); }}
+                        sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                        Close WO
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Divider sx={{ my: 0.5 }} />
+                  <Tooltip title={!canCancelWorkOrderStatus ? `Cannot cancel — current status: ${workOrderStatus}` : !canManageWorkOrderAdminActions ? 'Admin role required' : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
+                        onClick={() => { setActionsMenuAnchor(null); openWorkOrderActionDialog('cancel'); }}
+                        sx={{ fontSize: '0.8125rem', color: '#b84040', gap: 1 }}>
+                        Cancel WO
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  {canShortCloseWorkOrderStatus && canManageWorkOrderAdminActions && (
+                    <MenuItem dense disabled={isWorkOrderActionLoading}
+                      onClick={() => { setActionsMenuAnchor(null); openWorkOrderActionDialog('short_close'); }}
+                      sx={{ fontSize: '0.8125rem', color: '#8a4a1c', gap: 1 }}>
+                      Short Close
+                    </MenuItem>
+                  )}
+                </Menu>
               </>
             )}
             <Button
@@ -1113,7 +1179,33 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Stack>
         </Box>
 
-        <Divider sx={{ mb: 1.5 }} />
+        <Divider sx={{ mb: 2, borderColor: '#e2e8f0' }} />
+
+        {/* ── PRODUCTION PROGRESS STRIP ── */}
+        {workOrderId && (
+          <Box sx={{
+            display: 'flex', gap: '20px', flexWrap: 'wrap',
+            px: '16px', py: '10px', mb: 2,
+            bgcolor: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '6px',
+          }}>
+            <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: '4px' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>Materials Issued</Typography>
+                <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>{Math.round(materialProgress)}%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={materialProgress}
+                sx={{ height: 5, borderRadius: '9999px', bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { borderRadius: '9999px', bgcolor: materialProgress === 100 ? '#10b981' : '#4a8fc0' } }} />
+            </Box>
+            <Box sx={{ flex: '1 1 200px', minWidth: 0 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: '4px' }}>
+                <Typography sx={{ fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em' }}>Operations Complete</Typography>
+                <Typography sx={{ fontSize: 11, color: '#94a3b8' }}>{Math.round(operationProgress)}%</Typography>
+              </Box>
+              <LinearProgress variant="determinate" value={operationProgress}
+                sx={{ height: 5, borderRadius: '9999px', bgcolor: '#e2e8f0', '& .MuiLinearProgress-bar': { borderRadius: '9999px', bgcolor: operationProgress === 100 ? '#10b981' : '#7c5cbf' } }} />
+            </Box>
+          </Box>
+        )}
 
         {/* ── Compact Schedule Card (shown when WO is SCHEDULED or a result exists) ── */}
         {workOrderId && (formik.values.status === 'SCHEDULED' || scheduleResult) && (
@@ -1167,16 +1259,41 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Paper>
         )}
 
-        <Tabs value={selectedTab} onChange={handleTabChange} sx={{ mb: 2 }} variant="scrollable" scrollButtons="auto">
-          <Tab label="WO DETAILS" />
-          <Tab label="Materials" />
-          <Tab label="Operations" />
-          {<Tab label="Attachments" />}
-          <Tab label="History" />
+        <Tabs 
+          value={selectedTab} 
+          onChange={handleTabChange} 
+          sx={{ 
+            mb: 3,
+            minHeight: 44,
+            '& .MuiTabs-indicator': {
+              height: 2,
+              borderRadius: '2px 2px 0 0',
+              bgcolor: '#1565c0'
+            },
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 700,
+              fontSize: '0.8125rem',
+              color: '#64748b',
+              minHeight: 44,
+              '&.Mui-selected': {
+                color: '#1565c0'
+              }
+            }
+          }} 
+          variant="scrollable" 
+          scrollButtons="auto"
+        >
+          <Tab label="Production Details" />
+          <Tab label="Materials & Scrap" />
+          <Tab label="Operations Log" />
+          <Tab label="Attachments" />
+          <Tab label="Timeline & History" />
           <Tab label="Quality Control" />
+          {workOrderId && <Tab label="Rejections & Yield" />}
         </Tabs>
 
-        <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%', minWidth: 0, overflowX: 'auto', flex: 1 }}>
+        <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', flex: 1 }}>
 
           {selectedTab === 0 && (
 
@@ -1219,6 +1336,13 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           )}
           {selectedTab === 5 && workOrderId && (
             <WorkOrderQCTab
+              workOrderId={workOrderId}
+              setError={setError}
+              setSnackbar={setSnackbar}
+            />
+          )}
+          {selectedTab === 6 && workOrderId && (
+            <WorkOrderRejectionsTab
               workOrderId={workOrderId}
               setError={setError}
               setSnackbar={setSnackbar}
@@ -1286,6 +1410,68 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
             disabled={isWorkOrderActionLoading}
           >
             {isWorkOrderActionLoading ? 'Please wait...' : 'Confirm'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={shortCloseDialog.open}
+        onClose={() => !isWorkOrderActionLoading && setShortCloseDialog({ open: false, remarks: '' })}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, color: '#92400e' }}>
+          Short Close Work Order
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            This will permanently close the work order before full completion. The system will:
+          </DialogContentText>
+          <Box component="ul" sx={{ pl: 2, mb: 2, '& li': { mb: 0.5, fontSize: '0.875rem' } }}>
+            <li>Accept the partial completed quantity as final output</li>
+            <li>Add finished goods to inventory if any were produced</li>
+            <li>Return unused issued materials back to store</li>
+            <li>Cancel all remaining inventory reservations</li>
+            <li>Cancel all pending operations</li>
+          </Box>
+          {formik.values.allowBackflush && (
+            <Alert severity="info" sx={{ mb: 2, fontSize: '0.8rem' }}>
+              Backflush is enabled. Materials will be auto-consumed proportional to completed quantity before closure.
+            </Alert>
+          )}
+          <TextField
+            label="Reason for Short Closure"
+            placeholder="e.g. Tool breakage, Priority changed, Material shortage..."
+            fullWidth
+            multiline
+            rows={2}
+            size="small"
+            value={shortCloseDialog.remarks}
+            onChange={(e) => setShortCloseDialog(prev => ({ ...prev, remarks: e.target.value }))}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={() => setShortCloseDialog({ open: false, remarks: '' })}
+            disabled={isWorkOrderActionLoading}
+            sx={{ textTransform: 'none', color: '#374151' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmShortClose}
+            variant="contained"
+            disabled={isWorkOrderActionLoading}
+            sx={{
+              textTransform: 'none',
+              fontWeight: 600,
+              bgcolor: '#92400e',
+              '&:hover': { bgcolor: '#78350f' },
+            }}
+          >
+            {isWorkOrderActionLoading ? 'Processing...' : 'Confirm Short Close'}
           </Button>
         </DialogActions>
       </Dialog>

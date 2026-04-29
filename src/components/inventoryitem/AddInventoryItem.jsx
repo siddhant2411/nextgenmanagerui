@@ -12,7 +12,7 @@ import {
   Lock as LockIcon, CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import apiService, { postFile, putWithFile } from '../../services/apiService';
+import apiService from '../../services/apiService';
 import { getActiveBomByItemid, getBomHistoryByInventoryItem, getWhereUsedByItemId, getBomCostBreakdown } from '../../services/bomService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -27,6 +27,11 @@ import {
   PRODUCTION_ACCESS_ROLES,
   hasAnyRole,
 } from '../../auth/roles';
+import {
+  createInventoryItemWithFiles,
+  getInventoryItem,
+  updateInventoryItemWithFiles,
+} from '../../services/inventoryService';
 
 /* ── Theme ─────────────────────────────────────────────────────────────────── */
 const HEADER_BG = '#0f2744';
@@ -180,7 +185,7 @@ export default function AddInventoryItem() {
   /* ── Load item (edit mode) ── */
   const fetchItem = useCallback(async () => {
     try {
-      const data = await apiService.get(`/inventory_item/${id}`);
+      const data = await getInventoryItem(id);
       setItemData(prev => ({
         ...prev, ...data,
         leadTime: data?.leadTime ?? data?.productInventorySettings?.leadTime ?? '',
@@ -469,12 +474,12 @@ export default function AddInventoryItem() {
     try {
       let response;
       if (isEditMode) {
-        response = await putWithFile(`/inventory_item/${id}`, payload, newFiles);
+        response = await updateInventoryItemWithFiles(id, payload, newFiles);
         showSnackbar('Item updated successfully');
         setIsDirty(false);
         setTimeout(() => navigate('/inventory-item'), 1200);
       } else {
-        response = await postFile('/inventory_item/add', payload, newFiles);
+        response = await createInventoryItemWithFiles(payload, newFiles);
         // Show success dialog with created item details
         setSavedItem({ itemCode: response.itemCode, name: response.name });
         setIsDirty(false);

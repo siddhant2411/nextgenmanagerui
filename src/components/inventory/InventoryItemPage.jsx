@@ -2,18 +2,17 @@ import React, { useEffect, useState, useRef } from 'react';
 import {
     Box, Button, IconButton, Paper, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, Typography, TextField,
-    InputAdornment, TablePagination, Tooltip, Chip, CircularProgress
+    InputAdornment, TablePagination, Tooltip, Chip, CircularProgress,
+    Stack, Fade
 } from '@mui/material';
-import { Search, Inventory2, AddBox } from '@mui/icons-material';
+import { Search, MoveToInbox, Visibility, History as HistoryIcon, Assessment } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import apiService from '../../services/apiService';
-import AddItemQtyForm from './AddItemQtyForm';
+import { searchInventoryItems } from '../../services/inventoryService';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
 
-const HEADER_BG = '#0f2744';
+const HEADER_BG = '#f8fafc';
 const BORDER_COLOR = '#e5e7eb';
-const ROW_HOVER = '#e3f2fd';
 
 const itemTypeMapping = {
     FINISHED_GOOD: { label: 'Finished Good', color: '#e8f5e9', textColor: '#2e7d32' },
@@ -25,262 +24,258 @@ const itemTypeMapping = {
 
 const headerCellSx = {
     background: HEADER_BG,
-    color: '#e8edf3',
-    fontWeight: 600,
-    fontSize: '0.8rem',
-    letterSpacing: 0.3,
-    py: 1.25,
-    whiteSpace: 'nowrap',
-    borderBottom: '2px solid rgba(255,255,255,0.15)',
+    color: '#475569',
+    fontWeight: 700,
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    py: 1.5,
+    borderBottom: `2px solid ${BORDER_COLOR}`,
 };
 
-const InventoryItemPage = () => {
+const getSettings = (item) => item?.productInventorySettings || {};
+const getAvailableQty = (item) => item?.availableQuantity ?? getSettings(item)?.availableQuantity ?? 0;
+const getReservedQty = (item) => item?.reservedQuantity ?? getSettings(item)?.reservedQuantity ?? 0;
+const getMinStock = (item) => item?.minStock ?? getSettings(item)?.minStock ?? 0;
+
+const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
     const [items, setItems] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
-    const [openDialog, setOpenDialog] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [formData, setFormData] = useState({ procurementDecision: '', referenceId: null, quantity: 0, costPerUnit: 0 });
 
     const navigate = useNavigate();
     const { canAction } = useAuth();
     const canManageInventory = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
     const debounceTimeout = useRef(null);
 
-    useEffect(() => { fetchItems(); }, [page, rowsPerPage]);
-
-    const fetchItems = async () => {
+    const fetchItems = async (query = search, pageNumber = page) => {
         setLoading(true);
         try {
-            const params = { page, size: rowsPerPage, sortBy: "availableQuantity", sortDir: "dsc", query: search };
-            const res = await apiService.get('inventory_item/search', params);
-            setItems(res.content);
-            setTotalItems(res.totalElements);
+            const params = { page: pageNumber, size: rowsPerPage, sortBy: "availableQuantity", sortDir: "desc", query };
+            const res = await searchInventoryItems(params);
+            setItems(res.content || []);
+            setTotalItems(res.totalElements || 0);
         } catch (err) {
-            // handled
+            console.error(err);
         } finally {
             setLoading(false);
         }
     };
 
+    useEffect(() => { 
+        fetchItems(); 
+    }, [page, rowsPerPage, refreshKey]);
+
     const handleSearchChange = (event) => {
         const query = event.target.value;
         setSearch(query);
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-        debounceTimeout.current = setTimeout(() => { setPage(0); fetchItems(); }, 500);
-    };
-
-    const handleOpenAddQuantity = (item) => {
-        if (!canManageInventory) return;
-        setSelectedItem(item);
-        setFormData({ procurementDecision: '', referenceId: '', quantity: '' });
-        setOpenDialog(true);
+        debounceTimeout.current = setTimeout(() => { 
+            setPage(0); 
+            fetchItems(query, 0); 
+        }, 400);
     };
 
     const renderTypeChip = (type) => {
         const info = itemTypeMapping[type];
-        if (!info) return type || '-';
+        if (!info) return <Chip label={type || 'Unknown'} size="small" variant="outlined" />;
         return (
             <Chip
                 label={info.label}
                 size="small"
-                sx={{ backgroundColor: info.color, color: info.textColor, fontWeight: 500, fontSize: '0.7rem', height: 24 }}
+                sx={{ backgroundColor: info.color, color: info.textColor, fontWeight: 600, fontSize: '0.7rem', height: 22 }}
             />
         );
     };
 
+    const renderSourceChips = (item) => {
+        const settings = getSettings(item);
+        const purchased = item.purchased ?? settings.purchased;
+        const manufactured = item.manufactured ?? settings.manufactured;
+        return (
+            <Stack direction="row" spacing={0.5} justifyContent="center">
+                {purchased && <Chip label="Buy" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: '#f1f5f9', color: '#475569', fontWeight: 700 }} />}
+                {manufactured && <Chip label="Make" size="small" sx={{ height: 20, fontSize: '0.65rem', bgcolor: '#f1f5f9', color: '#475569', fontWeight: 700 }} />}
+            </Stack>
+        );
+    };
+
+    const renderTrackingBadge = (item) => {
+        const settings = getSettings(item);
+        const isSerial = settings.serialTracked || item.serialTracked;
+        const isBatch = settings.batchTracked || item.batchTracked;
+        
+        if (isSerial) return <Chip label="Serial" size="small" sx={{ height: 22, bgcolor: '#f5f3ff', color: '#6d28d9', fontWeight: 700, border: '1px solid #ddd6fe' }} />;
+        if (isBatch) return <Chip label="Batch" size="small" sx={{ height: 22, bgcolor: '#eff6ff', color: '#1d4ed8', fontWeight: 700, border: '1px solid #dbeafe' }} />;
+        return <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>Quantity Only</Typography>;
+    };
+
     return (
-        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-            <Paper
-                elevation={0}
-                sx={{
-                    p: { xs: 1.5, sm: 2, md: 2.5 },
-                    borderRadius: 2,
-                    border: `1px solid ${BORDER_COLOR}`,
-                }}
-            >
-                {/* Header */}
-                <Box
-                    display="flex"
-                    justifyContent="space-between"
-                    alignItems="center"
-                    mb={2}
-                    flexDirection={{ xs: 'column', sm: 'row' }}
-                    gap={1.5}
+        <Fade in={true} timeout={400}>
+            <Box>
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: 3,
+                        borderRadius: 3,
+                        border: `1px solid ${BORDER_COLOR}`,
+                        bgcolor: '#fff'
+                    }}
                 >
-                    <Box>
-                        <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.2rem', md: '1.4rem' } }}>
-                            Inventory Management
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                            Monitor stock levels and manage inventory quantities
-                        </Typography>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-end" mb={3} gap={2} flexWrap="wrap">
+                        <Box>
+                            <Typography variant="h5" fontWeight={800} sx={{ color: '#0f172a' }}>
+                                Stock Register
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Monitor live availability and inventory settings across all SKUs
+                            </Typography>
+                        </Box>
+
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <TextField
+                                value={search}
+                                onChange={handleSearchChange}
+                                placeholder="Search by code or name..."
+                                size="small"
+                                InputProps={{
+                                    startAdornment: <Search sx={{ color: '#64748b', fontSize: 18, mr: 0.5 }} />,
+                                }}
+                                sx={{
+                                    width: 280,
+                                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8fafc' }
+                                }}
+                            />
+                            <Button 
+                                variant="outlined" 
+                                startIcon={<Assessment />}
+                                onClick={() => navigate('/inventory-item/transactions')}
+                                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#475569', borderColor: '#e2e8f0' }}
+                            >
+                                Logs
+                            </Button>
+                        </Stack>
                     </Box>
 
-                    <Box display="flex" gap={1} alignItems="center" flexWrap="wrap">
-                        <TextField
-                            value={search}
-                            onChange={handleSearchChange}
-                            placeholder="Search items..."
-                            size="small"
-                            variant="outlined"
-                            InputProps={{
-                                endAdornment: <InputAdornment position="end"><Search sx={{ color: '#9ca3af', fontSize: 20 }} /></InputAdornment>,
-                            }}
-                            sx={{
-                                width: { xs: '100%', sm: 260 },
-                                '& .MuiOutlinedInput-root': {
-                                    borderRadius: 1.5,
-                                    fontSize: '0.875rem',
-                                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#90caf9' },
-                                },
-                            }}
-                        />
-                        <Button
-                            variant="contained"
-                            startIcon={<Inventory2 />}
-                            onClick={() => navigate('/inventory-item/transactions')}
-                            sx={{
-                                textTransform: 'none',
-                                fontWeight: 600,
-                                borderRadius: 1.5,
-                                bgcolor: '#1565c0',
-                                boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
-                                '&:hover': { bgcolor: '#0d47a1' },
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            Transactions
-                        </Button>
-                    </Box>
-                </Box>
-
-                {/* Loading */}
-                {loading && (
-                    <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" minHeight="30vh" gap={2}>
-                        <CircularProgress size={32} sx={{ color: '#1565c0' }} />
-                        <Typography variant="body2" color="text.secondary">Loading inventory...</Typography>
-                    </Box>
-                )}
-
-                {/* Table */}
-                {!loading && (
-                    <>
-                        <TableContainer sx={{ borderRadius: 1.5, border: `1px solid ${BORDER_COLOR}`, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
-                            <Table size="small" stickyHeader>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={headerCellSx}>Item Code</TableCell>
-                                        <TableCell sx={headerCellSx}>Name</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Type</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>UOM</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Source</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Min Qty</TableCell>
-                                        <TableCell align="right" sx={headerCellSx}>Available Qty</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Lead Time</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Std. Cost</TableCell>
-                                        <TableCell align="center" sx={headerCellSx}>Actions</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {items.map((item, index) => {
-                                        const isLowStock = item.availableQuantity < item.minStock;
-                                        return (
-                                            <TableRow
-                                                key={item.inventoryItemId}
-                                                sx={{
-                                                    bgcolor: isLowStock ? '#fff8e1' : index % 2 === 0 ? '#fafbfc' : '#fff',
-                                                    transition: 'background 0.15s',
-                                                    '&:hover': { bgcolor: ROW_HOVER },
-                                                    '& td': { fontSize: '0.8125rem', py: 0.75, borderBottom: `1px solid ${BORDER_COLOR}` },
-                                                }}
-                                            >
-                                                <TableCell>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>{item.itemCode}</Typography>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Typography variant="body2" fontWeight={500}>{item.name}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center">{renderTypeChip(item.itemType)}</TableCell>
-                                                <TableCell align="center">{item.uom}</TableCell>
-                                                <TableCell align="center">
-                                                    <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
-                                                        {item.purchased ? 'P' : '-'} / {item.manufactured ? 'M' : '-'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell align="center">{item.minStock || 0}</TableCell>
-                                                <TableCell align="right">
-                                                    <Typography
-                                                        variant="body2"
-                                                        fontWeight={600}
-                                                        sx={{ color: isLowStock ? '#e65100' : '#2e7d32' }}
-                                                    >
-                                                        {item.productInventorySettings?.availableQuantity?.toFixed(1) ?? '0.0'}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Typography variant="body2" fontWeight={500}>{item.leadTime || '-'}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Typography variant="body2" fontWeight={500}>{item.standardCost || '-'}</Typography>
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <Tooltip title="Add Quantity">
-                                                        <span>
-                                                            <IconButton
-                                                                onClick={() => handleOpenAddQuantity(item)}
-                                                                size="small"
-                                                                disabled={!canManageInventory}
-                                                                sx={{ color: '#2e7d32', '&:hover': { bgcolor: '#e8f5e9' } }}
-                                                            >
-                                                                <AddBox fontSize="small" />
-                                                            </IconButton>
-                                                        </span>
+                    <TableContainer sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 2 }}>
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell sx={headerCellSx}>Item Detail</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Logic</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Tracking</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>UOM</TableCell>
+                                    <TableCell align="right" sx={headerCellSx}>Min / Max</TableCell>
+                                    <TableCell align="right" sx={headerCellSx}>Available / Reserved</TableCell>
+                                    <TableCell align="right" sx={headerCellSx}>Unit Cost</TableCell>
+                                    <TableCell align="center" sx={headerCellSx}>Actions</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 10 }}><CircularProgress size={30} /></TableCell></TableRow>
+                                ) : items.map((item) => {
+                                    const settings = getSettings(item);
+                                    const available = Number(getAvailableQty(item) || 0);
+                                    const reserved = Number(getReservedQty(item) || 0);
+                                    const min = Number(getMinStock(item) || 0);
+                                    const max = Number(settings.maxStock || 0);
+                                    const isNegative = available < 0;
+                                    const isLow = !isNegative && available <= min && min > 0;
+                                    
+                                    return (
+                                        <TableRow key={item.inventoryItemId} hover sx={{ '&:hover': { bgcolor: '#f9fafb !important' } }}>
+                                            <TableCell sx={{ py: 1.5 }}>
+                                                <Typography variant="body2" fontWeight={700} color="primary.main">{item.itemCode}</Typography>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.2 }}>{item.name}</Typography>
+                                                <Box mt={0.5}>{renderTypeChip(item.itemType)}</Box>
+                                            </TableCell>
+                                            <TableCell align="center">{renderSourceChips(item)}</TableCell>
+                                            <TableCell align="center">{renderTrackingBadge(item)}</TableCell>
+                                            <TableCell align="center"><Typography variant="body2" fontWeight={600}>{item.uom}</Typography></TableCell>
+                                            <TableCell align="right">
+                                                <Typography variant="body2" fontWeight={500}>{min} / {max || '-'}</Typography>
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <Stack spacing={0.5} alignItems="flex-end">
+                                                    <Tooltip title="Available (free to use)" arrow placement="left">
+                                                        <Typography variant="body2" fontWeight={800} color={isNegative ? 'error.main' : isLow ? 'warning.main' : 'success.main'}>
+                                                            {available.toFixed(item.uom === 'PCS' ? 0 : 2)}
+                                                        </Typography>
                                                     </Tooltip>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                    {items.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={10} align="center" sx={{ py: 6 }}>
-                                                <Typography variant="body2" color="text.secondary">No inventory items found.</Typography>
+                                                    {reserved > 0 && (
+                                                        <Tooltip title="Reserved for active WOs / SOs" arrow placement="left">
+                                                            <Typography variant="caption" fontWeight={600} sx={{ color: '#283593' }}>
+                                                                +{reserved.toFixed(item.uom === 'PCS' ? 0 : 2)} rsv
+                                                            </Typography>
+                                                        </Tooltip>
+                                                    )}
+                                                    {isNegative && <Chip label="Deficit" color="error" size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800 }} />}
+                                                    {isLow && <Chip label="Refill" color="warning" size="small" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 800 }} />}
+                                                </Stack>
+                                            </TableCell>
+                                            <TableCell align="right">
+                                                <Typography variant="body2" fontWeight={600}>₹{item.standardCost || '0'}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Box display="flex" gap={1} justifyContent="center">
+                                                    <Tooltip title="View Stock Details">
+                                                        <IconButton 
+                                                            size="small" 
+                                                            onClick={() => navigate(`/inventory-item/view/${item.inventoryItemId}`)}
+                                                            sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5 }}
+                                                        >
+                                                            <Visibility fontSize="inherit" />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        startIcon={<MoveToInbox fontSize="inherit" />}
+                                                        disabled={!canManageInventory}
+                                                        onClick={() => onReceiveStock?.(item)}
+                                                        sx={{ 
+                                                            textTransform: 'none', 
+                                                            fontWeight: 700, 
+                                                            fontSize: '0.75rem', 
+                                                            borderRadius: 1.5,
+                                                            bgcolor: '#1e293b',
+                                                            '&:hover': { bgcolor: '#0f172a' }
+                                                        }}
+                                                    >
+                                                        Receive
+                                                    </Button>
+                                                </Box>
                                             </TableCell>
                                         </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                        <TablePagination
-                            component="div"
-                            count={totalItems}
-                            page={page}
-                            onPageChange={(e, p) => setPage(p)}
-                            rowsPerPage={rowsPerPage}
-                            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-                            rowsPerPageOptions={[5, 10, 25, 50]}
-                            sx={{
-                                borderTop: `1px solid ${BORDER_COLOR}`,
-                                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.8125rem' },
-                            }}
-                        />
-                    </>
-                )}
-            </Paper>
+                                    );
+                                })}
+                                {!loading && items.length === 0 && (
+                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 10 }}>No items found.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
 
-            <AddItemQtyForm
-                openDialog={openDialog}
-                setOpenDialog={setOpenDialog}
-                formData={formData}
-                setFormData={setFormData}
-                selectedItem={selectedItem}
-                setSelectedItem={setSelectedItem}
-                canManageInventory={canManageInventory}
-            />
-        </Box>
+                    <TablePagination
+                        component="div"
+                        count={totalItems}
+                        page={page}
+                        onPageChange={(e, p) => setPage(p)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(e) => { 
+                            setRowsPerPage(parseInt(e.target.value, 10)); 
+                            setPage(0); 
+                        }}
+                        rowsPerPageOptions={[10, 25, 50]}
+                        sx={{ mt: 1 }}
+                    />
+                </Paper>
+            </Box>
+        </Fade>
     );
 };
 

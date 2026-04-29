@@ -31,7 +31,9 @@ import { DeleteOutline, FileDownload } from "@mui/icons-material";
 import dayjs from "dayjs";
 import BomRouting from "./BomRouting";
 import BomPositionTable from "./BomPositionTable";
-import BomSidebar from "./BomSidebar";
+import BomStatusChangeDialog from "./BomStatusChangeDialog";
+import { useAuth } from "../../auth/AuthContext";
+import { ACTION_KEYS } from "../../auth/roles";
 import BomCostBreakdown from "./BomCostBreakdown";
 import {
     deleteBomAttachment,
@@ -44,9 +46,20 @@ import {
     getBomHistoryByInventoryItem,
     uploadBomAttachment,
 } from "../../services/bomService";
+import { getAllInventoryItems, searchInventoryItems } from "../../services/inventoryService";
 
 const BORDER_COLOR = "#e5e7eb";
 const CRITICAL_SAVE_STATUSES = ["ACTIVE", "APPROVED"];
+
+const bomStatusOptions = [
+    { key: "DRAFT", value: "Draft", color: "#e3f2fd", textColor: "#1565c0" },
+    { key: "PENDING_APPROVAL", value: "Under Review", color: "#fff3e0", textColor: "#e65100" },
+    { key: "APPROVED", value: "Approved", color: "#e8f5e9", textColor: "#2e7d32" },
+    { key: "ACTIVE", value: "Active", color: "#e8f5e9", textColor: "#2e7d32" },
+    { key: "INACTIVE", value: "Inactive", color: "#fafafa", textColor: "#757575" },
+    { key: "OBSOLETE", value: "Obsolete", color: "#ffebee", textColor: "#c62828" },
+    { key: "ARCHIVED", value: "Archived", color: "#fafafa", textColor: "#9e9e9e" },
+];
 
 const fieldSx = {
     "& .MuiInputBase-input": { fontSize: 13.5 },
@@ -73,12 +86,12 @@ const initialFormValues = {
     productFinanceSettings: { stanadrCost: 0 },
 };
 
-const getPositionChildBomId = (position) =>
-    position?.childBomId ?? position?.id ?? position?.childBom?.id ?? null;
+const getPositionChildItemId = (position) =>
+    position?.childInventoryItemId ?? position?.inventoryItemId ?? position?.childInventoryItem?.inventoryItemId ?? null;
 
 const normalizeBomPosition = (position = {}) => ({
     ...position,
-    childBomId: getPositionChildBomId(position),
+    childInventoryItemId: getPositionChildItemId(position),
 });
 
 const toFiniteNumber = (value) => {
@@ -101,24 +114,6 @@ const formatDate = (value) => {
     return parsed.isValid() ? parsed.format("DD MMM YYYY") : "-";
 };
 
-const formatCurrency = (value) =>
-    new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(toFiniteNumber(value));
-
-const resolveComponentUnitCost = (component) =>
-    toFiniteNumber(
-        component?.standardCost ??
-        component?.productFinanceSettings?.standardCost ??
-        component?.childBom?.standardCost ??
-        component?.childBom?.productFinanceSettings?.standardCost ??
-        component?.childBom?.parentInventoryItem?.standardCost ??
-        component?.childBom?.parentInventoryItem?.productFinanceSettings?.standardCost ??
-        0
-    );
 
 const resolveOperationCost = (operation) => {
     const costType = operation?.costType || 'CALCULATED';
@@ -144,21 +139,18 @@ const resolveOperationCost = (operation) => {
 
 const normalizeComponentForComparison = (component, index) => {
     const key = String(
-        getPositionChildBomId(component) ??
-        component?.parentItemCode ??
-        component?.childBom?.parentInventoryItem?.itemCode ??
+        getPositionChildItemId(component) ??
+        component?.itemCode ??
         `row-${index}`
     );
     return {
         key,
         itemCode:
-            component?.parentItemCode ??
-            component?.childBom?.parentInventoryItem?.itemCode ??
+            component?.itemCode ??
             "-",
         itemName:
-            component?.parentItemName ??
-            component?.childBom?.parentInventoryItem?.name ??
-            component?.bomName ??
+            component?.itemName ??
+            component?.name ??
             "-",
         quantity: toFiniteNumber(component?.quantity),
         scrapPercentage: toFiniteNumber(component?.scrapPercentage),
@@ -297,7 +289,7 @@ const buildDirtySignature = (values, operations) => {
         components: (values?.components || [])
             .filter((component) => !component?.isChild)
             .map((component) => ({
-                childBomId: getPositionChildBomId(component),
+                childInventoryItemId: getPositionChildItemId(component),
                 position: toFiniteNumber(component?.position),
                 quantity: toFiniteNumber(component?.quantity),
                 scrapPercentage: toFiniteNumber(component?.scrapPercentage),
@@ -372,6 +364,11 @@ const AddBom = () => {
     const [compareLoading, setCompareLoading] = useState(false);
     const [costBreakdown, setCostBreakdown] = useState(null);
     const [costBreakdownLoading, setCostBreakdownLoading] = useState(false);
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [nextStatus, setNextStatus] = useState(null);
+
+    const { canAction } = useAuth();
+    const canChangeBomStatus = canAction(ACTION_KEYS.BOM_STATUS_VERSION_WRITE);
 
     const debounceTimeout = useRef(null);
     const parentSearchRef = useRef("");
@@ -386,6 +383,45 @@ const AddBom = () => {
         if (!message) return;
         setSnackbar({ open: true, message, severity });
     }, []);
+
+    const handleChangeStatus = (e) => {
+        if (!canChangeBomStatus) {
+            showSnackbar("You are not authorized to change BOM status.", "error");
+            return;
+        }
+        setNextStatus(e.target.value);
+        setStatusDialogOpen(true);
+    };
+
+    const handleStatusConfirm = async (payload) => {
+        if (!canChangeBomStatus) {
+            showSnackbar("You are not authorized to change BOM status.", "error");
+            return;
+        }
+        const finalPayload = {
+            bomId, nextStatus: payload.nextStatus, ecoNumber: payload.ecoNumber || "",
+            changeReason: payload.changeReason || "", approvalComments: payload.approvalComments || ""
+        };
+        try {
+            setLoading(true);
+            const res = await apiService.post("/bom/changeStatus/" + bomId, finalPayload);
+            showSnackbar("Status changed to: " + res.bomStatus);
+            formik.setFieldValue("bomStatus", res.bomStatus);
+            formik.setFieldValue("revision", res.revision);
+            formik.setFieldValue("ecoNumber", res.ecoNumber);
+            formik.setFieldValue("changeReason", res.changeReason);
+            formik.setFieldValue("approvedBy", res.approvedBy);
+            formik.setFieldValue("approvalDate", res.approvalDate);
+            formik.setFieldValue("approvalComments", res.approvalComments);
+            formik.setFieldValue("effectiveFrom", res.effectiveFrom);
+            formik.setFieldValue("effectiveTo", res.effectiveTo);
+            formik.setFieldValue("updatedDate", res.updatedDate);
+        } catch (e) {
+            showSnackbar(resolveApiErrorMessage(e, "Failed to change BOM status."), "error");
+        }
+        setLoading(false);
+        setStatusDialogOpen(false);
+    };
 
     const formik = useFormik({
         initialValues: initialFormValues,
@@ -415,13 +451,14 @@ const AddBom = () => {
                 bomStatus: values.bomStatus || "DRAFT",
                 positions: (values.components || [])
                     .filter((component) => !component?.isChild)
-                    .filter((component) => Boolean(getPositionChildBomId(component)))
+                    .filter((component) => Boolean(getPositionChildItemId(component)))
                     .map((component) => ({
-                        childBom: { id: getPositionChildBomId(component) },
+                        childInventoryItem: { inventoryItemId: getPositionChildItemId(component) },
                         quantity: toFiniteNumber(component.quantity),
                         position: toFiniteNumber(component.position),
                         scrapPercentage: toFiniteNumber(component.scrapPercentage),
                         routingOperationId: component.routingOperationId ?? null,
+                        routingOperationSequenceNumber: component.routingOperationSequenceNumber ?? null,
                     })),
             };
 
@@ -481,8 +518,8 @@ const AddBom = () => {
         setLoading(true);
         setError(null);
         try {
-            const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", querysearch: search };
-            const data = await apiService.post("/bom/active/search", params);
+            const params = { page: 0, size: 10, sortBy: "name", sortDir: "asc", query: search };
+            const data = await searchInventoryItems(params);
             setSearchedItemList(data.content || []);
         } catch (fetchError) {
             setError(fetchError);
@@ -509,7 +546,7 @@ const AddBom = () => {
 
     const fetchParentItems = useCallback(async () => {
         try {
-            const response = await apiService.get("/inventory_item/all", { page: 0, size: 100 });
+            const response = await getAllInventoryItems({ page: 0, size: 100 });
             setParentItems(response.content || []);
         } catch (fetchError) {
             showSnackbar("Failed to fetch parent items.", "error");
@@ -770,35 +807,6 @@ const AddBom = () => {
         await formik.submitForm();
     };
 
-    const bomCostSummary = useMemo(() => {
-        const materialRows = (formik.values.components || [])
-            .filter((component) => !component?.isChild)
-            .map((component) => {
-                const quantity = toFiniteNumber(component?.quantity);
-                const scrapPercentage = toFiniteNumber(component?.scrapPercentage);
-                const effectiveQuantity = quantity * (1 + scrapPercentage / 100);
-                const unitCost = resolveComponentUnitCost(component);
-                return {
-                    unitCost,
-                    lineCost: effectiveQuantity * unitCost,
-                };
-            });
-
-        const materialCost = materialRows.reduce((sum, row) => sum + row.lineCost, 0);
-        const componentsWithoutCost = materialRows.filter((row) => row.unitCost <= 0).length;
-
-        const operationCost = (operations || []).reduce((sum, operation) => {
-            return sum + resolveOperationCost(operation);
-        }, 0);
-
-        return {
-            materialCost,
-            operationCost,
-            totalCost: materialCost + operationCost,
-            componentsWithoutCost,
-        };
-    }, [formik.values.components, operations]);
-
     const comparisonSummary = useMemo(() => {
         if (!compareBaseBom) return null;
         return {
@@ -838,7 +846,7 @@ const AddBom = () => {
                 effectiveFrom: "",
                 effectiveTo: "",
                 components: (duplicatedBom.components || []).map((component, index) => ({
-                    ...normalizeBomPosition(component.childBom),
+                    ...normalizeBomPosition(component),
                     quantity: component.quantity || 1,
                     position: component.position || (index + 1) * 10,
                     routingOperationId: component.routingOperationId ?? null,
@@ -998,10 +1006,12 @@ const AddBom = () => {
         return () => window.removeEventListener("beforeunload", handleBeforeUnload);
     }, [isDirty]);
 
+    const currentStatusInfo = bomStatusOptions.find(s => s.key === formik.values.bomStatus);
+
     return (
         <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
             <Grid container spacing={2}>
-                <Grid item xs={12} md={9}>
+                <Grid item xs={12}>
                     <Box
                         sx={{
                             p: { xs: 1.5, sm: 2, md: 2.5 },
@@ -1013,28 +1023,34 @@ const AddBom = () => {
                             flexDirection: "column",
                         }}
                     >
+                        {/* ── Header Row 1: Title + Actions ── */}
                         <Box
                             display="flex"
                             justifyContent="space-between"
                             alignItems="center"
-                            mb={1.5}
+                            mb={1}
                             flexDirection={{ xs: "column", sm: "row" }}
                             gap={1}
                         >
                             <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
                                 <Box>
-                                    <Typography
-                                        variant="h5"
-                                        fontWeight={700}
-                                        sx={{ color: "#0f2744", fontSize: { xs: "1.2rem", md: "1.4rem" } }}
-                                    >
-                                        {bomId ? formik.values.bomName || "Edit BOM" : "New BOM"}
-                                    </Typography>
-                                    {bomId && formik.values.revision && (
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                                            Rev. {formik.values.revision}
+                                    <Box display="flex" alignItems="center" gap={1}>
+                                        <Typography
+                                            variant="h5"
+                                            fontWeight={700}
+                                            sx={{ color: "#0f2744", fontSize: { xs: "1.2rem", md: "1.4rem" } }}
+                                        >
+                                            {bomId ? formik.values.bomName || "Edit BOM" : "New BOM"}
                                         </Typography>
-                                    )}
+                                        {bomId && formik.values.revision && (
+                                            <Chip size="small" label={`Rev. ${formik.values.revision}`}
+                                                sx={{ fontWeight: 600, fontSize: '0.72rem', bgcolor: '#f0f4ff', color: '#1565c0' }} />
+                                        )}
+                                        {formik.values.ecoNumber && (
+                                            <Chip size="small" label={`ECO: ${formik.values.ecoNumber}`} variant="outlined"
+                                                sx={{ fontSize: '0.72rem', borderColor: BORDER_COLOR }} />
+                                        )}
+                                    </Box>
                                 </Box>
                                 {bomId &&
                                     activeBomForItem?.id &&
@@ -1055,7 +1071,7 @@ const AddBom = () => {
                                     )}
                             </Box>
 
-                            <Box display="flex" gap={1} flexWrap="wrap">
+                            <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
                                 {bomId && (
                                     <>
                                         <Button
@@ -1088,7 +1104,7 @@ const AddBom = () => {
                                         <Button
                                             size="small"
                                             variant="outlined"
-                                            onClick={() => navigate('/production/workorders/new', { state: { bom: bomDetails?.bom || activeBomForItem } })}
+                                            onClick={() => navigate('/production/work-order/add', { state: { bom: bomDetails?.bom || activeBomForItem } })}
                                             sx={{
                                                 textTransform: "none",
                                                 fontWeight: 500,
@@ -1121,7 +1137,93 @@ const AddBom = () => {
                             </Box>
                         </Box>
 
+                        {/* ── Header Row 2: Status + Metadata (only for existing BOMs) ── */}
+                        {bomId && (
+                            <Box
+                                display="flex"
+                                alignItems="center"
+                                gap={2}
+                                flexWrap="wrap"
+                                mb={1.5}
+                                sx={{ px: 0.5 }}
+                            >
+                                {/* Status selector */}
+                                <FormControl size="small" sx={{ minWidth: 140 }}>
+                                    <Select
+                                        name="bomStatus"
+                                        value={formik.values.bomStatus || ""}
+                                        onChange={handleChangeStatus}
+                                        disabled={!canChangeBomStatus || loading}
+                                        sx={{
+                                            borderRadius: 1.5,
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            bgcolor: currentStatusInfo?.color || '#fafafa',
+                                            color: currentStatusInfo?.textColor || '#374151',
+                                            '& .MuiOutlinedInput-notchedOutline': { borderColor: BORDER_COLOR },
+                                            height: 32,
+                                        }}
+                                    >
+                                        {bomStatusOptions.map((option) => (
+                                            <MenuItem key={option.key} value={option.key} sx={{ fontSize: '0.8rem' }}>
+                                                {option.value}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+
+                                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
+                                {/* Created */}
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
+                                        Created:
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                                        {formatDate(formik.values.creationDate)}
+                                    </Typography>
+                                </Box>
+
+                                {/* Updated */}
+                                <Box display="flex" alignItems="center" gap={0.5}>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
+                                        Updated:
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                                        {formatDate(formik.values.updatedDate)}
+                                    </Typography>
+                                </Box>
+
+                                {/* Approved */}
+                                {formik.values.approvalDate && (
+                                    <Box display="flex" alignItems="center" gap={0.5}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
+                                            Approved:
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                                            {formatDate(formik.values.approvalDate)}
+                                        </Typography>
+                                        {formik.values.approvedBy && (
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                                                by {formik.values.approvedBy}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                )}
+                            </Box>
+                        )}
+
                         <Divider sx={{ mb: 2 }} />
+
+                        {nextStatus && (
+                            <BomStatusChangeDialog
+                                open={statusDialogOpen}
+                                onClose={() => { setStatusDialogOpen(false); setNextStatus(null); }}
+                                onConfirm={handleStatusConfirm}
+                                currentStatus={formik.values.bomStatus}
+                                nextStatus={nextStatus}
+                            />
+                        )}
 
                         <Tabs
                             value={selectedTab}
@@ -1232,65 +1334,6 @@ const AddBom = () => {
                                             routingOperationOptions?.length ? routingOperationOptions : operations
                                         }
                                     />
-                                    <Box
-                                        sx={{
-                                            mt: 2,
-                                            p: 2,
-                                            borderRadius: 1.5,
-                                            border: `1px solid ${BORDER_COLOR}`,
-                                            bgcolor: "#fafbfc",
-                                        }}
-                                    >
-                                        <Typography
-                                            variant="subtitle2"
-                                            fontWeight={600}
-                                            color="#0f2744"
-                                            sx={{
-                                                fontSize: "0.8125rem",
-                                                textTransform: "uppercase",
-                                                letterSpacing: 0.8,
-                                                mb: 1.5,
-                                            }}
-                                        >
-                                            Cost Rollup
-                                        </Typography>
-                                        <Grid container spacing={1.5}>
-                                            <Grid item xs={12} sm={4}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Material Cost
-                                                </Typography>
-                                                <Typography variant="h6" fontWeight={700} color="#1565c0">
-                                                    {formatCurrency(bomCostSummary.materialCost)}
-                                                </Typography>
-                                            </Grid>
-                                            <Grid item xs={12} sm={4}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Operation Cost
-                                                </Typography>
-                                                <Typography variant="h6" fontWeight={700} color="#1565c0">
-                                                    {formatCurrency(bomCostSummary.operationCost)}
-                                                </Typography>
-                                            </Grid>
-                                            <Grid item xs={12} sm={4}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    Total Rolled-up Cost
-                                                </Typography>
-                                                <Typography variant="h6" fontWeight={700} color="#0f2744">
-                                                    {formatCurrency(bomCostSummary.totalCost)}
-                                                </Typography>
-                                            </Grid>
-                                        </Grid>
-                                        {bomCostSummary.componentsWithoutCost > 0 && (
-                                            <Alert
-                                                severity="warning"
-                                                sx={{ mt: 1.5, borderRadius: 1.5, py: 0.5 }}
-                                            >
-                                                {bomCostSummary.componentsWithoutCost} component(s) have zero or missing
-                                                standard cost.
-                                            </Alert>
-                                        )}
-                                    </Box>
-
                                     {bomId && (
                                         <Box
                                             sx={{
@@ -1636,19 +1679,6 @@ const AddBom = () => {
                     </Box>
                 </Grid>
 
-                <Grid item xs={12} md={3}>
-                    <BomSidebar
-                        bomId={bomId}
-
-                        formik={formik}
-                        operations={operations}
-                        showSnackbar={showSnackbar}
-                        loading={loading}
-                        setLoading={setLoading}
-                        error={error}
-                        setError={setError}
-                    />
-                </Grid>
             </Grid>
 
             <Dialog

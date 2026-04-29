@@ -8,7 +8,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   KeyboardArrowUp as ArrowUpIcon
 } from '@mui/icons-material';
-import apiService from '../../services/apiService';
+import { getGroupedInventory, getPresentInventory } from '../../services/inventoryService';
 
 const InventoryInstanceList = () => {
   const [loading, setLoading] = useState(false);
@@ -45,7 +45,7 @@ const InventoryInstanceList = () => {
         itemCode: query,
         itemName: query
       };
-      const res = await apiService.get('/inventory/present', params);
+      const res = await getPresentInventory(params);
       setInventoryList(res.content || []);
       setTotalPages(res.totalPages || 1);
       setCurrentPage(page);
@@ -59,7 +59,7 @@ const InventoryInstanceList = () => {
   const fetchGroupedInventory = async (itemCode) => {
     setGroupedLoading((prev) => ({ ...prev, [itemCode]: true }));
     try {
-      const res = await apiService.get('/inventory/grouped', {
+      const res = await getGroupedInventory({
         page: 0,
         size: 100, // fetch larger dataset for client-side pagination
         itemCode

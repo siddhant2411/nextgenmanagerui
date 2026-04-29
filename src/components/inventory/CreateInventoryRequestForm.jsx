@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogTitle, TextField, MenuItem, DialogActions, Button, Autocomplete, CircularProgress } from '@mui/material';
 import React, { useState, useEffect } from 'react';
-import apiService from '../../services/apiService';
 import { inventoryItemSearch } from '../../services/commonAPI';
+import { useAuth } from '../../auth/AuthContext';
+import { createInventoryRequest } from '../../services/inventoryService';
 
 export default function CreateInventoryRequestForm({
     openDialog,
@@ -18,6 +19,7 @@ export default function CreateInventoryRequestForm({
         requestedBy: '',
         requestRemarks: ''
     });
+    const { user } = useAuth();
 
     const [itemList, setItemList] = useState([]);
     const [loading, setLoading] = React.useState(false);
@@ -34,7 +36,7 @@ export default function CreateInventoryRequestForm({
             quantity: '',
             source: 'MANUAL',
             sourceId: '',
-            requestedBy: '',
+            requestedBy: user?.username || '',
             requestRemarks: ''
         });
     };
@@ -51,10 +53,10 @@ export default function CreateInventoryRequestForm({
             params.append('quantity', formData.quantity);
             params.append('source', formData.source);
             if (formData.sourceId) params.append('sourceId', formData.sourceId);
-            params.append('requestedBy', formData.requestedBy);
+            params.append('requestedBy', formData.requestedBy || user?.username || '');
             params.append('requestRemarks', formData.requestRemarks);
 
-            await apiService.post(`/inventory/requests?${params.toString()}`);
+            await createInventoryRequest(params);
             handleCloseDialog();
         } catch (err) {
             // handled
@@ -86,16 +88,6 @@ export default function CreateInventoryRequestForm({
         <Dialog open={openDialog} onClose={handleCloseDialog} fullWidth maxWidth="xs">
             <DialogTitle>Create Inventory Request</DialogTitle>
             <DialogContent>
-                <TextField
-                    margin="dense"
-                    label="Quantity"
-                    name="quantity"
-                    type="number"
-                    value={formData.quantity}
-                    onChange={handleFormChange}
-                    fullWidth
-                    required
-                />
                 <Autocomplete
                     options={itemList}
                     value={selectedItem}
@@ -131,6 +123,17 @@ export default function CreateInventoryRequestForm({
 
                 <TextField
                     margin="dense"
+                    label="Quantity"
+                    name="quantity"
+                    type="number"
+                    value={formData.quantity}
+                    onChange={handleFormChange}
+                    fullWidth
+                    required
+                />
+
+                <TextField
+                    margin="dense"
                     select
                     label="Source"
                     name="source"
@@ -140,7 +143,8 @@ export default function CreateInventoryRequestForm({
                 >
                     <MenuItem value="MANUAL">Manual</MenuItem>
                     <MenuItem value="WORK_ORDER">Work Order</MenuItem>
-                    <MenuItem value="SALES_ORDER">Purchase Order</MenuItem>
+                    <MenuItem value="SALES_ORDER">Sales Order</MenuItem>
+                    <MenuItem value="PURCHASE_ORDER">Purchase Order</MenuItem>
                 </TextField>
                 <TextField
                     margin="dense"

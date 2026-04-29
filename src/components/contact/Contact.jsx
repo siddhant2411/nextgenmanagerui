@@ -21,13 +21,15 @@ const Contact = () => {
     const [error, setError]               = useState(null);
     const [currentPage, setCurrentPage]   = useState(1);
     const [totalPages, setTotalPages]     = useState(1);
+    const [totalElements, setTotalElements] = useState(0);
+    const [rowsPerPage, setRowsPerPage]   = useState(20);
     const [sortBy, setSortBy]             = useState('companyName');
     const [sortDir, setSortDir]           = useState('asc');
     const [filters, setFilters]           = useState({ query: '', type: '' });
     const [snackbar, setSnackbar]         = useState({ open: false, message: '', severity: 'success' });
     const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
 
-    const itemsPerPage    = 20;
+    const itemsPerPage    = rowsPerPage;
     const navigate        = useNavigate();
     const location        = useLocation();
     const debounceTimeout = useRef(null);
@@ -52,6 +54,7 @@ const Contact = () => {
                 const data = await apiService.get('/contact', params);
                 setContactList(data.content || []);
                 setTotalPages(data.totalPages || 1);
+                setTotalElements(data.totalElements ?? data.content?.length ?? 0);
                 setCurrentPage(page);
             } catch (err) {
                 setError('Failed to fetch contacts.');
@@ -91,6 +94,12 @@ const Contact = () => {
 
     const handlePageChange = (_, page) => {
         fetchContactList(page, sortBy, sortDir, filters);
+    };
+
+    const handleRowsPerPageChange = (event) => {
+        const newSize = parseInt(event.target.value, 10);
+        setRowsPerPage(newSize);
+        fetchContactList(1, sortBy, sortDir, filters);
     };
 
     const handleSave = async (data) => {
@@ -169,8 +178,11 @@ const Contact = () => {
                                 sortDir={sortDir}
                                 currentPage={currentPage}
                                 totalPages={totalPages}
+                                totalElements={totalElements}
+                                rowsPerPage={rowsPerPage}
                                 handleSort={handleSort}
                                 handlePageChange={handlePageChange}
+                                handleRowsPerPageChange={handleRowsPerPageChange}
                                 handleFilterChange={handleFilterChange}
                                 handleDelete={handleDeleteRequest}
                             />
