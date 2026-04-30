@@ -8,15 +8,22 @@ import {
 import {
     Tune as TuneIcon, ArrowUpward, ArrowDownward
 } from '@mui/icons-material';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 import './style/bom.css';
 import apiService from '../../services/apiService';
+import {
+    downloadFlatBomExcel,
+    downloadIndentedBomExcel,
+    downloadManufacturingBomPdf,
+    downloadBomJobSheet,
+} from '../../services/bomService';
 import FilterBar from '../ui/filterbar/FilterBar';
 import { useAuth } from '../../auth/AuthContext';
 import { PRODUCTION_APPROVAL_ROLES, PRODUCTION_MANAGE_ROLES } from '../../auth/roles';
+import { EditIcon } from 'lucide-react';
 
 /* ── Theme constants ── */
 const HEADER_BG = '#0f2744';
@@ -110,6 +117,26 @@ const BomList = ({
     const { hasAnyRole } = useAuth();
     const canManageBom = hasAnyRole(PRODUCTION_MANAGE_ROLES);
     const isAdminRole = hasAnyRole(PRODUCTION_APPROVAL_ROLES);
+    const [exportAnchorEl, setExportAnchorEl] = useState(null);
+
+    const downloadExport = async (type) => {
+        setExportAnchorEl(null);
+        if (selectedRows.length === 0) return;
+
+        try {
+            if (type === 'flat') {
+                await downloadFlatBomExcel(selectedRows);
+            } else if (type === 'indented') {
+                await downloadIndentedBomExcel(selectedRows);
+            } else if (type === 'pdf') {
+                await downloadManufacturingBomPdf(selectedRows);
+            } else if (type === 'job-sheet') {
+                await downloadBomJobSheet(selectedRows);
+            }
+        } catch (err) {
+            setError("Export failed: " + (err.message || "Something went wrong"));
+        }
+    };
 
     const onPageChange = (page) => {
         setCurrentPage(page);
@@ -281,6 +308,57 @@ const BomList = ({
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
+                        {selectedRows.length > 0 && (
+                            <>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<FileDownloadIcon />}
+                                    onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                                    sx={{
+                                        borderRadius: 1.5,
+                                        textTransform: 'none',
+                                        px: 2,
+                                        borderColor: '#1565c0',
+                                        color: '#1565c0',
+                                        '&:hover': { borderColor: '#0d47a1', bgcolor: 'rgba(21,101,192,0.04)' }
+                                    }}
+                                >
+                                    Export ({selectedRows.length})
+                                </Button>
+                                <Menu
+                                    anchorEl={exportAnchorEl}
+                                    open={Boolean(exportAnchorEl)}
+                                    onClose={() => setExportAnchorEl(null)}
+                                    PaperProps={{ sx: { minWidth: 220, borderRadius: 2, mt: 0.5, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' } }}
+                                >
+                                    <MenuItem onClick={() => downloadExport('job-sheet')} sx={{ py: 1 }}>
+                                        <ListItemText
+                                            primary={<Typography variant="body2" fontWeight={600}>BOM Job Sheet (PDF)</Typography>}
+                                            secondary="Materials checklist + operator sign-off"
+                                        />
+                                    </MenuItem>
+                                    <MenuItem onClick={() => downloadExport('pdf')} sx={{ py: 1 }}>
+                                        <ListItemText
+                                            primary={<Typography variant="body2" fontWeight={600}>Manufacturing BOM Sheet (PDF)</Typography>}
+                                            secondary="For Shop Floor Execution"
+                                        />
+                                    </MenuItem>
+                                    <Divider />
+                                    <MenuItem onClick={() => downloadExport('flat')} sx={{ py: 1 }}>
+                                        <ListItemText
+                                            primary={<Typography variant="body2" fontWeight={600}>Flat BOM Details (Excel)</Typography>}
+                                            secondary="For Costing & Planning"
+                                        />
+                                    </MenuItem>
+                                    <MenuItem onClick={() => downloadExport('indented')} sx={{ py: 1 }}>
+                                        <ListItemText
+                                            primary={<Typography variant="body2" fontWeight={600}>Indented BOM (Excel)</Typography>}
+                                            secondary="Multi-level Hierarchy"
+                                        />
+                                    </MenuItem>
+                                </Menu>
+                            </>
+                        )}
                         {canManageBom && (
                             <Button
                                 onClick={handleAddNewBomClick}

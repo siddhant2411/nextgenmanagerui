@@ -38,7 +38,8 @@ import BomCostBreakdown from "./BomCostBreakdown";
 import {
     deleteBomAttachment,
     downloadBomAttachment,
-    downloadBomExcel,
+    downloadBomJobSheet,
+    downloadFlatBomExcel,
     duplicateBom,
     getActiveBomByItemid,
     getBomChangeLog,
@@ -783,11 +784,23 @@ const AddBom = () => {
 
     const downloadExcel = async () => {
         try {
-            await downloadBomExcel(bomId);
+            await downloadFlatBomExcel(bomId);
             showSnackbar("Excel downloaded");
         } catch (downloadError) {
             showSnackbar(
                 resolveApiErrorMessage(downloadError, "Failed to download Excel."),
+                "error"
+            );
+        }
+    };
+
+    const downloadJobSheet = async () => {
+        try {
+            await downloadBomJobSheet(bomId);
+            showSnackbar("Job Sheet downloaded");
+        } catch (downloadError) {
+            showSnackbar(
+                resolveApiErrorMessage(downloadError, "Failed to download Job Sheet."),
                 "error"
             );
         }
@@ -1087,6 +1100,20 @@ const AddBom = () => {
                                             }}
                                         >
                                             Excel
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<FileDownload />}
+                                            onClick={downloadJobSheet}
+                                            sx={{
+                                                textTransform: "none",
+                                                fontWeight: 500,
+                                                borderColor: BORDER_COLOR,
+                                                color: "#374151",
+                                            }}
+                                        >
+                                            Job Sheet
                                         </Button>
                                         <Button
                                             size="small"

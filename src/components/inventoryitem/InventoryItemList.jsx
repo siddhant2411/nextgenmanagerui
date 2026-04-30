@@ -4,18 +4,19 @@ import {
   TableContainer, TableHead, TablePagination, TableRow,
   Paper, Typography, Divider, ListItemText, Toolbar,
   Menu, MenuItem, Checkbox, CircularProgress,
-  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions
+  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, ListItemIcon
 } from '@mui/material';
 import {
   BuildCircle, Inventory2Rounded, WorkOff, Calculate,
-  Tune as TuneIcon, ArrowUpward, ArrowDownward
+  Tune as TuneIcon, ArrowUpward, ArrowDownward, Download as DownloadIcon,
+  Warning as WarningIcon
 } from "@mui/icons-material";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 import FilterBar from '../ui/filterbar/FilterBar';
-import { filterInventoryItems } from '../../services/inventoryService';
+import { filterInventoryItems, exportInventoryItems } from '../../services/inventoryService';
 import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
 
@@ -24,6 +25,7 @@ const allColumns = [
   { field: 'itemCode', headerName: 'Product Code', width: 120, type: 'string' },
   { field: 'name', headerName: 'Product Name', width: 180, type: 'string' },
   { field: 'hsnCode', headerName: 'HSN Code', width: 90, type: 'string' },
+  { field: 'taxCategory', headerName: 'GST %', width: 70, type: 'string' },
   { field: 'uom', headerName: 'UOM', width: 70, type: "enum", options: ["NOS", "KG", "GRAM", "TON", "METER", "CENTIMETER", "INCH", "LITER", "SET"] },
   { field: 'itemType', headerName: 'Type', width: 130, type: "enum", options: ["RAW_MATERIAL", "SEMI_FINISHED", "FINISHED_GOOD", "SUB_CONTRACTED", "CONSUMABLE"] },
   { field: 'basicMaterial', headerName: 'Material', width: 110, type: 'string' },
@@ -42,7 +44,7 @@ const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
     cols = cols.filter(f => !["dimension", "weight", "revision", "drawingNumber"].includes(f));
   }
   if (isMobile) {
-    cols = cols.filter(f => !["hsnCode", "basicMaterial", "dimension", "weight", "revision", "drawingNumber", "sellingPrice"].includes(f));
+    cols = cols.filter(f => !["hsnCode", "taxCategory", "basicMaterial", "dimension", "weight", "revision", "drawingNumber", "sellingPrice"].includes(f));
   }
   return cols;
 };
@@ -119,6 +121,20 @@ const InventoryItemList = ({
   const [inventoryItems, setInventoryItems] = useState([]);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
+  const [exportAnchorEl, setExportAnchorEl] = useState(null);
+
+  const handleExportClick = (event) => setExportAnchorEl(event.currentTarget);
+  const handleExportClose = () => setExportAnchorEl(null);
+
+  const downloadExport = async (type) => {
+      handleExportClose();
+      try {
+          await exportInventoryItems(type, selectedRows);
+      } catch (err) {
+          console.error('Error downloading file:', err);
+          alert('Failed to download export.');
+      }
+  };
 
   const handleFilterApplied = (data) => {
     setInventoryItems(data.content);
@@ -356,6 +372,50 @@ const InventoryItemList = ({
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Button 
+                variant="outlined" 
+                startIcon={<DownloadIcon />}
+                onClick={handleExportClick}
+                sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, borderColor: BORDER_COLOR, color: '#374151', bgcolor: '#fff' }}
+            >
+                Export
+            </Button>
+            <Menu
+                anchorEl={exportAnchorEl}
+                open={Boolean(exportAnchorEl)}
+                onClose={handleExportClose}
+                PaperProps={{ elevation: 3, sx: { borderRadius: 2, minWidth: 200 } }}
+            >
+                <MenuItem onClick={() => downloadExport('catalog')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Product Catalog (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <MenuItem onClick={() => downloadExport('bulk')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Bulk Item Master (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <MenuItem onClick={() => downloadExport('pdf')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Product Data Sheet (PDF)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <Divider />
+                <MenuItem onClick={() => downloadExport('vendor-prices')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Vendor Price Comparison" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <MenuItem onClick={() => downloadExport('gst-import')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="GST / E-Way / Tally Import" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <MenuItem onClick={() => downloadExport('low-stock-indent')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Low Stock Purchase Indent" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+                <MenuItem onClick={() => downloadExport('job-work-items')}>
+                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText primary="Job Work Items" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                </MenuItem>
+            </Menu>
             {canWriteInventoryItems && <BulkImportItems />}
             <Button
               onClick={handleAddNewItemClick}
@@ -617,7 +677,21 @@ const InventoryItemList = ({
                               ? <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>{item[col.field] || "-"}</Typography>
                               : col.field === "name"
                                 ? <Typography variant="body2" sx={{ fontWeight: 500 }}>{item[col.field] || "-"}</Typography>
-                                : (item[col.field] !== undefined && item[col.field] !== null ? item[col.field].toString() : "-")
+                                : col.field === "availableQuantity"
+                                  ? (() => {
+                                      const qty = item[col.field];
+                                      if (qty === null || qty === undefined) return '-';
+                                      if (qty <= 0) return (
+                                        <Box display="flex" alignItems="center" gap={0.5}>
+                                          <Chip label={qty} size="small" sx={{ bgcolor: '#fdecea', color: '#c62828', fontWeight: 600, fontSize: '0.72rem', height: 20, px: 0.25 }} />
+                                          <Tooltip title="Out of stock"><WarningIcon sx={{ fontSize: 13, color: '#ef5350' }} /></Tooltip>
+                                        </Box>
+                                      );
+                                      return qty.toString();
+                                    })()
+                                  : col.field === "taxCategory"
+                                    ? (item[col.field] != null && item[col.field] !== '' ? `${item[col.field]}%` : '-')
+                                    : (item[col.field] !== undefined && item[col.field] !== null ? item[col.field].toString() : "-")
                           }
                         </TableCell>
                       ))}

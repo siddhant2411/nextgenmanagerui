@@ -86,6 +86,22 @@ export const partialApproveMaterialRequest = (requestId, approvedQuantity) =>
 export const rejectMaterialRequest = (requestId, reason) =>
     apiService.post(`/material-requests/${requestId}/reject`, { reason });
 
+const EXPORT_CONFIGS = {
+    catalog:          { path: '/inventory_item/export/catalog',          filename: 'Product_Catalog.xlsx' },
+    bulk:             { path: '/inventory_item/export/bulk',             filename: 'Bulk_Item_Master.xlsx' },
+    pdf:              { path: '/inventory_item/export/pdf',              filename: 'Product_Master_Data_Sheet.pdf' },
+    'vendor-prices':  { path: '/inventory_item/export/vendor-prices',   filename: 'Vendor_Price_Comparison.xlsx' },
+    'gst-import':     { path: '/inventory_item/export/gst-import',      filename: 'GST_EWay_Tally_Import.xlsx' },
+    'low-stock-indent': { path: '/inventory_item/export/low-stock-indent', filename: 'Low_Stock_Purchase_Indent.xlsx' },
+    'job-work-items': { path: '/inventory_item/export/job-work-items',  filename: 'Job_Work_Items.xlsx' },
+};
+
+export const exportInventoryItems = (type, ids = []) => {
+    const { path, filename } = EXPORT_CONFIGS[type];
+    const params = ids.length ? { ids: ids.join(',') } : {};
+    return apiService.download(path, params, filename);
+};
+
 const inventoryService = {
     getInventorySummary,
     searchInventoryItems,
