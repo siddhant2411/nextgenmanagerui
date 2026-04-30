@@ -29,6 +29,10 @@ import {
   updateWorkOrder,
   scheduleWorkOrder,
   rescheduleWorkOrder,
+  downloadWorkOrderJobSheet,
+  downloadOperationInstructionCards,
+  downloadMaterialPickList,
+  downloadMoveTickets,
 } from '../../../services/workOrderService';
 import { getBomPositisions } from '../../../services/bomService';
 import { useAuth } from '../../../auth/AuthContext';
@@ -1090,8 +1094,17 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                   transformOrigin={{ horizontal: 'right', vertical: 'top' }}
                   anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
                 >
-                  <MenuItem dense onClick={() => { setActionsMenuAnchor(null); }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
-                    <FileDownload fontSize="small" /> Export Excel
+                  <MenuItem dense onClick={async () => { setActionsMenuAnchor(null); try { await downloadWorkOrderJobSheet(workOrderId); } catch { alert('Failed to download Job Sheet.'); } }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                    <FileDownload fontSize="small" /> Job Sheet (PDF)
+                  </MenuItem>
+                  <MenuItem dense onClick={async () => { setActionsMenuAnchor(null); try { await downloadOperationInstructionCards(workOrderId); } catch { alert('Failed to download Operation Cards.'); } }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                    <FileDownload fontSize="small" /> Operation Cards
+                  </MenuItem>
+                  <MenuItem dense onClick={async () => { setActionsMenuAnchor(null); try { await downloadMaterialPickList(workOrderId); } catch { alert('Failed to download Pick List.'); } }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                    <FileDownload fontSize="small" /> Material Pick List
+                  </MenuItem>
+                  <MenuItem dense onClick={async () => { setActionsMenuAnchor(null); try { await downloadMoveTickets(workOrderId); } catch { alert('Failed to download Move Tickets.'); } }} sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                    <FileDownload fontSize="small" /> Move Tickets (Tags)
                   </MenuItem>
                   <Divider sx={{ my: 0.5 }} />
                   <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''} placement="left">

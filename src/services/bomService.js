@@ -25,11 +25,36 @@ export const duplicateBom = (bomId) => {
     return apiService.post(`/bom/${bomId}/duplicate`, {})
 }
 
-export const downloadBomExcel = (bomId) => {
+export const downloadFlatBomExcel = (ids) => {
     return apiService.download(
-        `/bom/${bomId}/export`, null,
-        "BOM_" + bomId + ".xlsx")
+        `/bom/export/flat`,
+        { ids: Array.isArray(ids) ? ids.join(',') : ids },
+        "Flat_BOM_Export.xlsx"
+    );
+};
 
+export const downloadIndentedBomExcel = (ids) => {
+    return apiService.download(
+        `/bom/export/indented`,
+        { ids: Array.isArray(ids) ? ids.join(',') : ids },
+        "Indented_BOM_Export.xlsx"
+    );
+};
+
+export const downloadManufacturingBomPdf = (ids) => {
+    return apiService.download(
+        `/bom/export/pdf`,
+        { ids: Array.isArray(ids) ? ids.join(',') : ids },
+        "Manufacturing_BOM_Sheet.pdf"
+    );
+};
+
+export const downloadBomJobSheet = (ids) => {
+    return apiService.download(
+        `/bom/export/job-sheet`,
+        { ids: Array.isArray(ids) ? ids.join(',') : ids },
+        "BOM_Job_Sheet.pdf"
+    );
 };
 
 export const getActiveBomByItemid = (itemId) => {

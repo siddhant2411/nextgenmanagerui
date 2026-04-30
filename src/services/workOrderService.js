@@ -1,4 +1,5 @@
-import apiService, { apiClientFile } from "./apiService";
+import apiService, { apiClientFile, resolveApiErrorMessage } from "./apiService";
+export { resolveApiErrorMessage };
 
 export const getWorkOrderList = async (params) => {
     return apiService.post('/production/work-order/get-list', params);
@@ -244,4 +245,40 @@ export const deleteWorkOrderAttachment = async (workOrderId, attachmentId) => {
     if (!workOrderId) throw new Error('Work order id is required');
     if (!attachmentId) throw new Error('Attachment id is required');
     return apiService.delete(`/production/work-order/${workOrderId}/attachments/${attachmentId}`);
+};
+
+export const downloadWorkOrderJobSheet = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.download(
+        `/production/work-order/${workOrderId}/export/job-sheet`,
+        {},
+        'Work_Order_Job_Sheet.pdf'
+    );
+};
+
+export const downloadOperationInstructionCards = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.download(
+        `/production/work-order/${workOrderId}/export/operation-instruction-cards`,
+        {},
+        `Operation_Cards_WO_${workOrderId}.pdf`
+    );
+};
+
+export const downloadMaterialPickList = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.download(
+        `/production/work-order/${workOrderId}/export/material-pick-list`,
+        {},
+        `Material_Pick_List_WO_${workOrderId}.pdf`
+    );
+};
+
+export const downloadMoveTickets = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.download(
+        `/production/work-order/${workOrderId}/export/move-tickets`,
+        {},
+        `Move_Tickets_WO_${workOrderId}.pdf`
+    );
 };

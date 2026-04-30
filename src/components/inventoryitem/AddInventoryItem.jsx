@@ -149,7 +149,7 @@ export default function AddInventoryItem() {
       leadTime: '', reorderLevel: '', minStock: '', maxStock: '',
       purchased: false, manufactured: false, batchTracked: false, serialTracked: false
     },
-    productFinanceSettings: { standardCost: '', sellingPrice: '', taxCategory: '' },
+    productFinanceSettings: { standardCost: '', sellingPrice: '', taxCategory: '', gstRate: '' },
     fileAttachments: [],
     attachments: [],
     pdfAttachments: [],
@@ -239,7 +239,7 @@ export default function AddInventoryItem() {
       leadTime: dup.leadTime || '',
       productSpecification: (({ id, ...rest }) => rest)(dup.productSpecification || { dimension: '', size: '', weight: '', basicMaterial: '', processType: '', drawingNumber: '' }),
       productInventorySettings: (({ id, ...rest }) => rest)(dup.productInventorySettings || { leadTime: '', reorderLevel: '', minStock: '', maxStock: '', purchased: false, manufactured: false, batchTracked: false, serialTracked: false }),
-      productFinanceSettings: (({ id, ...rest }) => rest)(dup.productFinanceSettings || { standardCost: '', sellingPrice: '', taxCategory: '' }),
+      productFinanceSettings: (({ id, ...rest }) => rest)(dup.productFinanceSettings || { standardCost: '', sellingPrice: '', taxCategory: '', gstRate: '' }),
       fileAttachments: [],
       attachments: [],
       pdfAttachments: [],
@@ -882,15 +882,26 @@ export default function AddInventoryItem() {
                 )}
               </Grid>
 
-              {/* GST Slab */}
+              {/* GST Slab / Tax Category */}
               <Grid item xs={12} sm={6} md={4}>
                 <FormControl fullWidth size="small">
-                  <InputLabel sx={{ fontSize: 13.5 }}>GST Rate</InputLabel>
+                  <InputLabel sx={{ fontSize: 13.5 }}>Tax Category (GST Slab)</InputLabel>
                   <Select
                     name="productFinanceSettings.taxCategory"
                     value={itemData.productFinanceSettings?.taxCategory || ''}
-                    label="GST Rate"
-                    onChange={handleChange}
+                    label="Tax Category (GST Slab)"
+                    onChange={(e) => {
+                      const slab = e.target.value;
+                      setIsDirty(true);
+                      setItemData(prev => ({
+                        ...prev,
+                        productFinanceSettings: {
+                          ...prev.productFinanceSettings,
+                          taxCategory: slab,
+                          ...(slab !== '' && { gstRate: slab }),
+                        },
+                      }));
+                    }}
                     sx={{ borderRadius: 1.5, fontSize: 13.5 }}
                   >
                     <MenuItem value=""><em>— Not Set —</em></MenuItem>
@@ -899,6 +910,22 @@ export default function AddInventoryItem() {
                     ))}
                   </Select>
                 </FormControl>
+              </Grid>
+
+              {/* GST Rate % (numeric, precise override) */}
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  size="small" type="number" label="GST Rate %" fullWidth
+                  name="productFinanceSettings.gstRate"
+                  value={itemData.productFinanceSettings?.gstRate ?? ''}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                  inputProps={{ min: 0, max: 100, step: 0.01 }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                  helperText="Auto-filled from slab; edit for custom rates"
+                />
               </Grid>
             </Grid>
           ) : (
