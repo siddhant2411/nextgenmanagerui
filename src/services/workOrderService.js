@@ -224,6 +224,40 @@ export const getMaterialReorders = async (workOrderId, materialId) => {
     return apiService.get(`/production/work-order/${workOrderId}/materials/${materialId}/reorders`);
 }
 
+// ── Cost of Production ──
+
+export const getCostReport = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/cost-report`);
+};
+
+// ── Labour Time Tracking ──
+
+export const logLabour = async (operationId, data) => {
+    if (!operationId) throw new Error('Operation id is required');
+    return apiService.post(`/production/work-order/operation/${operationId}/labour`, data);
+};
+
+export const getLabourForOperation = async (operationId) => {
+    if (!operationId) throw new Error('Operation id is required');
+    return apiService.get(`/production/work-order/operation/${operationId}/labour`);
+};
+
+export const getLabourForWorkOrder = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/labour`);
+};
+
+export const updateLabourEntry = async (entryId, data) => {
+    if (!entryId) throw new Error('Entry id is required');
+    return apiService.put(`/production/work-order/labour/${entryId}`, data);
+};
+
+export const deleteLabourEntry = async (entryId) => {
+    if (!entryId) throw new Error('Entry id is required');
+    return apiService.delete(`/production/work-order/labour/${entryId}`);
+};
+
 // ── Attachments ──
 
 export const getWorkOrderAttachments = async (workOrderId) => {

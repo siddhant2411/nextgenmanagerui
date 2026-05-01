@@ -77,7 +77,7 @@ export default function OperationCard({ operation, onClick, highlight }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <AccessTime sx={{ fontSize: 11, color: '#6b7280' }} />
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              {operation.setupTime || 0}h + {operation.runTime || 0}h
+              Setup: {operation.setupTime || 0} min + Run: {operation.runTime || 0} min/unit
             </Typography>
           </Box>
         )}
