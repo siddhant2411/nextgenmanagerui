@@ -101,7 +101,7 @@ function BarTooltip({ op, blockingNames }) {
             )}
             {(op.setupTime != null || op.runTime != null) && (
                 <Typography sx={{ fontSize: '0.72rem' }}>
-                    Setup: {op.setupTime ?? 0}h | Run: {op.runTime ?? 0}h
+                    Setup: {op.setupTime ?? 0} min | Run: {op.runTime ?? 0} min/unit
                 </Typography>
             )}
             <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.2)', mt: 0.5, pt: 0.5 }}>

@@ -179,6 +179,19 @@ export default function BomRouting({
         }
     }, [selectedJob]);
 
+    // When the operations list is refreshed from the server (after save), sync selectedOperation
+    // so it picks up the backend-assigned id for newly created operations.
+    useEffect(() => {
+        if (!selectedOperation || selectedOperation.id) return;
+        const match = (operations || []).find(op =>
+            (selectedOperation._tempId && op._tempId === selectedOperation._tempId) ||
+            (!op._tempId && op.sequenceNumber === selectedOperation.sequenceNumber && op.name === selectedOperation.name)
+        );
+        if (match?.id) {
+            setSelectedOperation(match);
+        }
+    }, [operations]);
+
     // Fetch attachments when an existing (saved) operation is selected
     const fetchOpAttachments = useCallback(async (opId) => {
         if (!opId) { setOpAttachments([]); return; }
@@ -432,13 +445,13 @@ export default function BomRouting({
                             <SectionLabel>Timing & Costing</SectionLabel>
                             <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                                 <Grid item xs={6}>
-                                    <TextField fullWidth size="small" type="number" label="Setup Time (hrs)" sx={fieldSx}
+                                    <TextField fullWidth size="small" type="number" label="Setup Time (min)" sx={fieldSx}
                                         value={selectedOperation.setupTime || ""}
                                         onChange={(e) => setSelectedOperation({ ...selectedOperation, setupTime: e.target.value })}
                                     />
                                 </Grid>
                                 <Grid item xs={6}>
-                                    <TextField fullWidth size="small" type="number" label="Run Time (hrs)" sx={fieldSx}
+                                    <TextField fullWidth size="small" type="number" label="Run Time (min/unit)" sx={fieldSx}
                                         value={selectedOperation.runTime || ""}
                                         onChange={(e) => setSelectedOperation({ ...selectedOperation, runTime: e.target.value })}
                                     />

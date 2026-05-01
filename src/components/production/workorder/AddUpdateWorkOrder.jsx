@@ -10,6 +10,7 @@ import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
 import WorkOrderQCTab from './tabs/WorkOrderQCTab';
 import WorkOrderAttachmentsTab from './tabs/WorkOrderAttachmentsTab';
 import WorkOrderRejectionsTab from './tabs/WorkOrderRejectionsTab';
+import WorkOrderCostTab from './tabs/WorkOrderCostTab';
 import ScheduleDialog from './ScheduleDialog';
 import { useFormik } from 'formik';
 import dayjs from 'dayjs';
@@ -1304,6 +1305,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           <Tab label="Timeline & History" />
           <Tab label="Quality Control" />
           {workOrderId && <Tab label="Rejections & Yield" />}
+          {workOrderId && <Tab label="Cost of Production" />}
         </Tabs>
 
         <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', flex: 1 }}>
@@ -1331,6 +1333,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               onCompleteOperation={handleCompleteOperation}
               operationActionState={operationActionState}
               materials={formik.values.materials}
+              onRefresh={reloadWorkOrder}
             />
           )}
           {selectedTab === 3 && (
@@ -1360,6 +1363,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               setError={setError}
               setSnackbar={setSnackbar}
             />
+          )}
+          {selectedTab === 7 && workOrderId && (
+            <WorkOrderCostTab workOrderId={workOrderId} />
           )}
         </Box>
       </Paper>

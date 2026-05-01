@@ -376,6 +376,7 @@ const AddBom = () => {
     const baselineSignatureRef = useRef(null);
     const pauseDirtyTrackingRef = useRef(false);
     const initialLoadRef = useRef({ bomId: null });
+    const fetchBomDetailsRef = useRef(null);
     const navigate = useNavigate();
     const { bomId } = useParams();
     const location = useLocation();
@@ -477,12 +478,13 @@ const AddBom = () => {
                 if (bomId) {
                     await apiService.put(`/bom/${bomId}`, payload);
                     showSnackbar("BOM updated successfully");
+                    await fetchBomDetailsRef.current?.();
                 } else {
                     await apiService.post("/bom", payload);
                     showSnackbar("BOM created successfully");
+                    baselineSignatureRef.current = buildDirtySignature(values, operations);
+                    setIsDirty(false);
                 }
-                baselineSignatureRef.current = buildDirtySignature(values, operations);
-                setIsDirty(false);
             } catch (errorResponse) {
                 showSnackbar(
                     resolveApiErrorMessage(errorResponse, "Failed to save BOM."),
@@ -596,6 +598,7 @@ const AddBom = () => {
             );
         }
     }, [applyFormSnapshot, bomId, showSnackbar]);
+    fetchBomDetailsRef.current = fetchBomDetails;
 
     const fetchRoutingByBom = useCallback(async () => {
         if (!bomId) {
