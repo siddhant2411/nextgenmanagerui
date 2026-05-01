@@ -96,6 +96,8 @@ const EXPORT_CONFIGS = {
     'job-work-items': { path: '/inventory_item/export/job-work-items',  filename: 'Job_Work_Items.xlsx' },
 };
 
+export const getAttachmentBlob = (fileId) => apiService.fetchBlob(`/inventory_item/download/${fileId}`);
+
 export const exportInventoryItems = (type, ids = []) => {
     const { path, filename } = EXPORT_CONFIGS[type];
     const params = ids.length ? { ids: ids.join(',') } : {};
@@ -122,6 +124,7 @@ const inventoryService = {
     getGroupedInventory,
     updateInventory,
     addInventory,
+    getAttachmentBlob,
 };
 
 export default inventoryService;

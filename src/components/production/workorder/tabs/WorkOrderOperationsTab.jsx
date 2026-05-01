@@ -5,11 +5,13 @@ import {
   Box,
   Button,
   Chip,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -42,10 +44,20 @@ import {
   AssignmentTurnedIn,
   Block,
   Warning,
+  AccessTime,
+  ExpandMore,
+  ExpandLess,
+  Edit,
+  Delete,
+  FactCheck,
+  LocalShipping,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import WorkOrderOperationsTimeline from './WorkOrderOperationsTimeline';
-import { getReasonCodes } from '../../../../services/workOrderService';
+import LogLabourDialog from './LogLabourDialog';
+import QaCheckDialog from './QaCheckDialog';
+import { getReasonCodes, deleteLabourEntry, getQaEntriesForOperation, resolveApiErrorMessage } from '../../../../services/workOrderService';
+import { getLaborRoles } from '../../../../services/laborRoleService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMPTY_OPERATIONS = [];
@@ -185,6 +197,7 @@ export default function WorkOrderOperationsTab({
   onCompleteOperation,
   operationActionState,
   materials = [],
+  onRefresh,
 }) {
   const operations = Array.isArray(formik.values?.operations)
     ? formik.values.operations
@@ -200,10 +213,20 @@ export default function WorkOrderOperationsTab({
   const [reasonDialog, setReasonDialog] = useState({ open: false, operation: null, index: null });
   const [overCompletionWarning, setOverCompletionWarning] = useState(null);
 
-  // Load reason codes once
+  // Labour tracking state
+  const [labourDialog, setLabourDialog] = useState({ open: false, operationId: null, operationName: '', operation: null, entry: null, defaultValues: null });
+  const [expandedLabour, setExpandedLabour] = useState(new Set());
+  const [laborRoles, setLaborRoles] = useState([]);
+  const [labourDeleteError, setLabourDeleteError] = useState('');
+
+  // QA check state
+  const [qaDialog, setQaDialog] = useState({ open: false, operation: null, entries: [], batchQty: null });
+
+  // Load reason codes + labour roles once
   useEffect(() => {
     getReasonCodes('REJECTION').then(r => setRejectionCodes(r || [])).catch(() => {});
     getReasonCodes('SCRAP').then(r => setScrapCodes(r || [])).catch(() => {});
+    getLaborRoles({ size: 200 }).then(r => setLaborRoles(r?.content || r || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -335,7 +358,86 @@ export default function WorkOrderOperationsTab({
         ...prev,
         [rowKey]: { completedQuantity: '', rejectedQuantity: '', scrappedQuantity: '', remarks: '' },
       }));
+
+      // Auto-open labour dialog pre-filled from the routing operation
+      const routingOp = operation?.routingOperation;
+      const batchQty = toNumberValue(payload.completedQuantity);
+      const runTime = parseFloat(routingOp?.runTime) || 0;
+      setLabourDialog({
+        open: true,
+        operationId: operation?.id,
+        operationName: operation?.operationName || routingOp?.name,
+        operation,
+        entry: null,
+        defaultValues: {
+          laborRoleId: routingOp?.laborRole?.id || '',
+          costRatePerHour: routingOp?.laborRole?.costPerHour || '',
+          laborType: 'RUN',
+          durationMinutes: runTime > 0 && batchQty > 0 ? (runTime * batchQty).toFixed(2) : '',
+          operatorName: routingOp?.productionJob?.jobName || '',
+          numberOfOperators: routingOp?.numberOfOperators || 1,
+          batchQty,
+        },
+      });
     }
+  };
+
+  const openQaDialog = async (op) => {
+    setQaDialog({ open: true, operation: op, entries: op.qaEntries || [], batchQty: null });
+    getQaEntriesForOperation(op.id)
+      .then(entries => setQaDialog(d => d.open ? { ...d, entries } : d))
+      .catch(() => {});
+  };
+
+  const toggleLabour = (opId) => {
+    setExpandedLabour(prev => {
+      const next = new Set(prev);
+      next.has(opId) ? next.delete(opId) : next.add(opId);
+      return next;
+    });
+  };
+
+  const openLogLabour = (op) => {
+    setLabourDialog({ open: true, operationId: op.id, operationName: op.operationName || op.routingOperation?.name, entry: null });
+  };
+
+  const openEditLabour = (op, entry) => {
+    setLabourDialog({ open: true, operationId: op.id, operationName: op.operationName || op.routingOperation?.name, entry });
+  };
+
+  const handleLabourDialogClose = (saved) => {
+    const { operation, defaultValues } = labourDialog;
+    setLabourDialog(d => ({ ...d, open: false }));
+    if (saved) {
+      if (onRefresh) onRefresh();
+      // Auto-chain QA dialog if this operation requires inspection
+      if (operation?.routingOperation?.inspection) {
+        const batchQty = defaultValues?.batchQty ?? null;
+        const qaEntries = operation.qaEntries || [];
+        setQaDialog({ open: true, operation, entries: qaEntries, batchQty });
+        // Also fetch fresh entries in background
+        getQaEntriesForOperation(operation.id)
+          .then(entries => setQaDialog(d => d.open ? { ...d, entries } : d))
+          .catch(() => {});
+      }
+    }
+  };
+
+  const handleDeleteLabour = async (entryId) => {
+    setLabourDeleteError('');
+    try {
+      await deleteLabourEntry(entryId);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setLabourDeleteError(resolveApiErrorMessage(err));
+    }
+  };
+
+  const fmtDuration = (mins) => {
+    if (!mins) return '-';
+    const m = parseFloat(mins);
+    if (m < 60) return `${m.toFixed(0)}m`;
+    return `${Math.floor(m / 60)}h ${Math.round(m % 60)}m`;
   };
 
   return (
@@ -457,213 +559,344 @@ export default function WorkOrderOperationsTab({
                   const insufficientIssued = !allowBackflush && readiness.issuedUnits !== Infinity && draftGood > readiness.issuedUnits;
                   const batchDisabled = isCurrentAction || draftTotal <= 0 || insufficientIssued;
                   return (
-                    <TableRow
-                      key={rowKey}
-                      sx={{
-                        '&:hover': { bgcolor: '#f8fafc' },
-                        transition: 'background-color 0.2s',
-                        borderLeft: `4px solid ${op.parallelPath ? getPathColour(op.parallelPath, allPathList) : 'transparent'}`,
-                      }}
-                    >
-                      {/* Details */}
-                      <TableCell sx={compactCellSx}>
-                        <Box>
-                          <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#1e293b' }}>
-                            {op.sequence}. {op.operationName || op.routingOperation?.name}
-                          </Typography>
-                          <Stack direction="row" spacing={1} mt={0.5} alignItems="center">
-                            <Chip
-                              icon={cfg.icon} label={op.status} size="small"
-                              sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: cfg.bg, color: cfg.colorMain, border: `1px solid ${cfg.colorMain}40` }}
-                            />
-                            {op.parallelPath && (
-                              <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600 }}>
-                                Path: {op.parallelPath}
+                    <React.Fragment key={rowKey}>
+                      <TableRow
+                        sx={{
+                          '&:hover': { bgcolor: '#f8fafc' },
+                          transition: 'background-color 0.2s',
+                          borderLeft: `4px solid ${op.parallelPath ? getPathColour(op.parallelPath, allPathList) : 'transparent'}`,
+                        }}
+                      >
+                        {/* Details */}
+                        <TableCell sx={compactCellSx}>
+                          <Box>
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#1e293b' }}>
+                                {op.sequence}. {op.operationName || op.routingOperation?.name}
                               </Typography>
-                            )}
-                          </Stack>
-                        </Box>
-                      </TableCell>
-
-                      {/* Readiness */}
-                      <TableCell sx={compactCellSx}>
-                        {op.status === 'COMPLETED' ? (
-                          <Box sx={{ minWidth: 100 }}>
-                            <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                              <Typography variant="caption" fontWeight={700} color="success.main">
-                                {completed > planned ? 'OVER-RUN' : 'DONE'}
-                              </Typography>
-                              <Typography variant="caption" fontWeight={700} sx={{ color: completed > planned ? '#d97706' : 'text.secondary' }}>
-                                {completed} / {planned}
-                              </Typography>
+                              {op.routingOperation?.costType === 'SUB_CONTRACTED' && (
+                                <Chip
+                                  icon={<LocalShipping sx={{ fontSize: '11px !important' }} />}
+                                  label="Subcontract"
+                                  size="small"
+                                  sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#f3e8ff', color: '#7c3aed', border: '1px solid #c4b5fd' }}
+                                />
+                              )}
                             </Stack>
-                            <LinearProgress
-                              variant="determinate"
-                              value={100}
-                              sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#10b981', borderRadius: '9999px' } }}
-                            />
+                            <Stack direction="row" spacing={1} mt={0.5} alignItems="center" flexWrap="wrap">
+                              <Chip
+                                icon={cfg.icon} label={op.status} size="small"
+                                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: cfg.bg, color: cfg.colorMain, border: `1px solid ${cfg.colorMain}40` }}
+                              />
+                              {Number(op.pendingRejectionQuantity) > 0 && (
+                                <Chip
+                                  label={`MRB: ${op.pendingRejectionQuantity}`} size="small"
+                                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d' }}
+                                />
+                              )}
+                              {op.parallelPath && (
+                                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600 }}>
+                                  Path: {op.parallelPath}
+                                </Typography>
+                              )}
+                              {op.routingOperation?.costType === 'SUB_CONTRACTED' && op.routingOperation?.fixedCostPerUnit != null && (
+                                <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 600, fontSize: '0.65rem' }}>
+                                  ₹{Number(op.routingOperation.fixedCostPerUnit).toLocaleString('en-IN')}/unit
+                                </Typography>
+                              )}
+                            </Stack>
                           </Box>
-                        ) : (
-                          <Tooltip
-                            title={readiness.shortages.length > 0
-                              ? `Missing: ${readiness.shortages.join(', ')}`
-                              : `Ready for ${readiness.units.toFixed(1)} units`}
-                            arrow
-                          >
+                        </TableCell>
+
+                        {/* Readiness */}
+                        <TableCell sx={compactCellSx}>
+                          {op.routingOperation?.costType === 'SUB_CONTRACTED' && op.status !== 'COMPLETED' ? (
+                            <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 600, fontSize: '0.7rem' }}>
+                              Awaiting challan receipt
+                            </Typography>
+                          ) : op.status === 'COMPLETED' ? (
                             <Box sx={{ minWidth: 100 }}>
                               <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                                <Typography variant="caption" fontWeight={700} color={readiness.isStartable ? 'success.main' : 'warning.main'}>
-                                  {readiness.isStartable ? 'READY' : 'UNREADY'}
+                                <Typography variant="caption" fontWeight={700} color="success.main">
+                                  {completed > planned ? 'OVER-RUN' : 'DONE'}
                                 </Typography>
-                                <Typography variant="caption" fontWeight={700}>
-                                  {readiness.units.toFixed(1)} / {planned}
+                                <Typography variant="caption" fontWeight={700} sx={{ color: completed > planned ? '#d97706' : 'text.secondary' }}>
+                                  {completed} / {planned}
                                 </Typography>
                               </Stack>
                               <LinearProgress
                                 variant="determinate"
-                                value={Math.min((readiness.units / planned) * 100, 100)}
-                                sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: readiness.isStartable ? '#10b981' : '#f59e0b', borderRadius: '9999px' } }}
+                                value={100}
+                                sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#10b981', borderRadius: '9999px' } }}
                               />
                             </Box>
-                          </Tooltip>
-                        )}
-                      </TableCell>
-
-                      {/* Progress — shows good / rejected / scrap breakdown */}
-                      <TableCell sx={compactCellSx}>
-                        <Box sx={{ minWidth: 150 }}>
-                          <Stack direction="row" justifyContent="space-between" mb={0.5} flexWrap="wrap" gap={0.5}>
-                            <Typography variant="caption" fontWeight={700} color="text.secondary">
-                              Good: {completed}{completed > planned && <Typography component="span" variant="caption" sx={{ color: '#d97706', fontWeight: 800 }}> (+{completed - planned})</Typography>}
-                            </Typography>
-                            {rejected > 0 && (
-                              <Typography variant="caption" fontWeight={700} sx={{ color: '#b45309' }}>
-                                Rej: {rejected}
-                              </Typography>
-                            )}
-                            {scrapped > 0 && (
-                              <Typography variant="caption" fontWeight={700} color="error.main">
-                                Scrap: {scrapped}
-                              </Typography>
-                            )}
-                          </Stack>
-                          <LinearProgress
-                            variant="determinate"
-                            value={Math.min(progress, 100)}
-                            sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#1565c0', borderRadius: '9999px' } }}
-                          />
-                          {op.rejectionReasonCode && (
-                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.68rem' }}>
-                              Rej: {op.rejectionReasonCode}
-                            </Typography>
+                          ) : (
+                            <Tooltip
+                              title={readiness.shortages.length > 0
+                                ? `Missing: ${readiness.shortages.join(', ')}`
+                                : `Ready for ${readiness.units.toFixed(1)} units`}
+                              arrow
+                            >
+                              <Box sx={{ minWidth: 100 }}>
+                                <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                                  <Typography variant="caption" fontWeight={700} color={readiness.isStartable ? 'success.main' : 'warning.main'}>
+                                    {readiness.isStartable ? 'READY' : 'UNREADY'}
+                                  </Typography>
+                                  <Typography variant="caption" fontWeight={700}>
+                                    {readiness.units.toFixed(1)} / {planned}
+                                  </Typography>
+                                </Stack>
+                                <LinearProgress
+                                  variant="determinate"
+                                  value={Math.min((readiness.units / planned) * 100, 100)}
+                                  sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: readiness.isStartable ? '#10b981' : '#f59e0b', borderRadius: '9999px' } }}
+                                />
+                              </Box>
+                            </Tooltip>
                           )}
-                        </Box>
-                      </TableCell>
+                        </TableCell>
 
-                      {/* Timeline */}
-                      <TableCell sx={compactCellSx}>
-                        <Box sx={{ color: '#64748b' }}>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <Schedule sx={{ fontSize: 14 }} />
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualStartDate)}</Typography>
-                          </Stack>
-                          <Stack direction="row" spacing={1} alignItems="center">
-                            <CheckCircle sx={{ fontSize: 14 }} />
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualEndDate)}</Typography>
-                          </Stack>
-                        </Box>
-                      </TableCell>
-
-                      {/* Recording — 3 compact inputs: Good / Reject / Scrap */}
-                      {isEditMode && (
+                        {/* Progress — shows good / rejected / scrap breakdown */}
                         <TableCell sx={compactCellSx}>
-                          <Stack spacing={0.75}>
-                            <Stack direction="row" spacing={0.75}>
-                              <Tooltip title="Good units completed" arrow>
-                                <TextField
-                                  size="small" placeholder="Good" type="number" inputProps={{ min: 0 }}
-                                  value={draft.completedQuantity ?? ''}
-                                  onChange={(e) => handlePartialDraftChange(rowKey, 'completedQuantity', e.target.value)}
-                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5 } }}
-                                />
-                              </Tooltip>
-                              <Tooltip title="Rejected (pending MRB)" arrow>
-                                <TextField
-                                  size="small" placeholder="Rej" type="number" inputProps={{ min: 0 }}
-                                  value={draft.rejectedQuantity ?? ''}
-                                  onChange={(e) => handlePartialDraftChange(rowKey, 'rejectedQuantity', e.target.value)}
-                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 55, borderRadius: 1.5,
-                                    ...(draftRejected > 0 && { color: '#b45309' }) } }}
-                                />
-                              </Tooltip>
-                              <Tooltip title="Scrap (permanent loss)" arrow>
-                                <TextField
-                                  size="small" placeholder="Scrap" type="number" inputProps={{ min: 0 }}
-                                  value={draft.scrappedQuantity ?? ''}
-                                  onChange={(e) => handlePartialDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
-                                  sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5,
-                                    ...(draftScrap > 0 && { color: '#b84040' }) } }}
-                                />
-                              </Tooltip>
+                          <Box sx={{ minWidth: 150 }}>
+                            <Stack direction="row" justifyContent="space-between" mb={0.5} flexWrap="wrap" gap={0.5}>
+                              <Typography variant="caption" fontWeight={700} color="text.secondary">
+                                Good: {completed}{completed > planned && <Typography component="span" variant="caption" sx={{ color: '#d97706', fontWeight: 800 }}> (+{completed - planned})</Typography>}
+                              </Typography>
+                              {rejected > 0 && (
+                                <Typography variant="caption" fontWeight={700} sx={{ color: '#b45309' }}>
+                                  Rej: {rejected}
+                                </Typography>
+                              )}
+                              {scrapped > 0 && (
+                                <Typography variant="caption" fontWeight={700} color="error.main">
+                                  Scrap: {scrapped}
+                                </Typography>
+                              )}
                             </Stack>
-                            {/* Reason code indicator */}
-                            {(draftRejected > 0 || draftScrap > 0) && (
-                              <Typography variant="caption" sx={{ color: '#b45309', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <Warning sx={{ fontSize: 11 }} />
-                                Reason code required on Submit
+                            <LinearProgress
+                              variant="determinate"
+                              value={Math.min(progress, 100)}
+                              sx={{ height: 5, borderRadius: '9999px', bgcolor: '#f1f5f9', '& .MuiLinearProgress-bar': { bgcolor: completed > planned ? '#d97706' : '#1565c0', borderRadius: '9999px' } }}
+                            />
+                            {op.rejectionReasonCode && (
+                              <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.68rem' }}>
+                                Rej: {op.rejectionReasonCode}
                               </Typography>
                             )}
-                          </Stack>
+                          </Box>
                         </TableCell>
-                      )}
 
-                      {/* Action */}
-                      <TableCell align="center" sx={compactCellSx}>
-                        <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
-                          {isEditMode && !isWoTerminal && (
-                            <>
-                              {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && (
-                                <Tooltip title={!readiness.isStartable ? 'Insufficient input quantity to start' : 'Start execution'}>
-                                  <span>
-                                    <Button
-                                      variant="outlined" size="small"
-                                      disabled={!readiness.isStartable || isCurrentAction}
-                                      onClick={() => onStartOperation(op.id)}
-                                      sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2 }}
-                                    >
-                                      {isCurrentAction && operationActionState?.action === 'start' ? 'Starting...' : 'Start'}
-                                    </Button>
-                                  </span>
+                        {/* Timeline */}
+                        <TableCell sx={compactCellSx}>
+                          <Box sx={{ color: '#64748b' }}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Schedule sx={{ fontSize: 14 }} />
+                              <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualStartDate)}</Typography>
+                            </Stack>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <CheckCircle sx={{ fontSize: 14 }} />
+                              <Typography variant="caption" sx={{ fontWeight: 600 }}>{formatDateTime(op.actualEndDate)}</Typography>
+                            </Stack>
+                          </Box>
+                        </TableCell>
+
+                        {/* Recording — 3 compact inputs: Good / Reject / Scrap */}
+                        {isEditMode && (
+                          <TableCell sx={compactCellSx}>
+                            <Stack spacing={0.75}>
+                              <Stack direction="row" spacing={0.75}>
+                                <Tooltip title="Good units completed" arrow>
+                                  <TextField
+                                    size="small" placeholder="Good" type="number" inputProps={{ min: 0 }}
+                                    value={draft.completedQuantity ?? ''}
+                                    onChange={(e) => handlePartialDraftChange(rowKey, 'completedQuantity', e.target.value)}
+                                    sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5 } }}
+                                  />
                                 </Tooltip>
+                                <Tooltip title="Rejected (pending MRB)" arrow>
+                                  <TextField
+                                    size="small" placeholder="Rej" type="number" inputProps={{ min: 0 }}
+                                    value={draft.rejectedQuantity ?? ''}
+                                    onChange={(e) => handlePartialDraftChange(rowKey, 'rejectedQuantity', e.target.value)}
+                                    sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 55, borderRadius: 1.5,
+                                      ...(draftRejected > 0 && { color: '#b45309' }) } }}
+                                  />
+                                </Tooltip>
+                                <Tooltip title="Scrap (permanent loss)" arrow>
+                                  <TextField
+                                    size="small" placeholder="Scrap" type="number" inputProps={{ min: 0 }}
+                                    value={draft.scrappedQuantity ?? ''}
+                                    onChange={(e) => handlePartialDraftChange(rowKey, 'scrappedQuantity', e.target.value)}
+                                    sx={{ '& .MuiInputBase-root': { height: 30, fontSize: '0.73rem', width: 60, borderRadius: 1.5,
+                                      ...(draftScrap > 0 && { color: '#b84040' }) } }}
+                                  />
+                                </Tooltip>
+                              </Stack>
+                              {/* Reason code indicator */}
+                              {(draftRejected > 0 || draftScrap > 0) && (
+                                <Typography variant="caption" sx={{ color: '#b45309', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <Warning sx={{ fontSize: 11 }} />
+                                  Reason code required on Submit
+                                </Typography>
                               )}
+                            </Stack>
+                          </TableCell>
+                        )}
 
-                              {['READY', 'IN_PROGRESS', 'COMPLETED'].includes(op.status) && (() => {
-                                const batchTooltip = insufficientIssued
-                                  ? op.status === 'COMPLETED'
-                                    ? `Operation completed — issue additional materials to the floor before recording extra units (${readiness.issuedUnits.toFixed(2)} units available).`
-                                    : `Insufficient issued qty on floor (${readiness.issuedUnits.toFixed(2)} units available). Issue materials first.`
-                                  : (draftRejected > 0 || draftScrap > 0) ? 'Reason codes will be prompted' : '';
-                                return (
-                                  <Tooltip title={batchTooltip} arrow>
+                        {/* Action */}
+                        <TableCell align="center" sx={compactCellSx}>
+                          <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+                            {isEditMode && !isWoTerminal && (
+                              <>
+                                {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && op.routingOperation?.costType !== 'SUB_CONTRACTED' && (
+                                  <Tooltip title={!readiness.isStartable ? 'Insufficient input quantity to start' : 'Start execution'}>
                                     <span>
                                       <Button
-                                        variant="contained" size="small" disableElevation
-                                        disabled={batchDisabled}
-                                        onClick={() => handleBatchClick(op, index)}
-                                        startIcon={<Save fontSize="small" />}
+                                        variant="outlined" size="small"
+                                        disabled={!readiness.isStartable || isCurrentAction}
+                                        onClick={() => onStartOperation(op.id)}
                                         sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2 }}
                                       >
-                                        {isCurrentAction && operationActionState?.action === 'complete' ? 'Saving...' : 'Batch'}
+                                        {isCurrentAction && operationActionState?.action === 'start' ? 'Starting...' : 'Start'}
                                       </Button>
                                     </span>
                                   </Tooltip>
-                                );
-                              })()}
-                            </>
-                          )}
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
+                                )}
+                                {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && op.routingOperation?.costType === 'SUB_CONTRACTED' && (
+                                  <Tooltip title="Subcontract operation — manage via the Subcontract tab (create challan → dispatch → receive back → record completion here)">
+                                    <Chip
+                                      icon={<LocalShipping sx={{ fontSize: '12px !important' }} />}
+                                      label="Via Challan"
+                                      size="small"
+                                      sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600, bgcolor: '#f3e8ff', color: '#7c3aed', cursor: 'default' }}
+                                    />
+                                  </Tooltip>
+                                )}
+
+                                {['READY', 'IN_PROGRESS', 'COMPLETED'].includes(op.status) && (() => {
+                                  const batchTooltip = insufficientIssued
+                                    ? op.status === 'COMPLETED'
+                                      ? `Operation completed — issue additional materials to the floor before recording extra units (${readiness.issuedUnits.toFixed(2)} units available).`
+                                      : `Insufficient issued qty on floor (${readiness.issuedUnits.toFixed(2)} units available). Issue materials first.`
+                                    : (draftRejected > 0 || draftScrap > 0) ? 'Reason codes will be prompted' : '';
+                                  return (
+                                    <Tooltip title={batchTooltip} arrow>
+                                      <span>
+                                        <Button
+                                          variant="contained" size="small" disableElevation
+                                          disabled={batchDisabled}
+                                          onClick={() => handleBatchClick(op, index)}
+                                          startIcon={<Save fontSize="small" />}
+                                          sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2 }}
+                                        >
+                                          {isCurrentAction && operationActionState?.action === 'complete' ? 'Saving...' : 'Batch'}
+                                        </Button>
+                                      </span>
+                                    </Tooltip>
+                                  );
+                                })()}
+                              </>
+                            )}
+                            {/* QA check button */}
+                            {op.id && op.routingOperation?.inspection && (
+                              <Tooltip title="QA Check">
+                                <IconButton size="small" onClick={() => openQaDialog(op)}
+                                  sx={{ color: (() => {
+                                    const entries = op.qaEntries || [];
+                                    if (entries.some(e => e.result === 'FAIL')) return '#c62828';
+                                    if (entries.every(e => e.result === 'PASS') && entries.length > 0) return '#2e7d32';
+                                    return '#94a3b8';
+                                  })() }}>
+                                  <FactCheck fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {/* Labour time toggle */}
+                            {op.id && (
+                              <Tooltip title={expandedLabour.has(op.id) ? 'Hide labour entries' : 'Show labour time'}>
+                                <IconButton size="small" onClick={() => toggleLabour(op.id)}
+                                  sx={{ color: (op.labourEntries?.length || 0) > 0 ? '#1677ff' : '#94a3b8' }}>
+                                  <AccessTime fontSize="small" />
+                                  {expandedLabour.has(op.id) ? <ExpandLess fontSize="small" /> : <ExpandMore fontSize="small" />}
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Labour entries expansion row */}
+                      {op.id && (
+                        <TableRow key={`${rowKey}-labour`}>
+                          <TableCell colSpan={isEditMode ? 6 : 5} sx={{ p: 0, border: 'none' }}>
+                            <Collapse in={expandedLabour.has(op.id)} unmountOnExit>
+                              <Box sx={{ mx: 2, mb: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+                                  <Typography variant="caption" fontWeight={700} color="#1e293b">
+                                    <AccessTime sx={{ fontSize: 13, verticalAlign: 'middle', mr: 0.5 }} />
+                                    Labour Time — {op.operationName || op.routingOperation?.name}
+                                    {(op.labourEntries?.length || 0) > 0 && (
+                                      <Chip label={`${fmtDuration(op.labourEntries.reduce((s, e) => s + (parseFloat(e.durationMinutes) || 0), 0))} total`}
+                                        size="small" sx={{ ml: 1, height: 18, fontSize: '0.65rem', bgcolor: '#dbeafe', color: '#1d4ed8' }} />
+                                    )}
+                                  </Typography>
+                                  {isEditMode && (
+                                    <Button size="small" variant="outlined" startIcon={<AccessTime fontSize="small" />}
+                                      onClick={() => openLogLabour(op)}
+                                      sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}>
+                                      Log Time
+                                    </Button>
+                                  )}
+                                </Stack>
+                                {(op.labourEntries?.length || 0) === 0 ? (
+                                  <Typography variant="caption" color="text.secondary">No time logged yet.</Typography>
+                                ) : (
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow sx={{ bgcolor: '#f1f5f9' }}>
+                                        {['Operator', 'Role', 'Type', 'Start', 'End', 'Duration', 'Rate (₹/hr)', 'Cost (₹)', ''].map(h => (
+                                          <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.7rem', py: 0.5, color: '#64748b' }}>{h}</TableCell>
+                                        ))}
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {op.labourEntries.map(entry => (
+                                        <TableRow key={entry.id} sx={{ '&:hover': { bgcolor: '#f0f9ff' } }}>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5 }}>{entry.operatorName || '-'}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5 }}>{entry.laborRole?.roleName || '-'}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5 }}>
+                                            <Chip label={entry.laborType} size="small"
+                                              sx={{ height: 16, fontSize: '0.6rem', bgcolor: entry.laborType === 'SETUP' ? '#fef3c7' : '#92400e' , color: entry.laborType === 'SETUP' ? '#92400e' : '#1d4ed8' }} />
+                                          </TableCell>
+                                          <TableCell sx={{ fontSize: '0.7rem', py: 0.5 }}>{entry.startTime ? dayjs(entry.startTime).format('DD-MM HH:mm') : '-'}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.7rem', py: 0.5 }}>{entry.endTime ? dayjs(entry.endTime).format('DD-MM HH:mm') : '-'}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5, fontWeight: 600 }}>{fmtDuration(entry.durationMinutes)}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5 }}>{entry.costRatePerHour ?? '-'}</TableCell>
+                                          <TableCell sx={{ fontSize: '0.75rem', py: 0.5, fontWeight: 600, color: '#059669' }}>{entry.totalCost ? `₹${entry.totalCost}` : '-'}</TableCell>
+                                          <TableCell sx={{ py: 0.25 }}>
+                                            {isEditMode && (
+                                              <Stack direction="row" spacing={0.5}>
+                                                <IconButton size="small" onClick={() => openEditLabour(op, entry)} sx={{ p: 0.25 }}>
+                                                  <Edit sx={{ fontSize: 14 }} />
+                                                </IconButton>
+                                                <IconButton size="small" onClick={() => handleDeleteLabour(entry.id)} sx={{ p: 0.25, color: '#ef4444' }}>
+                                                  <Delete sx={{ fontSize: 14 }} />
+                                                </IconButton>
+                                              </Stack>
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                )}
+                              </Box>
+                            </Collapse>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })
               )}
@@ -685,6 +918,39 @@ export default function WorkOrderOperationsTab({
           Reason codes are required for Rej/Scrap. All three quantities consume input materials.
         </Typography>
       </Box>
+
+      {/* ── QA Check Dialog ── */}
+      <QaCheckDialog
+        open={qaDialog.open}
+        onClose={() => setQaDialog(d => ({ ...d, open: false }))}
+        operation={qaDialog.operation}
+        entries={qaDialog.entries}
+        batchQty={qaDialog.batchQty}
+        onSaved={() => {
+          onRefresh?.();
+        }}
+      />
+
+      {/* ── Labour Time Dialog ── */}
+      <LogLabourDialog
+        open={labourDialog.open}
+        onClose={handleLabourDialogClose}
+        operationId={labourDialog.operationId}
+        operationName={labourDialog.operationName}
+        laborRoles={laborRoles}
+        entry={labourDialog.entry}
+        defaultValues={labourDialog.defaultValues}
+      />
+
+      {/* ── Labour delete error ── */}
+      <Snackbar
+        open={!!labourDeleteError}
+        autoHideDuration={5000}
+        onClose={() => setLabourDeleteError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setLabourDeleteError('')}>{labourDeleteError}</Alert>
+      </Snackbar>
 
       {/* ── Reason Code Dialog ── */}
       <ReasonCodeDialog

@@ -98,3 +98,17 @@ export const deleteOperationAttachment = (operationId, fileId) => {
 export const downloadOperationAttachment = (fileId, fileName) => {
     return apiService.download(`/manufacturing/routing/operation/download/${fileId}`, null, fileName);
 };
+
+// ---- QA Plan (BOM Operation Parameters) ----
+
+export const getQaParameters = (operationId) =>
+    apiService.get(`/bom/routing-operation/${operationId}/qa-parameters`);
+
+export const addQaParameter = (operationId, data) =>
+    apiService.post(`/bom/routing-operation/${operationId}/qa-parameters`, data);
+
+export const updateQaParameter = (parameterId, data) =>
+    apiService.put(`/bom/qa-parameters/${parameterId}`, data);
+
+export const deleteQaParameter = (parameterId) =>
+    apiService.delete(`/bom/qa-parameters/${parameterId}`);

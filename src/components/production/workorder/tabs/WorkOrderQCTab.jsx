@@ -6,8 +6,7 @@ import {
     FormControl, InputLabel, Select, MenuItem, Divider,
 } from '@mui/material';
 import dayjs from 'dayjs';
-import { getWorkOrderTests, recordTestResult, getTestReport } from '../../../../services/workOrderService';
-import QCReportDialog from './QCReportDialog';
+import { getWorkOrderTests, recordTestResult, downloadQcTestReport } from '../../../../services/workOrderService';
 
 const RESULT_COLORS = {
     PASS: '#22c55e',
@@ -31,8 +30,6 @@ export default function WorkOrderQCTab({ workOrderId, setError, setSnackbar }) {
     const [selectedTest, setSelectedTest] = useState(null);
     const [recordDialogOpen, setRecordDialogOpen] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [reportOpen, setReportOpen] = useState(false);
-    const [reportData, setReportData] = useState(null);
     const [reportLoading, setReportLoading] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -128,9 +125,7 @@ export default function WorkOrderQCTab({ workOrderId, setError, setSnackbar }) {
     const handleGenerateReport = async () => {
         try {
             setReportLoading(true);
-            const response = await getTestReport(workOrderId);
-            setReportData(response);
-            setReportOpen(true);
+            await downloadQcTestReport(workOrderId);
         } catch (error) {
             setError(error?.response?.data?.error || 'Failed to generate QC report.');
         } finally {
@@ -328,8 +323,6 @@ export default function WorkOrderQCTab({ workOrderId, setError, setSnackbar }) {
                 </DialogActions>
             </Dialog>
 
-            {/* QC Report Dialog */}
-            <QCReportDialog open={reportOpen} onClose={() => setReportOpen(false)} data={reportData} />
         </Box>
     );
 }

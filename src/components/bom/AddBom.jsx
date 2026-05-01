@@ -35,6 +35,7 @@ import BomStatusChangeDialog from "./BomStatusChangeDialog";
 import { useAuth } from "../../auth/AuthContext";
 import { ACTION_KEYS } from "../../auth/roles";
 import BomCostBreakdown from "./BomCostBreakdown";
+import BomQaPlan from "./BomQaPlan";
 import {
     deleteBomAttachment,
     downloadBomAttachment,
@@ -376,6 +377,7 @@ const AddBom = () => {
     const baselineSignatureRef = useRef(null);
     const pauseDirtyTrackingRef = useRef(false);
     const initialLoadRef = useRef({ bomId: null });
+    const fetchBomDetailsRef = useRef(null);
     const navigate = useNavigate();
     const { bomId } = useParams();
     const location = useLocation();
@@ -477,12 +479,13 @@ const AddBom = () => {
                 if (bomId) {
                     await apiService.put(`/bom/${bomId}`, payload);
                     showSnackbar("BOM updated successfully");
+                    await fetchBomDetailsRef.current?.();
                 } else {
                     await apiService.post("/bom", payload);
                     showSnackbar("BOM created successfully");
+                    baselineSignatureRef.current = buildDirtySignature(values, operations);
+                    setIsDirty(false);
                 }
-                baselineSignatureRef.current = buildDirtySignature(values, operations);
-                setIsDirty(false);
             } catch (errorResponse) {
                 showSnackbar(
                     resolveApiErrorMessage(errorResponse, "Failed to save BOM."),
@@ -596,6 +599,7 @@ const AddBom = () => {
             );
         }
     }, [applyFormSnapshot, bomId, showSnackbar]);
+    fetchBomDetailsRef.current = fetchBomDetails;
 
     const fetchRoutingByBom = useCallback(async () => {
         if (!bomId) {
@@ -909,7 +913,7 @@ const AddBom = () => {
     }, [selectedTab, bomId, bomAttachments, fetchBomAttachments]);
 
     useEffect(() => {
-        if (selectedTab === 3 && bomId) {
+        if (selectedTab === 4 && bomId) {
             fetchCostBreakdown();
         }
     }, [selectedTab, bomId, fetchCostBreakdown]);
@@ -1270,6 +1274,7 @@ const AddBom = () => {
                             <Tab label="Basic Info" />
                             <Tab label="Operations" />
                             {bomId && <Tab label="Attachments" />}
+                            {bomId && <Tab label="QA Plan" />}
                             {bomId && <Tab label="Cost Breakdown" />}
                         </Tabs>
 
@@ -1682,6 +1687,10 @@ const AddBom = () => {
                             )}
 
                             {selectedTab === 3 && bomId && (
+                                <BomQaPlan operations={operations} />
+                            )}
+
+                            {selectedTab === 4 && bomId && (
                                 <Box sx={{ mt: 1 }}>
                                     <BomCostBreakdown data={costBreakdown} loading={costBreakdownLoading} />
                                 </Box>

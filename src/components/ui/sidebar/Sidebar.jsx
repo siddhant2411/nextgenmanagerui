@@ -109,6 +109,7 @@ const Sidebar = ({
                         { text: "Job Work Challan", path: "/production/job-work-challan" },
                         { text: "Make or Buy", path: "/production/make-or-buy" },
                         { text: "Machine Assets", path: "/production/machine-assets" },
+                        { text: "OEE Dashboard", path: "/production/oee-dashboard" },
                     ],
                 },
                 {
@@ -117,6 +118,7 @@ const Sidebar = ({
                     children: [
                         { text: "Work Center", path: "/manufacturing/work-center" },
                         { text: "Routing", path: "/manufacturing/routing" },
+                        { text: "Downtime Reasons", path: "/manufacturing/downtime-reasons" },
                         { text: "Production Job", path: "/production/production-job" },
                         { text: "Labor Roles", path: "/production/labor-role" },
                         { text: "Holiday Calendar", path: "/production/calendar" },
@@ -165,6 +167,7 @@ const Sidebar = ({
                     children: [
                         { text: "User List", path: "/superadmin/users" },
                         { text: "Role Management", path: "/superadmin/roles" },
+                        { text: "Company Details", path: "/superadmin/company" },
                     ],
                 },
             ]

@@ -26,6 +26,8 @@ const Contact = () => {
     const [sortBy, setSortBy]             = useState('companyName');
     const [sortDir, setSortDir]           = useState('asc');
     const [filters, setFilters]           = useState({ query: '', type: '' });
+    const [stats, setStats]               = useState(null);
+    const [statsLoading, setStatsLoading] = useState(false);
     const [snackbar, setSnackbar]         = useState({ open: false, message: '', severity: 'success' });
     const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
 
@@ -38,6 +40,18 @@ const Contact = () => {
         setSnackbar({ open: true, message, severity });
 
     // ── fetch ──────────────────────────────────────────────────────────────
+    const fetchStats = async () => {
+        setStatsLoading(true);
+        try {
+            const data = await apiService.get('/contact/stats');
+            setStats(data);
+        } catch (err) {
+            console.error('Failed to fetch contact stats');
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
     const fetchContactList = useCallback(
         async (page = currentPage, sort = sortBy, dir = sortDir, f = filters) => {
             setLoading(true);
@@ -62,8 +76,12 @@ const Contact = () => {
                 setLoading(false);
             }
         },
-        [currentPage, sortBy, sortDir, filters]
+        [itemsPerPage, sortBy, sortDir, filters]
     );
+
+    useEffect(() => {
+        fetchStats();
+    }, []);
 
     useEffect(() => {
         if (location.pathname === '/contact') {
@@ -171,21 +189,24 @@ const Contact = () => {
                         ) : error ? (
                             <Alert severity="error" sx={{ m: 3 }}>{error}</Alert>
                         ) : (
-                            <ContactList
-                                contacts={contactList}
-                                filters={filters}
-                                sortBy={sortBy}
-                                sortDir={sortDir}
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                totalElements={totalElements}
-                                rowsPerPage={rowsPerPage}
-                                handleSort={handleSort}
-                                handlePageChange={handlePageChange}
-                                handleRowsPerPageChange={handleRowsPerPageChange}
-                                handleFilterChange={handleFilterChange}
-                                handleDelete={handleDeleteRequest}
-                            />
+                             <ContactList
+                                 contacts={contactList}
+                                 stats={stats}
+                                 statsLoading={statsLoading}
+                                 filters={filters}
+                                 sortBy={sortBy}
+                                 sortDir={sortDir}
+                                 currentPage={currentPage}
+                                 totalPages={totalPages}
+                                 totalElements={totalElements}
+                                 rowsPerPage={rowsPerPage}
+                                 handleSort={handleSort}
+                                 handlePageChange={handlePageChange}
+                                 handleRowsPerPageChange={handleRowsPerPageChange}
+                                 handleFilterChange={handleFilterChange}
+                                 handleDelete={handleDeleteRequest}
+                                 loading={loading}
+                             />
                         )
                     }
                 />

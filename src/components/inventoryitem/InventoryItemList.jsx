@@ -16,7 +16,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 import FilterBar from '../ui/filterbar/FilterBar';
-import { filterInventoryItems, exportInventoryItems } from '../../services/inventoryService';
+import { filterInventoryItems, exportInventoryItems, getAttachmentBlob } from '../../services/inventoryService';
 import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
 
@@ -122,6 +122,28 @@ const InventoryItemList = ({
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
+
+  const handleDrawingClick = async (e, item) => {
+    e.stopPropagation();
+    if (!item.drawingFileId) return;
+
+    setLoading(true);
+    try {
+      const result = await getAttachmentBlob(item.drawingFileId);
+      setDrawingPreview({
+        open: true,
+        url: result.url,
+        contentType: result.contentType,
+        fileName: item.drawingNumber || 'Drawing'
+      });
+    } catch (err) {
+      console.error('Error fetching drawing:', err);
+      alert('Failed to load drawing.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleExportClick = (event) => setExportAnchorEl(event.currentTarget);
   const handleExportClose = () => setExportAnchorEl(null);
@@ -677,6 +699,22 @@ const InventoryItemList = ({
                               ? <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>{item[col.field] || "-"}</Typography>
                               : col.field === "name"
                                 ? <Typography variant="body2" sx={{ fontWeight: 500 }}>{item[col.field] || "-"}</Typography>
+                                : col.field === "drawingNumber"
+                                  ? (item.drawingFileId ? (
+                                    <Typography
+                                      variant="body2"
+                                      onClick={(e) => handleDrawingClick(e, item)}
+                                      sx={{
+                                        color: '#1565c0',
+                                        fontWeight: 600,
+                                        textDecoration: 'underline',
+                                        cursor: 'pointer',
+                                        '&:hover': { color: '#0d47a1' }
+                                      }}
+                                    >
+                                      {item[col.field] || "View Drawing"}
+                                    </Typography>
+                                  ) : (item[col.field] || "-"))
                                 : col.field === "availableQuantity"
                                   ? (() => {
                                       const qty = item[col.field];
@@ -773,6 +811,61 @@ const InventoryItemList = ({
               Delete
             </Button>
           </DialogActions>
+        </Dialog>
+
+        {/* ── Drawing Preview Dialog ── */}
+        <Dialog
+          open={drawingPreview.open}
+          onClose={() => {
+            URL.revokeObjectURL(drawingPreview.url);
+            setDrawingPreview({ ...drawingPreview, open: false });
+          }}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, height: '90vh' } }}
+        >
+          <DialogTitle sx={{ fontWeight: 600, color: '#0f2744', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <BuildCircle sx={{ color: '#1565c0' }} />
+              Drawing: {drawingPreview.fileName}
+            </Box>
+            <Button size="small" onClick={() => {
+              URL.revokeObjectURL(drawingPreview.url);
+              setDrawingPreview({ ...drawingPreview, open: false });
+            }}>Close</Button>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', bgcolor: '#f3f4f6' }}>
+            {drawingPreview.contentType.startsWith('image/') ? (
+              <Box sx={{ p: 2, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
+                <img
+                  src={drawingPreview.url}
+                  alt={drawingPreview.fileName}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                />
+              </Box>
+            ) : drawingPreview.contentType === 'application/pdf' ? (
+              <iframe
+                src={`${drawingPreview.url}#toolbar=0`}
+                title={drawingPreview.fileName}
+                width="100%"
+                height="100%"
+                style={{ border: 'none' }}
+              />
+            ) : (
+              <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={2}>
+                <WarningIcon color="warning" sx={{ fontSize: 48 }} />
+                <Typography>Preview not available for this file type ({drawingPreview.contentType}).</Typography>
+                <Button variant="contained" onClick={() => {
+                   const link = document.createElement("a");
+                   link.href = drawingPreview.url;
+                   link.setAttribute("download", drawingPreview.fileName);
+                   document.body.appendChild(link);
+                   link.click();
+                   document.body.removeChild(link);
+                }}>Download Instead</Button>
+              </Box>
+            )}
+          </DialogContent>
         </Dialog>
       </Paper>
     </Box>

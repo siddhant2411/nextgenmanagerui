@@ -1,109 +1,68 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Box,
-    IconButton,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Tooltip,
-    Typography,
-    Button,
-    TablePagination,
+    Box, IconButton, Paper, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, Tooltip, Typography, Button, TablePagination,
+    Avatar, Stack, Skeleton, Chip, Divider
 } from '@mui/material';
 import {
-    AddCircleOutline,
-    ArrowDownward,
-    ArrowUpward,
-    EditOutlined,
-    DeleteForever,
+    AddCircleOutline, ArrowDownward, ArrowUpward, EditOutlined,
+    DeleteForever, Business, LocalPhone, Email, LocationOn
 } from '@mui/icons-material';
 
 /* ── Design tokens ── */
 const T = {
-    primary:       '#1565c0',
-    primaryHover:  '#0d47a1',
-    pageBg:        '#f4f6f9',
-    surface:       '#ffffff',
+    primary:       '#2563eb',
+    headerBg:      '#f8fafc',
     border:        '#e2e8f0',
-    borderCard:    '#e5e7eb',
-    textHead:      '#0f2744',
-    textBody:      '#1a1a2e',
+    textHead:      '#0f172a',
     textSecondary: '#64748b',
-    textMuted:     '#94a3b8',
-    headerBg:      '#0f2744',
-    headerText:    '#e8edf3',
-    rowHover:      '#e3f2fd',
-    rowAlt:        '#fafbfc',
+    rowHover:      '#f1f5f9',
 };
 
-/* ── Type chip ── */
-const TYPE_STYLE = {
-    VENDOR:   { bg: '#eef4fb', color: '#2a6496', border: '#c8dcf0' },
-    CUSTOMER: { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
-    BOTH:     { bg: '#fdf8ec', color: '#7a5a18', border: '#eddcaa' },
+const TYPE_CONFIG = {
+    VENDOR:   { label: 'Vendor',   color: '#2563eb', bg: '#eff6ff' },
+    CUSTOMER: { label: 'Customer', color: '#059669', bg: '#ecfdf5' },
+    BOTH:     { label: 'Both',     color: '#d97706', bg: '#fffbeb' },
 };
-const TYPE_LABELS = { VENDOR: 'Vendor', CUSTOMER: 'Customer', BOTH: 'Both' };
-
-function TypeChip({ type }) {
-    const s = TYPE_STYLE[type] || { bg: '#f5f5f5', color: '#6b6b6b', border: '#ddd' };
-    return (
-        <Box component="span" sx={{
-            display: 'inline-block', borderRadius: '4px', px: '9px', py: '2px',
-            fontSize: '0.6875rem', fontWeight: 600,
-            border: `1px solid ${s.border}`, bgcolor: s.bg, color: s.color, whiteSpace: 'nowrap',
-        }}>
-            {TYPE_LABELS[type] || type}
-        </Box>
-    );
-}
 
 /* ── Stat card ── */
-function StatCard({ label, value, accent, active, onClick }) {
-    return (
-        <Box onClick={onClick} sx={{
-            bgcolor: '#fff', border: `1px solid ${T.border}`,
-            borderLeft: `3px solid ${accent}`, borderRadius: '6px',
-            p: '10px 14px', cursor: 'pointer',
-            outline: active ? `2px solid ${accent}` : 'none',
-            outlineOffset: '-2px',
-            transition: 'box-shadow .15s',
-            '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,.07)' },
-        }}>
-            <Typography sx={{ fontSize: '0.65625rem', fontWeight: 600, color: T.textSecondary, textTransform: 'uppercase', letterSpacing: '0.04em', mb: '4px' }}>{label}</Typography>
-            <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '1.5rem', fontWeight: 500, color: T.textHead, lineHeight: 1 }}>{value}</Typography>
-        </Box>
-    );
-}
-
-/* ── Type toggle button ── */
-function TypeToggle({ value, selected, onClick, children }) {
-    return (
-        <Box component="button" onClick={() => onClick(value)} sx={{
-            px: '12px', py: '4px', borderRadius: '4px', border: 'none', cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif', fontSize: '0.75rem', fontWeight: 600,
-            bgcolor: selected ? '#fff' : 'transparent',
-            color: selected ? T.textHead : T.textSecondary,
-            boxShadow: selected ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
-            transition: 'all .15s',
-        }}>
-            {children}
-        </Box>
-    );
-}
+const StatCard = ({ label, value, accent = '#1565c0', loading }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      flex: 1,
+      minWidth: 160,
+      p: '11px 14px',
+      borderRadius: 1.5,
+      border: '1px solid #e2e8f0',
+      borderLeft: `3px solid ${accent}`,
+      background: '#fff',
+      transition: 'box-shadow 0.15s',
+      '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.07)' },
+    }}
+  >
+    <Typography sx={{ fontSize: '0.65625rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', mb: '5px' }}>
+      {label}
+    </Typography>
+    {loading ? (
+      <Skeleton width="60%" height={32} />
+    ) : (
+      <Typography sx={{ fontSize: '1.625rem', fontWeight: 500, color: '#1e293b', lineHeight: 1 }}>
+        {value}
+      </Typography>
+    )}
+  </Paper>
+);
 
 const getPrimaryContact = (personDetails = []) => {
     const primary = personDetails.find(p => p.isPrimary) || personDetails[0];
     if (!primary) return '—';
     return (
         <Box>
-            <Typography sx={{ fontSize: '0.8125rem', fontWeight: 500, color: T.textBody }}>{primary.personName || '—'}</Typography>
+            <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: '#334155' }}>{primary.personName || '—'}</Typography>
             {primary.designation && (
-                <Typography sx={{ fontSize: '0.6875rem', color: T.textMuted, mt: '1px' }}>{primary.designation}</Typography>
+                <Typography sx={{ fontSize: '0.6875rem', color: '#64748b' }}>{primary.designation}</Typography>
             )}
         </Box>
     );
@@ -118,195 +77,235 @@ const getLocation = (addresses = []) => {
 const SORTABLE = ['contactCode', 'companyName'];
 
 const ContactList = ({
-    contacts, filters, sortBy, sortDir,
+    contacts, stats, statsLoading, filters, sortBy, sortDir,
     currentPage, totalPages, totalElements, rowsPerPage,
     handleSort, handlePageChange, handleFilterChange, handleDelete,
-    handleRowsPerPageChange,
+    handleRowsPerPageChange, loading
 }) => {
     const navigate = useNavigate();
-
     const typeFilter = filters?.type || '';
     const searchQuery = filters?.query || '';
 
-    const counts = {
-        VENDOR:   contacts.filter ? contacts.filter(c => c.contactType === 'VENDOR').length   : 0,
-        CUSTOMER: contacts.filter ? contacts.filter(c => c.contactType === 'CUSTOMER').length : 0,
-        BOTH:     contacts.filter ? contacts.filter(c => c.contactType === 'BOTH').length     : 0,
-    };
-
     const headerCellSx = {
-        bgcolor: T.headerBg, color: T.headerText,
-        fontWeight: 600, fontSize: '0.71875rem', letterSpacing: '0.03em',
-        py: '9px', px: '14px', whiteSpace: 'nowrap',
-        borderBottom: '2px solid rgba(232,237,243,.2)',
-        borderRight: '1px solid rgba(255,255,255,.06)',
+        bgcolor: T.headerBg, color: T.textSecondary,
+        fontWeight: 700, fontSize: '0.65625rem', letterSpacing: '0.05em',
+        py: '10px', px: '14px', whiteSpace: 'nowrap',
+        borderBottom: `1px solid ${T.border}`,
+        textTransform: 'uppercase',
     };
 
     return (
-        <Box sx={{ p: { xs: 2, md: '24px 28px' }, bgcolor: T.pageBg, minHeight: '100%' }}>
+        <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
 
-            {/* ── Header ── */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: '20px' }}>
+            <Paper
+                elevation={0}
+                sx={{
+                    p: { xs: 2, md: 3 },
+                    width: '100%',
+                    borderRadius: 2,
+                    border: '1px solid #e2e8f0',
+                    bgcolor: 'white'
+                }}
+            >
+                {/* ── Header ── */}
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
                 <Box>
-                    <Typography sx={{ fontSize: { xs: '1.25rem', md: '1.375rem' }, fontWeight: 700, color: T.textHead, lineHeight: 1.2 }}>
-                        Company &amp; Contacts
+                    <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                        Contact Registry
                     </Typography>
-                    <Typography sx={{ fontSize: '0.8125rem', color: T.textSecondary, mt: '3px' }}>
-                        Manage vendors, customers and their contact details
+                    <Typography sx={{ fontSize: '0.875rem', color: '#64748b', mt: 0.5 }}>
+                        Maintain your global directory of vendors and customers
                     </Typography>
                 </Box>
                 <Button
-                    variant="contained"
-                    startIcon={<AddCircleOutline sx={{ fontSize: 16 }} />}
+                    variant="contained" disableElevation
+                    startIcon={<AddCircleOutline />}
                     onClick={() => navigate('add')}
                     sx={{
-                        borderRadius: '6px', fontWeight: 600, fontSize: '0.8125rem',
-                        textTransform: 'none', px: '18px', py: '7px',
-                        bgcolor: T.primary, boxShadow: '0 2px 6px rgba(21,101,192,.2)',
-                        '&:hover': { bgcolor: T.primaryHover },
+                        borderRadius: 2, fontWeight: 700, fontSize: '0.8125rem',
+                        textTransform: 'none', px: 2.5, py: 1,
+                        bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' },
                     }}
                 >
-                    Add Contact
+                    New Contact
                 </Button>
-            </Box>
+            </Stack>
 
-            {/* ── Stat cards ── */}
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 160px))', gap: '12px', mb: '20px' }}>
-                <StatCard label="Vendors"   value={counts.VENDOR}   accent="#2a6496" active={typeFilter === 'VENDOR'}   onClick={() => handleFilterChange('type', typeFilter === 'VENDOR'   ? '' : 'VENDOR')}   />
-                <StatCard label="Customers" value={counts.CUSTOMER} accent="#2a6640" active={typeFilter === 'CUSTOMER'} onClick={() => handleFilterChange('type', typeFilter === 'CUSTOMER' ? '' : 'CUSTOMER')} />
-                <StatCard label="Both"      value={counts.BOTH}     accent="#7a5a18" active={typeFilter === 'BOTH'}     onClick={() => handleFilterChange('type', typeFilter === 'BOTH'     ? '' : 'BOTH')}     />
-            </Box>
+            <Divider sx={{ mb: 3, borderColor: '#f1f5f9' }} />
 
-            {/* ── Filter row ── */}
-            <Box sx={{ display: 'flex', gap: '10px', mb: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
-                {/* Search */}
-                <Box sx={{ position: 'relative', flex: 1, maxWidth: 360 }}>
-                    <Box component="svg" sx={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: T.textMuted, pointerEvents: 'none' }}
-                        width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            {/* ── Stats ── */}
+            <Stack direction="row" spacing={2} sx={{ mb: 3 }} flexWrap="wrap" useFlexGap>
+                <StatCard label="Total Contacts" value={stats?.totalContacts || 0} accent="#1e293b" loading={statsLoading} />
+                <StatCard label="Customers" value={stats?.customers || 0} accent="#059669" loading={statsLoading} />
+                <StatCard label="Vendors" value={stats?.vendors || 0} accent="#2563eb" loading={statsLoading} />
+                <StatCard label="MSME Regd." value={stats?.msmeRegistered || 0} accent="#d97706" loading={statsLoading} />
+                <StatCard label="GST Regd." value={stats?.gstRegistered || 0} accent="#7c3aed" loading={statsLoading} />
+            </Stack>
+
+            {/* ── Filters ── */}
+            <Box sx={{ mb: 2 }}>
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Box sx={{ position: 'relative', flex: 1, maxWidth: 400 }}>
+                        <Box component="input"
+                            value={searchQuery}
+                            onChange={e => handleFilterChange('query', e.target.value)}
+                            placeholder="Search by company, code, GST or phone..."
+                            sx={{
+                                width: '100%', border: `1px solid ${T.border}`, borderRadius: '8px',
+                                p: '8px 12px 8px 36px', fontSize: '0.875rem', color: '#1e293b',
+                                outline: 'none', transition: 'all 0.2s',
+                                '&:focus': { borderColor: T.primary, boxShadow: `0 0 0 3px ${T.primary}15` },
+                            }}
+                        />
+                        <Business sx={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 18 }} />
                     </Box>
-                    <Box component="input"
-                        value={searchQuery}
-                        onChange={e => handleFilterChange('query', e.target.value)}
-                        placeholder="Search company, code, GST, phone…"
-                        sx={{
-                            width: '100%', border: `1px solid ${T.border}`, borderRadius: '6px',
-                            p: '7px 10px 7px 32px', fontSize: '0.8125rem', color: T.textBody,
-                            fontFamily: 'Inter, sans-serif', outline: 'none', bgcolor: '#fff',
-                            '&:focus': { borderColor: T.primary, boxShadow: '0 0 0 2px rgba(21,101,192,.12)' },
-                        }}
-                    />
-                </Box>
-                {/* Type toggle pill */}
-                <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', p: '3px', borderRadius: '6px', gap: '2px' }}>
-                    {['', 'VENDOR', 'CUSTOMER', 'BOTH'].map(t => (
-                        <TypeToggle key={t} value={t} selected={typeFilter === t} onClick={v => handleFilterChange('type', v)}>
-                            {t || 'All'}
-                        </TypeToggle>
-                    ))}
-                </Box>
+
+                    <Stack direction="row" spacing={1} sx={{ bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2 }}>
+                        {['', 'VENDOR', 'CUSTOMER', 'BOTH'].map(t => (
+                            <Button
+                                key={t}
+                                size="small"
+                                onClick={() => handleFilterChange('type', t)}
+                                sx={{
+                                    px: 2, py: 0.5, borderRadius: 1.5, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem',
+                                    color: typeFilter === t ? '#0f172a' : '#64748b',
+                                    bgcolor: typeFilter === t ? '#fff' : 'transparent',
+                                    boxShadow: typeFilter === t ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    '&:hover': { bgcolor: typeFilter === t ? '#fff' : '#e2e8f0' }
+                                }}
+                            >
+                                {t || 'All'}
+                            </Button>
+                        ))}
+                    </Stack>
+                </Stack>
             </Box>
 
             {/* ── Table ── */}
-            <TableContainer component={Paper} elevation={0} sx={{ border: `1px solid ${T.borderCard}`, borderRadius: '8px', overflow: 'hidden' }}>
-                <Table size="small" sx={{ fontSize: '0.8125rem', borderCollapse: 'collapse' }}>
+            <TableContainer component={Box} sx={{ border: `1px solid ${T.border}`, borderRadius: 2, overflow: 'hidden' }}>
+                <Table size="small">
                     <TableHead>
                         <TableRow>
-                            {[
-                                { key: 'contactCode',    label: 'Code'            },
-                                { key: 'companyName',    label: 'Company'         },
-                                { key: 'contactType',    label: 'Type'            },
-                                { key: 'gstNumber',      label: 'GST Number'      },
-                                { key: 'primaryContact', label: 'Primary Contact' },
-                                { key: 'location',       label: 'Location'        },
-                                { key: 'phone',          label: 'Phone'           },
-                                { key: 'action',         label: ''                },
-                            ].map(col => (
-                                <TableCell key={col.key} sx={{
-                                    ...headerCellSx,
-                                    cursor: SORTABLE.includes(col.key) ? 'pointer' : 'default',
-                                    userSelect: 'none',
-                                }} onClick={() => SORTABLE.includes(col.key) && handleSort(col.key)}>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        {col.label}
-                                        {SORTABLE.includes(col.key) && sortBy === col.key && (
-                                            sortDir === 'asc'
-                                                ? <ArrowUpward sx={{ fontSize: 13, color: 'rgba(232,237,243,.7)' }} />
-                                                : <ArrowDownward sx={{ fontSize: 13, color: 'rgba(232,237,243,.7)' }} />
-                                        )}
-                                    </Box>
-                                </TableCell>
-                            ))}
+                            <TableCell sx={headerCellSx} onClick={() => handleSort('contactCode')} style={{ cursor: 'pointer' }}>
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <span>Code</span>
+                                    {sortBy === 'contactCode' && (sortDir === 'asc' ? <ArrowUpward sx={{ fontSize: 12 }} /> : <ArrowDownward sx={{ fontSize: 12 }} />)}
+                                </Stack>
+                            </TableCell>
+                            <TableCell sx={headerCellSx} onClick={() => handleSort('companyName')} style={{ cursor: 'pointer' }}>
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <span>Company</span>
+                                    {sortBy === 'companyName' && (sortDir === 'asc' ? <ArrowUpward sx={{ fontSize: 12 }} /> : <ArrowDownward sx={{ fontSize: 12 }} />)}
+                                </Stack>
+                            </TableCell>
+                            <TableCell sx={headerCellSx} align="center">Type</TableCell>
+                            <TableCell sx={headerCellSx} align="center">GSTIN</TableCell>
+                            <TableCell sx={headerCellSx}>Primary Contact</TableCell>
+                            <TableCell sx={headerCellSx}>Location</TableCell>
+                            <TableCell sx={headerCellSx} align="center">Actions</TableCell>
                         </TableRow>
                     </TableHead>
 
                     <TableBody>
-                        {contacts.length === 0 ? (
+                        {loading ? (
+                            <TableRow><TableCell colSpan={7} sx={{ py: 10 }} align="center"><Skeleton variant="rectangular" height={200} /></TableCell></TableRow>
+                        ) : contacts.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={8} align="center" sx={{ py: 8, color: T.textMuted, fontSize: '0.8125rem' }}>
-                                    No contacts found.{' '}
-                                    <Box component="span" onClick={() => navigate('add')}
-                                        sx={{ color: T.primary, cursor: 'pointer', fontWeight: 600 }}>
-                                        Add your first contact →
-                                    </Box>
+                                <TableCell colSpan={7} align="center" sx={{ py: 10 }}>
+                                    <Typography variant="body2" color="text.secondary">No contacts found matching your criteria.</Typography>
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            contacts.map((contact, idx) => (
-                                <TableRow key={contact.id}
-                                    onClick={() => navigate(`edit/${contact.id}`)}
-                                    sx={{
-                                        bgcolor: idx % 2 === 0 ? '#fff' : T.rowAlt,
-                                        cursor: 'pointer', transition: 'background .1s',
-                                        '&:hover': { bgcolor: T.rowHover },
-                                        '& td': { borderBottom: '1px solid #f1f5f9', py: '10px', px: '14px', color: T.textSecondary },
-                                    }}
-                                >
-                                    <TableCell>
-                                        <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.75rem', fontWeight: 500, color: T.primary }}>
-                                            {contact.contactCode || '—'}
-                                        </Typography>
-                                    </TableCell>
+                            contacts.map((contact) => {
+                                const cfg = TYPE_CONFIG[contact.contactType] || TYPE_CONFIG.VENDOR;
+                                return (
+                                    <TableRow 
+                                        key={contact.id}
+                                        hover
+                                        onClick={() => navigate(`edit/${contact.id}`)}
+                                        sx={{ 
+                                            cursor: 'pointer',
+                                            '&:hover': { bgcolor: T.rowHover },
+                                            '& td': { borderBottom: `1px solid #f1f5f9`, py: 1.5 }
+                                        }}
+                                    >
+                                        <TableCell>
+                                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: T.primary }}>
+                                                {contact.contactCode || '—'}
+                                            </Typography>
+                                        </TableCell>
 
-                                    <TableCell>
-                                        <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: T.textHead }}>{contact.companyName}</Typography>
-                                        {contact.tradeName && (
-                                            <Typography sx={{ fontSize: '0.6875rem', color: T.textMuted, mt: '1px' }}>{contact.tradeName}</Typography>
-                                        )}
-                                    </TableCell>
+                                        <TableCell>
+                                            <Typography sx={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b' }}>{contact.companyName}</Typography>
+                                            <Typography sx={{ fontSize: '0.6875rem', color: '#64748b' }}>{contact.email || 'No email'}</Typography>
+                                        </TableCell>
 
-                                    <TableCell><TypeChip type={contact.contactType} /></TableCell>
+                                        <TableCell align="center">
+                                            <Chip 
+                                                label={cfg.label} 
+                                                size="small" 
+                                                sx={{ 
+                                                    height: 20, fontWeight: 700, fontSize: '0.625rem', 
+                                                    bgcolor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.color}30`,
+                                                    borderRadius: 1, textTransform: 'uppercase'
+                                                }} 
+                                            />
+                                        </TableCell>
 
-                                    <TableCell>
-                                        <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.75rem', color: T.textSecondary }}>
-                                            {contact.gstNumber || '—'}
-                                        </Typography>
-                                    </TableCell>
+                                        <TableCell align="center">
+                                            <Typography sx={{ fontSize: '0.75rem', color: '#475569', fontWeight: 500 }}>
+                                                {contact.gstNumber || '—'}
+                                            </Typography>
+                                        </TableCell>
 
-                                    <TableCell>{getPrimaryContact(contact.personDetails)}</TableCell>
+                                        <TableCell>{getPrimaryContact(contact.personDetails)}</TableCell>
 
-                                    <TableCell>
-                                        <Typography sx={{ fontSize: '0.8125rem' }}>{getLocation(contact.addresses)}</Typography>
-                                    </TableCell>
+                                        <TableCell>
+                                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                                <LocationOn sx={{ fontSize: 14, color: '#94a3b8' }} />
+                                                <Typography sx={{ fontSize: '0.8125rem', color: '#475569' }}>{getLocation(contact.addresses)}</Typography>
+                                            </Stack>
+                                        </TableCell>
 
-                                    <TableCell>
-                                        <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.75rem' }}>{contact.phone || '—'}</Typography>
-                                    </TableCell>
-
-                                    <TableCell align="center" onClick={e => e.stopPropagation()}>
-                                        <Tooltip title="Edit">
-                                            <IconButton size="small" onClick={() => navigate(`edit/${contact.id}`)}>
-                                                <EditOutlined sx={{ fontSize: 16, color: T.primary }} />
-                                            </IconButton>
-                                        </Tooltip>
-                                        <Tooltip title="Delete">
-                                            <IconButton size="small" onClick={() => handleDelete(contact.id)}>
-                                                <DeleteForever sx={{ fontSize: 16, color: '#b84040' }} />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </TableCell>
-                                </TableRow>
-                            ))
+                                        <TableCell align="center" onClick={e => e.stopPropagation()}>
+                                            <Stack direction="row" spacing={0.5} justifyContent="center">
+                                                <IconButton 
+                                                  size="small" 
+                                                  onClick={() => {
+                                                    const phone = contact.phone || '';
+                                                    if (phone) {
+                                                      const message = encodeURIComponent(`Hello ${contact.companyName}, reaching out from NextGenManager regarding...`);
+                                                      window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${message}`, '_blank');
+                                                    }
+                                                  }}
+                                                  sx={{ color: '#64748b', '&:hover': { color: '#25d366' } }}
+                                                  disabled={!contact.phone}
+                                                >
+                                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                                  </svg>
+                                                </IconButton>
+                                                <IconButton 
+                                                  size="small" 
+                                                  onClick={() => {
+                                                    if (contact.email) window.location.href = `mailto:${contact.email}?subject=${encodeURIComponent(`Business Outreach: NextGenManager`)}`;
+                                                  }}
+                                                  sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}
+                                                  disabled={!contact.email}
+                                                >
+                                                  <Email sx={{ fontSize: 16 }} />
+                                                </IconButton>
+                                                <IconButton size="small" onClick={() => navigate(`edit/${contact.id}`)} sx={{ color: '#64748b', '&:hover': { color: T.primary } }}>
+                                                    <EditOutlined sx={{ fontSize: 16 }} />
+                                                </IconButton>
+                                                <IconButton size="small" onClick={() => handleDelete(contact.id)} sx={{ color: '#64748b', '&:hover': { color: '#dc2626' } }}>
+                                                    <DeleteForever sx={{ fontSize: 16 }} />
+                                                </IconButton>
+                                            </Stack>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
@@ -316,15 +315,16 @@ const ContactList = ({
                     count={totalElements ?? contacts.length}
                     page={currentPage - 1}
                     onPageChange={(_, page) => handlePageChange(null, page + 1)}
-                    rowsPerPage={rowsPerPage ?? 10}
-                    rowsPerPageOptions={[10, 25, 50]}
+                    rowsPerPage={rowsPerPage ?? 20}
+                    rowsPerPageOptions={[10, 20, 50, 100]}
                     onRowsPerPageChange={handleRowsPerPageChange}
                     sx={{
-                        borderTop: '1px solid #f1f5f9', bgcolor: '#fafafa',
-                        '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.75rem', color: T.textMuted },
+                        borderTop: `1px solid ${T.border}`,
+                        '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.75rem', color: '#64748b', fontWeight: 600 },
                     }}
                 />
             </TableContainer>
+            </Paper>
         </Box>
     );
 };

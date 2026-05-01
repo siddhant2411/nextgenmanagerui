@@ -10,6 +10,8 @@ import WorkOrderHistoryTab from './tabs/WorkOrderHistoryTab';
 import WorkOrderQCTab from './tabs/WorkOrderQCTab';
 import WorkOrderAttachmentsTab from './tabs/WorkOrderAttachmentsTab';
 import WorkOrderRejectionsTab from './tabs/WorkOrderRejectionsTab';
+import WorkOrderCostTab from './tabs/WorkOrderCostTab';
+import WorkOrderSubcontractTab from './tabs/WorkOrderSubcontractTab';
 import ScheduleDialog from './ScheduleDialog';
 import { useFormik } from 'formik';
 import dayjs from 'dayjs';
@@ -1304,6 +1306,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           <Tab label="Timeline & History" />
           <Tab label="Quality Control" />
           {workOrderId && <Tab label="Rejections & Yield" />}
+          {workOrderId && <Tab label="Cost of Production" />}
+          {workOrderId && formik.values.operations?.some(op => op.routingOperation?.costType === 'SUB_CONTRACTED') && (
+            <Tab label="Subcontract" />
+          )}
         </Tabs>
 
         <Box component="form" onSubmit={formik.handleSubmit} sx={{ width: '100%', minWidth: 0, overflow: 'hidden', flex: 1 }}>
@@ -1331,6 +1337,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               onCompleteOperation={handleCompleteOperation}
               operationActionState={operationActionState}
               materials={formik.values.materials}
+              onRefresh={reloadWorkOrder}
             />
           )}
           {selectedTab === 3 && (
@@ -1359,6 +1366,17 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               workOrderId={workOrderId}
               setError={setError}
               setSnackbar={setSnackbar}
+            />
+          )}
+          {selectedTab === 7 && workOrderId && (
+            <WorkOrderCostTab workOrderId={workOrderId} />
+          )}
+          {selectedTab === 8 && workOrderId && (
+            <WorkOrderSubcontractTab
+              workOrderId={Number(workOrderId)}
+              operations={formik.values.operations || []}
+              workOrderMaterials={formik.values.materials || []}
+              allowBackflush={formik.values.allowBackflush ?? false}
             />
           )}
         </Box>
