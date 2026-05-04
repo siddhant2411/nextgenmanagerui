@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Alert, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip} from "@mui/material";
+import {Alert, Paper,Divider,CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
 import { ViewList, ViewKanban, AddCircleOutline, Refresh } from "@mui/icons-material";
 import EnquiryList from "./EnquiryList";
@@ -17,8 +17,10 @@ const Enquiry = () => {
     const showSnackbar = (message, severity = 'error') => setSnackbar({ open: true, message, severity });
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
-    const [sortBy, setSortBy] = useState('id');
+    const [sortBy, setSortBy] = useState('enqDate');
     const [sortDir, setSortDir] = useState('desc');
+    const [summary, setSummary] = useState(null);
+    const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
     const [filters, setFilters] = useState({
         companyName: '',
@@ -95,6 +97,18 @@ const Enquiry = () => {
         }
     };
 
+    const fetchEnquirySummary = async () => {
+        setIsSummaryLoading(true);
+        try {
+            const data = await apiService.get('/enquiry/summary');
+            setSummary(data);
+        } catch (err) {
+            console.error('Failed to fetch summary');
+        } finally {
+            setIsSummaryLoading(false);
+        }
+    };
+
     const fetchEnquiryList = useCallback(
         async (page = currentPage, sort = sortBy, dir = sortDir, filterData = filters) => {
             setLoading(true);
@@ -121,6 +135,10 @@ const Enquiry = () => {
         },
         [itemsPerPage, currentPage, sortBy, sortDir, viewMode]
     );
+
+    useEffect(() => {
+        fetchEnquirySummary();
+    }, []);
 
     const handlePageChange = (event, page) => {
         setCurrentPage(page);
@@ -155,93 +173,106 @@ const Enquiry = () => {
                 <Route
                     path="/"
                     element={
-                        <Box sx={{ p: 3 }}>
-                            {/* Page Header */}
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                                <Box>
-                                    <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                                        Lead & Enquiry Management
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        Track, manage and convert your sales pipeline
-                                    </Typography>
-                                </Box>
-                                <Stack direction="row" spacing={1.5} alignItems="center">
-                                    <ToggleButtonGroup
-                                        value={viewMode}
-                                        exclusive
-                                        onChange={(e, val) => val && setViewMode(val)}
-                                        size="small"
-                                        sx={{
-                                            bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2,
-                                            '& .MuiToggleButton-root': {
-                                                border: 'none', borderRadius: '8px !important',
-                                                px: 2, py: 0.5, textTransform: 'none',
-                                                fontWeight: 700, fontSize: '0.78rem',
-                                                '&.Mui-selected': { bgcolor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
-                                            }
-                                        }}
-                                    >
-                                        <ToggleButton value="list">
-                                            <ViewList fontSize="small" sx={{ mr: 0.75 }} /> List
-                                        </ToggleButton>
-                                        <ToggleButton value="kanban">
-                                            <ViewKanban fontSize="small" sx={{ mr: 0.75 }} /> Board
-                                        </ToggleButton>
-                                    </ToggleButtonGroup>
-                                    <Button
-                                        variant="contained" disableElevation
-                                        startIcon={<AddCircleOutline />}
-                                        onClick={() => navigate('add')}
-                                        sx={{
-                                            borderRadius: 2, textTransform: 'none',
-                                            fontWeight: 700, px: 2.5,
-                                            bgcolor: '#1e40af', '&:hover': { bgcolor: '#1e3a8a' },
-                                        }}
-                                    >
-                                        New Lead
-                                    </Button>
+                        <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
+                            <Paper
+                                elevation={0}
+                                sx={{
+                                    p: { xs: 2, md: 3 },
+                                    width: '100%',
+                                    borderRadius: 2,
+                                    border: '1px solid #e2e8f0',
+                                    bgcolor: 'white'
+                                }}
+                            >
+                                {/* Page Header */}
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                                    <Box>
+                                        <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
+                                            Lead & Enquiry Management
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">
+                                            Track, manage and convert your sales pipeline
+                                        </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1.5} alignItems="center">
+                                        <ToggleButtonGroup
+                                            value={viewMode}
+                                            exclusive
+                                            onChange={(e, val) => val && setViewMode(val)}
+                                            size="small"
+                                            sx={{
+                                                bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2,
+                                                '& .MuiToggleButton-root': {
+                                                    border: 'none', borderRadius: '8px !important',
+                                                    px: 2, py: 0.5, textTransform: 'none',
+                                                    fontWeight: 700, fontSize: '0.78rem',
+                                                    '&.Mui-selected': { bgcolor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
+                                                }
+                                            }}
+                                        >
+                                            <ToggleButton value="list">
+                                                <ViewList fontSize="small" sx={{ mr: 0.75 }} /> List
+                                            </ToggleButton>
+                                            <ToggleButton value="kanban">
+                                                <ViewKanban fontSize="small" sx={{ mr: 0.75 }} /> Board
+                                            </ToggleButton>
+                                        </ToggleButtonGroup>
+                                        <Button
+                                            variant="contained" disableElevation
+                                            startIcon={<AddCircleOutline />}
+                                            onClick={() => navigate('add')}
+                                            sx={{
+                                                borderRadius: 2, textTransform: 'none',
+                                                fontWeight: 700, px: 2.5,
+                                                bgcolor: '#1e40af', '&:hover': { bgcolor: '#1e3a8a' },
+                                            }}
+                                        >
+                                            New Lead
+                                        </Button>
+                                    </Stack>
                                 </Stack>
-                            </Stack>
 
-                            {/* Dashboard Stats */}
-                            <EnquiryDashboard enquiries={enquiryList} />
+                                <Divider sx={{ mb: 3, borderColor: '#f1f5f9' }} />
 
-                            {/* Loading indicator */}
-                            {loading && (
-                                <Box display="flex" justifyContent="center" py={4}>
-                                    <CircularProgress size={32} />
-                                </Box>
-                            )}
+                                {/* Dashboard Stats */}
+                                <EnquiryDashboard summary={summary} loading={isSummaryLoading} />
 
-                            {/* Error */}
-                            {error && !loading && (
-                                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-                                    {error}
-                                    <Button size="small" onClick={() => fetchEnquiryList()} sx={{ ml: 2 }}>Retry</Button>
-                                </Alert>
-                            )}
+                                {/* Loading indicator */}
+                                {loading && (
+                                    <Box display="flex" justifyContent="center" py={4}>
+                                        <CircularProgress size={32} />
+                                    </Box>
+                                )}
 
-                            {/* View */}
-                            {!loading && !error && (
-                                viewMode === 'kanban' ? (
-                                    <EnquiryKanban
-                                        enquiries={enquiryList}
-                                        onStatusChange={handleStatusChange}
-                                    />
-                                ) : (
-                                    <EnquiryList
-                                        enquiryList={enquiryList}
-                                        filters={{ ...filters, sortBy, sortDir }}
-                                        handleSort={handleSort}
-                                        currentPage={currentPage}
-                                        totalPages={totalPages}
-                                        handlePageChange={handlePageChange}
-                                        handleFilterChange={handleFilterChange}
-                                        handleDelete={handleDelete}
-                                    />
-                                )
-                            )}
+                                {/* Error */}
+                                {error && !loading && (
+                                    <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                                        {error}
+                                        <Button size="small" onClick={() => fetchEnquiryList()} sx={{ ml: 2 }}>Retry</Button>
+                                    </Alert>
+                                )}
+
+                                {/* View */}
+                                {!loading && !error && (
+                                    viewMode === 'kanban' ? (
+                                        <EnquiryKanban
+                                            enquiries={enquiryList}
+                                            onStatusChange={handleStatusChange}
+                                        />
+                                    ) : (
+                                        <EnquiryList
+                                            enquiryList={enquiryList}
+                                            filters={{ ...filters, sortBy, sortDir }}
+                                            handleSort={handleSort}
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            handlePageChange={handlePageChange}
+                                            handleFilterChange={handleFilterChange}
+                                            handleDelete={handleDelete}
+                                        />
+                                    )
+                                )}
+                            </Paper>
                         </Box>
                     }
                 />

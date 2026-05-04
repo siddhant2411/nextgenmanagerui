@@ -35,6 +35,7 @@ import BomStatusChangeDialog from "./BomStatusChangeDialog";
 import { useAuth } from "../../auth/AuthContext";
 import { ACTION_KEYS } from "../../auth/roles";
 import BomCostBreakdown from "./BomCostBreakdown";
+import BomQaPlan from "./BomQaPlan";
 import {
     deleteBomAttachment,
     downloadBomAttachment,
@@ -912,7 +913,7 @@ const AddBom = () => {
     }, [selectedTab, bomId, bomAttachments, fetchBomAttachments]);
 
     useEffect(() => {
-        if (selectedTab === 3 && bomId) {
+        if (selectedTab === 4 && bomId) {
             fetchCostBreakdown();
         }
     }, [selectedTab, bomId, fetchCostBreakdown]);
@@ -1273,6 +1274,7 @@ const AddBom = () => {
                             <Tab label="Basic Info" />
                             <Tab label="Operations" />
                             {bomId && <Tab label="Attachments" />}
+                            {bomId && <Tab label="QA Plan" />}
                             {bomId && <Tab label="Cost Breakdown" />}
                         </Tabs>
 
@@ -1685,6 +1687,10 @@ const AddBom = () => {
                             )}
 
                             {selectedTab === 3 && bomId && (
+                                <BomQaPlan operations={operations} />
+                            )}
+
+                            {selectedTab === 4 && bomId && (
                                 <Box sx={{ mt: 1 }}>
                                     <BomCostBreakdown data={costBreakdown} loading={costBreakdownLoading} />
                                 </Box>

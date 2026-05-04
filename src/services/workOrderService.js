@@ -258,6 +258,23 @@ export const deleteLabourEntry = async (entryId) => {
     return apiService.delete(`/production/work-order/labour/${entryId}`);
 };
 
+// ── QA Entries ──
+
+export const getQaEntriesForOperation = async (operationId) => {
+    if (!operationId) throw new Error('Operation id is required');
+    return apiService.get(`/production/work-order/operation/${operationId}/qa`);
+};
+
+export const getQaEntriesForWorkOrder = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.get(`/production/work-order/${workOrderId}/qa`);
+};
+
+export const submitQaBatch = async (operationId, data) => {
+    if (!operationId) throw new Error('Operation id is required');
+    return apiService.post(`/production/work-order/operation/${operationId}/qa/batch`, data);
+};
+
 // ── Attachments ──
 
 export const getWorkOrderAttachments = async (workOrderId) => {
@@ -314,5 +331,14 @@ export const downloadMoveTickets = async (workOrderId) => {
         `/production/work-order/${workOrderId}/export/move-tickets`,
         {},
         `Move_Tickets_WO_${workOrderId}.pdf`
+    );
+};
+
+export const downloadQcTestReport = async (workOrderId) => {
+    if (!workOrderId) throw new Error('Work order id is required');
+    return apiService.download(
+        `/production/work-order/${workOrderId}/export/qc-test-report`,
+        {},
+        `QC_Test_Report_WO_${workOrderId}.pdf`
     );
 };

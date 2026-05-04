@@ -191,6 +191,18 @@ const apiService = {
         URL.revokeObjectURL(link.href);
     },
 
+    fetchBlob: async (endpoint, params) => {
+        const response = await apiClient.get(endpoint, {
+            params,
+            responseType: "blob",
+        });
+        return {
+            blob: response.data,
+            contentType: response.headers["content-type"],
+            url: URL.createObjectURL(response.data)
+        };
+    },
+
     upload: async (url, file, config = {}) => {
         const formData = new FormData();
         formData.append("file", file);

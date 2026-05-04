@@ -328,43 +328,70 @@ export default function WorkOrderCostTab({ workOrderId }) {
             <TableBody>
               {(r.operations || []).length === 0 ? (
                 <TableRow><TableCell colSpan={11} align="center" sx={{ py: 4, color: '#94a3b8' }}>No operations</TableCell></TableRow>
-              ) : (r.operations || []).map((op, i) => (
-                <TableRow key={i} sx={{ '&:hover': { bgcolor: '#f8fafc' } }}>
-                  <TableCell sx={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>{op.sequence}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    <Typography variant="body2" fontSize="0.78rem" fontWeight={600}>{op.operationName}</Typography>
-                    <Typography variant="caption" color="text.secondary" fontSize="0.68rem">
-                      Setup: {fmtNum(op.setupTimeMinutes, 1)}m · Run: {fmtNum(op.runTimePerUnitMinutes, 2)}m/unit
-                    </Typography>
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{op.workCenterName || '—'}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtNum(op.totalPlannedMinutes, 1)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    {fmtNum(op.actualLabourMinutes, 1)}
-                    {parseFloat(op.actualLabourMinutes) === 0 && (
-                      <Tooltip title="No labour entries logged — machine cost estimated from routing">
-                        <Typography component="span" variant="caption" sx={{ color: '#f59e0b', ml: 0.5 }}>*</Typography>
-                      </Tooltip>
+              ) : (r.operations || []).map((op, i) => {
+                const isFlat = op.costType === 'SUB_CONTRACTED' || op.costType === 'FIXED_RATE';
+                return (
+                  <TableRow key={i} sx={{ '&:hover': { bgcolor: '#f8fafc' } }}>
+                    <TableCell sx={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>{op.sequence}</TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>
+                      <Typography variant="body2" fontSize="0.78rem" fontWeight={600}>{op.operationName}</Typography>
+                      {isFlat ? (
+                        <Typography variant="caption" sx={{ color: op.costType === 'SUB_CONTRACTED' ? '#7c3aed' : '#0369a1', fontSize: '0.68rem', fontWeight: 600 }}>
+                          {op.costType === 'SUB_CONTRACTED' ? 'Subcontract' : 'Fixed Rate'} · ₹{fmtNum(op.subcontractRatePerUnit, 2)}/unit
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary" fontSize="0.68rem">
+                          Setup: {fmtNum(op.setupTimeMinutes, 1)}m · Run: {fmtNum(op.runTimePerUnitMinutes, 2)}m/unit
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>{op.workCenterName || '—'}</TableCell>
+                    {isFlat ? (
+                      <>
+                        <TableCell colSpan={5} sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>
+                          Flat rate — no time/labour/machine breakdown
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>{fmtNum(op.totalPlannedMinutes, 1)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>
+                          {fmtNum(op.actualLabourMinutes, 1)}
+                          {parseFloat(op.actualLabourMinutes) === 0 && (
+                            <Tooltip title="No labour entries logged — machine cost estimated from routing">
+                              <Typography component="span" variant="caption" sx={{ color: '#f59e0b', ml: 0.5 }}>*</Typography>
+                            </Tooltip>
+                          )}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>
+                          {fmt(op.laborCostPerHour)} × {fmtNum(op.numberOfOperators, 0)}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>{fmt(op.machineCostPerHour)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem' }}>{fmtNum(op.overheadPercentage, 1)}%</TableCell>
+                      </>
                     )}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    {fmt(op.laborCostPerHour)} × {fmtNum(op.numberOfOperators, 0)}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmt(op.machineCostPerHour)}</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>{fmtNum(op.overheadPercentage, 1)}%</TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    <Tooltip title={`Labour: ${fmt(op.estimatedLabourCost)} · Machine: ${fmt(op.estimatedMachineCost)} · Overhead: ${fmt(op.estimatedOverheadCost)}`} arrow>
-                      <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.estimatedTotalCost)}</Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '0.78rem' }}>
-                    <Tooltip title={`Labour: ${fmt(op.actualLabourCost)} · Machine: ${fmt(op.actualMachineCost)} · Overhead: ${fmt(op.actualOverheadCost)}`} arrow>
-                      <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.actualTotalCost)}</Typography>
-                    </Tooltip>
-                  </TableCell>
-                  <VarCell value={op.variance} />
-                </TableRow>
-              ))}
+                    <TableCell sx={{ fontSize: '0.78rem' }}>
+                      {isFlat ? (
+                        <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.estimatedTotalCost)}</Typography>
+                      ) : (
+                        <Tooltip title={`Labour: ${fmt(op.estimatedLabourCost)} · Machine: ${fmt(op.estimatedMachineCost)} · Overhead: ${fmt(op.estimatedOverheadCost)}`} arrow>
+                          <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.estimatedTotalCost)}</Typography>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: '0.78rem' }}>
+                      {isFlat ? (
+                        <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.actualTotalCost)}</Typography>
+                      ) : (
+                        <Tooltip title={`Labour: ${fmt(op.actualLabourCost)} · Machine: ${fmt(op.actualMachineCost)} · Overhead: ${fmt(op.actualOverheadCost)}`} arrow>
+                          <Typography fontSize="0.78rem" fontWeight={600}>{fmt(op.actualTotalCost)}</Typography>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                    <VarCell value={op.variance} />
+                  </TableRow>
+                );
+              })}
               {(r.operations || []).length > 0 && (
                 <TableRow sx={{ bgcolor: '#f8fafc' }}>
                   <TableCell colSpan={8} sx={{ fontWeight: 700, fontSize: '0.78rem' }}>Total Operation Cost</TableCell>

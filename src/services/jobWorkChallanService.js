@@ -65,3 +65,9 @@ export const getWorkOrderForChallan = async (id) => {
 export const searchInventoryItemsForChallan = async (search = '') => {
     return searchInventoryItems({ page: 0, size: 20, query: search });
 };
+
+export const downloadChallanPdf = async (id, challanNumber) => {
+    if (!id) throw new Error('Challan id is required');
+    const filename = `JobWorkChallan_${(challanNumber || id).toString().replace(/\//g, '-')}.pdf`;
+    return apiService.download(`/job-work-challans/${id}/print`, {}, filename);
+};

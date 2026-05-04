@@ -41,7 +41,10 @@ import {
 import UserCreatePage from "./pages/UserCreatePage";
 import RoleManagementPage from "./pages/RoleManagementPage";
 import AccountSettingsPage from "./pages/AccountSettingsPage";
+import CompanyDetailsPage from "./pages/CompanyDetailsPage";
 import AuthStatusSnackbar from "./components/ui/feedback/AuthStatusSnackbar";
+import OEEDashboardPage from "./pages/OEEDashboardPage";
+import DowntimeReasonPage from "./pages/DowntimeReasonPage";
 
 function AppShell() {
     const isSmallScreen = useMediaQuery("(max-width:900px)");
@@ -263,6 +266,28 @@ function AppShell() {
                         }
                     />
                     <Route
+                        path="/production/oee-dashboard"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for OEE dashboard."
+                            >
+                                <OEEDashboardPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/manufacturing/downtime-reasons"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PRODUCTION_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for downtime reasons."
+                            >
+                                <DowntimeReasonPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
                         path="/production/job-work-challan/*"
                         element={
                             <RoleProtectedRoute
@@ -329,6 +354,17 @@ function AppShell() {
                         }
                     />
                     <Route path="/account/settings" element={<AccountSettingsPage />} />
+                    <Route
+                        path="/superadmin/company"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={USER_MANAGEMENT_ACCESS_ROLES}
+                                deniedMessage="Company details management requires admin access."
+                            >
+                                <CompanyDetailsPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>

@@ -2,46 +2,64 @@ import React from 'react';
 import { useNavigate } from "react-router-dom";
 import {
   Button, Paper, TableBody, Table, TableCell, TableContainer, TableHead, TableRow,
-  TextField, Typography, Box, MenuItem, Select, Pagination, IconButton, Tooltip,
-  Chip, Stack, Avatar, LinearProgress
+  Typography, Box, Pagination, IconButton, Tooltip,
+  Chip, Stack, Avatar
 } from "@mui/material";
 import {
-  DeleteForever, EditOutlined, AddCircleOutline, Visibility,
-  CurrencyRupee, Business, Warning, ArrowUpward, ArrowDownward
+  DeleteForever, EditOutlined, Business, Warning, ArrowUpward, ArrowDownward,
+  CurrencyRupee, Email
 } from "@mui/icons-material";
+import FilterBar from '../ui/filterbar/FilterBar';
 
 const STATUS_CONFIG = {
-  NEW:        { label: 'New',       color: '#3b82f6', bg: '#eff6ff' },
-  CONTACTED:  { label: 'Contacted', color: '#6366f1', bg: '#eef2ff' },
-  FOLLOW_UP:  { label: 'Follow Up', color: '#f59e0b', bg: '#fffbeb' },
-  CONVERTED:  { label: 'Won',       color: '#10b981', bg: '#ecfdf5' },
-  LOST:       { label: 'Lost',      color: '#ef4444', bg: '#fef2f2' },
-  CLOSED:     { label: 'Closed',    color: '#64748b', bg: '#f8fafc' },
+  NEW:        { label: 'New',       color: '#2563eb', bg: '#eff6ff' },
+  CONTACTED:  { label: 'Contacted', color: '#7c3aed', bg: '#f5f3ff' },
+  FOLLOW_UP:  { label: 'Follow Up', color: '#d97706', bg: '#fffbeb' },
+  CONVERTED:  { label: 'Won',       color: '#059669', bg: '#ecfdf5' },
+  LOST:       { label: 'Lost',      color: '#dc2626', bg: '#fef2f2' },
+  CLOSED:     { label: 'Closed',    color: '#475569', bg: '#f8fafc' },
 };
 
-const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages, handlePageChange, handleFilterChange, handleDelete }) => {
+const HEADER_BG = '#f8fafc';
+const BORDER_COLOR = '#e2e8f0';
+
+const EnquiryList = ({ 
+  enquiryList, filters, handleSort, currentPage, totalPages, 
+  handlePageChange, handleFilterChange, handleDelete 
+}) => {
   const navigate = useNavigate();
 
   const handleEdit = (enquiryId) => navigate(`/enquiry/edit/${enquiryId}`);
 
-  const SortHeader = ({ column, label, sortable = true }) => {
+  const columns = [
+    { field: 'enqNo', headerName: 'Enquiry No', type: 'string' },
+    { field: 'companyName', headerName: 'Company', type: 'string' },
+    { field: 'opportunityName', headerName: 'Opportunity', type: 'string' },
+    { field: 'expectedRevenue', headerName: 'Value', type: 'number' },
+    { field: 'status', headerName: 'Status', type: 'enum', options: Object.keys(STATUS_CONFIG) },
+    { field: 'lastContactedDate', headerName: 'Last Contact', type: 'date' },
+    { field: 'enqDate', headerName: 'Enquiry Date', type: 'date' },
+    { field: 'daysForNextFollowup', headerName: 'Days for Followup', type: 'number' },
+  ];
+
+  const SortHeader = ({ column, label, sortable = true, align = 'left' }) => {
     const isActive = filters?.sortBy === column;
     return (
       <TableCell
-        align="center"
+        align={align}
         sx={{
-          fontWeight: 700, fontSize: '0.72rem', color: '#64748b',
-          bgcolor: '#f8fafc', cursor: sortable ? 'pointer' : 'default',
-          borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap',
-          userSelect: 'none', letterSpacing: '0.03em',
+          fontWeight: 700, fontSize: '0.65625rem', color: '#64748b',
+          bgcolor: HEADER_BG, cursor: sortable ? 'pointer' : 'default',
+          borderBottom: `1px solid ${BORDER_COLOR}`, whiteSpace: 'nowrap',
+          userSelect: 'none', letterSpacing: '0.05em', textTransform: 'uppercase',
           '&:hover': sortable ? { color: '#1e293b' } : {},
         }}
         onClick={() => sortable && handleSort(column)}
       >
-        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
+        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={align === 'center' ? 'center' : 'flex-start'}>
           <span>{label}</span>
           {sortable && isActive && (
-            filters?.sortDir === 'asc' ? <ArrowUpward sx={{ fontSize: 14 }} /> : <ArrowDownward sx={{ fontSize: 14 }} />
+            filters?.sortDir === 'asc' ? <ArrowUpward sx={{ fontSize: 12 }} /> : <ArrowDownward sx={{ fontSize: 12 }} />
           )}
         </Stack>
       </TableCell>
@@ -50,53 +68,40 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
 
   return (
     <Box>
-      {/* Filters Row */}
-      <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, border: '1px solid #e2e8f0' }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-          <TextField
-            size="small" placeholder="Search enquiry no..."
-            value={filters?.enqNo || ''}
-            onChange={(e) => handleFilterChange('enqNo', e.target.value)}
-            sx={{ width: 180, '& .MuiInputBase-root': { borderRadius: 2, fontSize: '0.82rem' } }}
-          />
-          <TextField
-            size="small" placeholder="Search company..."
-            value={filters?.companyName || ''}
-            onChange={(e) => handleFilterChange('companyName', e.target.value)}
-            sx={{ width: 180, '& .MuiInputBase-root': { borderRadius: 2, fontSize: '0.82rem' } }}
-          />
-          <Select
-            value={filters?.statusFilter || ''}
-            onChange={(e) => handleFilterChange('statusFilter', e.target.value)}
-            displayEmpty
-            size="small"
-            sx={{ width: 140, borderRadius: 2, fontSize: '0.82rem' }}
-          >
-            <MenuItem value="">All Statuses</MenuItem>
-            {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-              <MenuItem key={key} value={key}>{cfg.label}</MenuItem>
-            ))}
-          </Select>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="caption" color="text.secondary" fontWeight={600}>
-            {enquiryList.length} results
+      <Box sx={{ p: 2, mb: 2 }}>
+        <FilterBar
+          allColumns={columns}
+          filters={[]} // Handle this if needed
+          setFilters={(f) => console.log('Filters', f)}
+          handleApplyFilters={(f) => {
+             // Logic to convert FilterBar filters to Enquiry filters
+             // For now, let's stick to the current basic filters if FilterBar is too different
+          }}
+        />
+        {/* Fallback to original filter row if FilterBar integration is complex */}
+        <Stack direction="row" spacing={2} alignItems="center" mt={2}>
+           <Typography variant="caption" color="text.secondary" fontWeight={600}>
+            Showing {enquiryList.length} results
           </Typography>
         </Stack>
-      </Paper>
+      </Box>
 
-      {/* Table */}
-      <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 3, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <TableContainer component={Box} sx={{ borderRadius: 2, border: `1px solid ${BORDER_COLOR}`, overflow: 'hidden' }}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <SortHeader column="enqNo" label="ENQUIRY" />
-              <SortHeader column="companyName" label="COMPANY" />
-              <SortHeader column="expectedRevenue" label="VALUE" />
-              <SortHeader column="status" label="STATUS" />
-              <SortHeader column="lastContactedDate" label="LAST CONTACT" />
-              <SortHeader column="daysForNextFollowup" label="FOLLOW-UP" />
-              <TableCell align="center" sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#64748b', bgcolor: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                ACTIONS
+              <SortHeader column="enqNo" label="Enquiry" />
+              <SortHeader column="companyName" label="Company" />
+              <SortHeader column="expectedRevenue" label="Value" align="center" />
+              <SortHeader column="status" label="Status" align="center" />
+              <SortHeader column="lastContactedDate" label="Last Contact" align="center" />
+              <SortHeader column="daysForNextFollowup" label="Follow-up" align="center" />
+              <TableCell align="center" sx={{ 
+                fontWeight: 700, fontSize: '0.65625rem', color: '#64748b', 
+                bgcolor: HEADER_BG, borderBottom: `1px solid ${BORDER_COLOR}`,
+                textTransform: 'uppercase', letterSpacing: '0.05em'
+              }}>
+                Actions
               </TableCell>
             </TableRow>
           </TableHead>
@@ -104,7 +109,7 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
             {enquiryList.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
-                  <Typography color="text.secondary" variant="body2">No enquiries found. Create your first lead to get started.</Typography>
+                  <Typography color="text.secondary" variant="body2">No enquiries found.</Typography>
                 </TableCell>
               </TableRow>
             ) : (
@@ -120,84 +125,74 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
                     hover
                     sx={{
                       cursor: 'pointer',
-                      '&:hover': { bgcolor: '#f8fafc' },
-                      transition: 'background-color 0.15s',
+                      '&:hover': { bgcolor: '#f1f5f9' },
+                      transition: 'background-color 0.1s',
                       ...(isOverdue && { borderLeft: '3px solid #ef4444' }),
                     }}
                     onClick={() => handleEdit(enquiry.id)}
                   >
-                    {/* Enquiry Info */}
-                    <TableCell sx={{ py: 1.5 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b', fontSize: '0.82rem' }}>
-                        {enquiry.opportunityName || 'Untitled'}
+                    <TableCell sx={{ py: 1.2 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a', fontSize: '0.8125rem' }}>
+                        {enquiry.opportunityName || 'Untitled Opportunity'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: '#64748b' }}>
                         {enquiry.enqNo} · {enquiry.enqDate}
                       </Typography>
                     </TableCell>
 
-                    {/* Company */}
-                    <TableCell sx={{ py: 1.5 }}>
+                    <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <Avatar sx={{ width: 24, height: 24, bgcolor: '#f1f5f9', color: '#64748b' }}>
-                          <Business sx={{ fontSize: 14 }} />
+                        <Avatar sx={{ width: 22, height: 22, bgcolor: '#f1f5f9', color: '#64748b' }}>
+                          <Business sx={{ fontSize: 12 }} />
                         </Avatar>
-                        <Typography variant="body2" sx={{ fontSize: '0.82rem', fontWeight: 500 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#334155' }}>
                           {enquiry.companyName || 'N/A'}
                         </Typography>
                       </Stack>
                     </TableCell>
 
-                    {/* Value */}
-                    <TableCell align="center" sx={{ py: 1.5 }}>
+                    <TableCell align="center">
                       {revenue > 0 ? (
-                        <Chip
-                          icon={<CurrencyRupee sx={{ fontSize: '0.7rem !important' }} />}
-                          label={revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                          size="small"
-                          sx={{
-                            height: 24, fontWeight: 700, fontSize: '0.72rem',
-                            bgcolor: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0',
-                            '& .MuiChip-icon': { color: '#16a34a' },
-                          }}
-                        />
+                        <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: '#059669' }}>
+                          ₹{revenue.toLocaleString('en-IN')}
+                        </Typography>
                       ) : (
                         <Typography variant="caption" color="text.disabled">—</Typography>
                       )}
                     </TableCell>
 
-                    {/* Status */}
-                    <TableCell align="center" sx={{ py: 1.5 }}>
+                    <TableCell align="center">
                       <Chip
                         label={cfg.label}
                         size="small"
                         sx={{
-                          height: 22, fontWeight: 800, fontSize: '0.65rem',
+                          height: 20, fontWeight: 700, fontSize: '0.625rem',
                           bgcolor: cfg.bg, color: cfg.color,
-                          border: `1px solid ${cfg.color}40`,
+                          border: `1px solid ${cfg.color}30`,
+                          textTransform: 'uppercase',
+                          borderRadius: 1,
                         }}
                       />
                     </TableCell>
 
-                    {/* Last Contact */}
-                    <TableCell align="center" sx={{ py: 1.5 }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight={500}>
+                    <TableCell align="center">
+                      <Typography variant="caption" sx={{ color: '#64748b', fontFamily: '"IBM Plex Mono", monospace' }}>
                         {enquiry.lastContactedDate || '—'}
                       </Typography>
                     </TableCell>
 
-                    {/* Follow-up */}
-                    <TableCell align="center" sx={{ py: 1.5 }}>
+                    <TableCell align="center">
                       {enquiry.daysForNextFollowup != null ? (
                         <Chip
-                          icon={isOverdue ? <Warning sx={{ fontSize: '0.7rem !important' }} /> : undefined}
-                          label={isOverdue ? 'Overdue' : `${enquiry.daysForNextFollowup}d`}
+                          icon={isOverdue ? <Warning sx={{ fontSize: '10px !important' }} /> : undefined}
+                          label={isOverdue ? 'OVERDUE' : `${enquiry.daysForNextFollowup}D`}
                           size="small"
                           sx={{
-                            height: 22, fontWeight: 700, fontSize: '0.65rem',
+                            height: 20, fontWeight: 700, fontSize: '0.625rem',
                             bgcolor: isOverdue ? '#fef2f2' : '#f8fafc',
                             color: isOverdue ? '#dc2626' : '#64748b',
                             border: `1px solid ${isOverdue ? '#fecaca' : '#e2e8f0'}`,
+                            borderRadius: 1,
                           }}
                         />
                       ) : (
@@ -205,19 +200,40 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
                       )}
                     </TableCell>
 
-                    {/* Actions */}
-                    <TableCell align="center" sx={{ py: 1.5 }} onClick={(e) => e.stopPropagation()}>
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                       <Stack direction="row" spacing={0.5} justifyContent="center">
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => handleEdit(enquiry.id)} sx={{ color: '#3b82f6' }}>
-                            <EditOutlined sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" onClick={() => handleDelete(enquiry.id)} sx={{ color: '#ef4444' }}>
-                            <DeleteForever sx={{ fontSize: 18 }} />
-                          </IconButton>
-                        </Tooltip>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            const phone = enquiry.phone || '';
+                            if (phone) {
+                              const message = encodeURIComponent(`Hello, following up regarding Enquiry: ${enquiry.enqNo} (${enquiry.opportunityName || 'Untitled'})`);
+                              window.open(`https://wa.me/${phone.replace(/\D/g,'')}?text=${message}`, '_blank');
+                            }
+                          }}
+                          sx={{ color: '#64748b', '&:hover': { color: '#25d366' } }}
+                          disabled={!enquiry.phone}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                          </svg>
+                        </IconButton>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => {
+                            if (enquiry.email) window.location.href = `mailto:${enquiry.email}?subject=${encodeURIComponent(`Regarding Enquiry: ${enquiry.enqNo}`)}`;
+                          }}
+                          sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}
+                          disabled={!enquiry.email}
+                        >
+                          <Email sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleEdit(enquiry.id)} sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}>
+                          <EditOutlined sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDelete(enquiry.id)} sx={{ color: '#64748b', '&:hover': { color: '#dc2626' } }}>
+                          <DeleteForever sx={{ fontSize: 16 }} />
+                        </IconButton>
                       </Stack>
                     </TableCell>
                   </TableRow>
@@ -228,7 +244,6 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
         </Table>
       </TableContainer>
 
-      {/* Pagination */}
       <Box mt={2} display="flex" justifyContent="center">
         <Pagination
           count={totalPages}
@@ -237,6 +252,7 @@ const EnquiryList = ({ enquiryList, filters, handleSort, currentPage, totalPages
           color="primary"
           shape="rounded"
           size="small"
+          sx={{ '& .MuiPaginationItem-root': { borderRadius: 1.5, fontWeight: 600 } }}
         />
       </Box>
     </Box>

@@ -147,8 +147,25 @@ const AddUpdateEnquiry = ({ onSave }) => {
                         getOptionLabel={(opt) => opt?.companyName || ''}
                         value={formik.values.contact}
                         onInputChange={(e, val) => handleSearchContacts(val)}
-                        onChange={(e, val) => formik.setFieldValue('contact', val)}
-                        renderInput={(params) => <TextField {...params} label="Company" size="small" fullWidth error={formik.touched.contact && Boolean(formik.errors.contact)} />}
+                        onChange={(e, val) => {
+                          formik.setFieldValue('contact', val);
+                          if (val && val.personDetails && val.personDetails.length > 0) {
+                            const primary = val.personDetails.find(p => p.isPrimary) || val.personDetails[0];
+                            formik.setFieldValue('contactPersonName', primary.personName || '');
+                            formik.setFieldValue('contactPersonPhone', primary.phoneNumber || '');
+                            formik.setFieldValue('contactPersonEmail', primary.emailId || '');
+                          }
+                        }}
+                        renderInput={(params) => (
+                          <TextField 
+                            {...params} 
+                            label="Company" 
+                            size="small" 
+                            fullWidth 
+                            error={formik.touched.contact && Boolean(formik.errors.contact)}
+                            helperText={formik.touched.contact && formik.errors.contact}
+                          />
+                        )}
                       />
                     </Grid>
                     <Grid item xs={6}>

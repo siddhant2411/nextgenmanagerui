@@ -108,6 +108,7 @@ export default function JobWorkChallanForm() {
     const [agreedRatePerUnit, setAgreedRatePerUnit] = useState('');
     const [dispatchDetails, setDispatchDetails] = useState('');
     const [remarks, setRemarks] = useState('');
+    const [expectedReturnDate, setExpectedReturnDate] = useState('');
 
     // Lines
     const [lines, setLines] = useState([emptyLine()]);
@@ -151,6 +152,7 @@ export default function JobWorkChallanForm() {
                 setAgreedRatePerUnit(data.agreedRatePerUnit ?? '');
                 setDispatchDetails(data.dispatchDetails || '');
                 setRemarks(data.remarks || '');
+                setExpectedReturnDate(data.expectedReturnDate ? dayjs(data.expectedReturnDate).format('YYYY-MM-DD') : '');
                 if (Array.isArray(data.lines) && data.lines.length > 0) {
                     setLines(data.lines.map(l => ({
                         _key: Math.random().toString(36).slice(2),
@@ -266,6 +268,7 @@ export default function JobWorkChallanForm() {
         agreedRatePerUnit: agreedRatePerUnit !== '' ? parseFloat(agreedRatePerUnit) : null,
         dispatchDetails: dispatchDetails.trim() || null,
         remarks: remarks.trim() || null,
+        expectedReturnDate: expectedReturnDate || null,
         lines: lines.map(l => ({
             inventoryItemId: l.inventoryItemId ?? null,
             description: l.description.trim(),
@@ -410,6 +413,22 @@ export default function JobWorkChallanForm() {
                             value={dispatchDetails}
                             onChange={e => setDispatchDetails(e.target.value)}
                             placeholder="e.g. Via DTDC courier"
+                        />
+                    </Grid>
+
+                    {/* Expected Return Date */}
+                    <Grid item xs={12} sm={6}>
+                        <TextField
+                            fullWidth
+                            label="Expected Return Date (Due Date)"
+                            type="date"
+                            size="small"
+                            sx={fieldSx}
+                            value={expectedReturnDate}
+                            onChange={e => setExpectedReturnDate(e.target.value)}
+                            InputLabelProps={{ shrink: true }}
+                            helperText="Leave blank to auto-set to 180 days on dispatch"
+                            inputProps={{ min: dayjs().format('YYYY-MM-DD') }}
                         />
                     </Grid>
 

@@ -49,11 +49,14 @@ import {
   ExpandLess,
   Edit,
   Delete,
+  FactCheck,
+  LocalShipping,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import WorkOrderOperationsTimeline from './WorkOrderOperationsTimeline';
 import LogLabourDialog from './LogLabourDialog';
-import { getReasonCodes, deleteLabourEntry, resolveApiErrorMessage } from '../../../../services/workOrderService';
+import QaCheckDialog from './QaCheckDialog';
+import { getReasonCodes, deleteLabourEntry, getQaEntriesForOperation, resolveApiErrorMessage } from '../../../../services/workOrderService';
 import { getLaborRoles } from '../../../../services/laborRoleService';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -211,10 +214,13 @@ export default function WorkOrderOperationsTab({
   const [overCompletionWarning, setOverCompletionWarning] = useState(null);
 
   // Labour tracking state
-  const [labourDialog, setLabourDialog] = useState({ open: false, operationId: null, operationName: '', entry: null, defaultValues: null });
+  const [labourDialog, setLabourDialog] = useState({ open: false, operationId: null, operationName: '', operation: null, entry: null, defaultValues: null });
   const [expandedLabour, setExpandedLabour] = useState(new Set());
   const [laborRoles, setLaborRoles] = useState([]);
   const [labourDeleteError, setLabourDeleteError] = useState('');
+
+  // QA check state
+  const [qaDialog, setQaDialog] = useState({ open: false, operation: null, entries: [], batchQty: null });
 
   // Load reason codes + labour roles once
   useEffect(() => {
@@ -361,6 +367,7 @@ export default function WorkOrderOperationsTab({
         open: true,
         operationId: operation?.id,
         operationName: operation?.operationName || routingOp?.name,
+        operation,
         entry: null,
         defaultValues: {
           laborRoleId: routingOp?.laborRole?.id || '',
@@ -369,9 +376,17 @@ export default function WorkOrderOperationsTab({
           durationMinutes: runTime > 0 && batchQty > 0 ? (runTime * batchQty).toFixed(2) : '',
           operatorName: routingOp?.productionJob?.jobName || '',
           numberOfOperators: routingOp?.numberOfOperators || 1,
+          batchQty,
         },
       });
     }
+  };
+
+  const openQaDialog = async (op) => {
+    setQaDialog({ open: true, operation: op, entries: op.qaEntries || [], batchQty: null });
+    getQaEntriesForOperation(op.id)
+      .then(entries => setQaDialog(d => d.open ? { ...d, entries } : d))
+      .catch(() => {});
   };
 
   const toggleLabour = (opId) => {
@@ -391,8 +406,21 @@ export default function WorkOrderOperationsTab({
   };
 
   const handleLabourDialogClose = (saved) => {
+    const { operation, defaultValues } = labourDialog;
     setLabourDialog(d => ({ ...d, open: false }));
-    if (saved && onRefresh) onRefresh();
+    if (saved) {
+      if (onRefresh) onRefresh();
+      // Auto-chain QA dialog if this operation requires inspection
+      if (operation?.routingOperation?.inspection) {
+        const batchQty = defaultValues?.batchQty ?? null;
+        const qaEntries = operation.qaEntries || [];
+        setQaDialog({ open: true, operation, entries: qaEntries, batchQty });
+        // Also fetch fresh entries in background
+        getQaEntriesForOperation(operation.id)
+          .then(entries => setQaDialog(d => d.open ? { ...d, entries } : d))
+          .catch(() => {});
+      }
+    }
   };
 
   const handleDeleteLabour = async (entryId) => {
@@ -542,17 +570,38 @@ export default function WorkOrderOperationsTab({
                         {/* Details */}
                         <TableCell sx={compactCellSx}>
                           <Box>
-                            <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#1e293b' }}>
-                              {op.sequence}. {op.operationName || op.routingOperation?.name}
-                            </Typography>
-                            <Stack direction="row" spacing={1} mt={0.5} alignItems="center">
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Typography variant="subtitle2" fontWeight={700} sx={{ color: '#1e293b' }}>
+                                {op.sequence}. {op.operationName || op.routingOperation?.name}
+                              </Typography>
+                              {op.routingOperation?.costType === 'SUB_CONTRACTED' && (
+                                <Chip
+                                  icon={<LocalShipping sx={{ fontSize: '11px !important' }} />}
+                                  label="Subcontract"
+                                  size="small"
+                                  sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: '#f3e8ff', color: '#7c3aed', border: '1px solid #c4b5fd' }}
+                                />
+                              )}
+                            </Stack>
+                            <Stack direction="row" spacing={1} mt={0.5} alignItems="center" flexWrap="wrap">
                               <Chip
                                 icon={cfg.icon} label={op.status} size="small"
                                 sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: cfg.bg, color: cfg.colorMain, border: `1px solid ${cfg.colorMain}40` }}
                               />
+                              {Number(op.pendingRejectionQuantity) > 0 && (
+                                <Chip
+                                  label={`MRB: ${op.pendingRejectionQuantity}`} size="small"
+                                  sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800, bgcolor: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d' }}
+                                />
+                              )}
                               {op.parallelPath && (
                                 <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600 }}>
                                   Path: {op.parallelPath}
+                                </Typography>
+                              )}
+                              {op.routingOperation?.costType === 'SUB_CONTRACTED' && op.routingOperation?.fixedCostPerUnit != null && (
+                                <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 600, fontSize: '0.65rem' }}>
+                                  ₹{Number(op.routingOperation.fixedCostPerUnit).toLocaleString('en-IN')}/unit
                                 </Typography>
                               )}
                             </Stack>
@@ -561,7 +610,11 @@ export default function WorkOrderOperationsTab({
 
                         {/* Readiness */}
                         <TableCell sx={compactCellSx}>
-                          {op.status === 'COMPLETED' ? (
+                          {op.routingOperation?.costType === 'SUB_CONTRACTED' && op.status !== 'COMPLETED' ? (
+                            <Typography variant="caption" sx={{ color: '#7c3aed', fontWeight: 600, fontSize: '0.7rem' }}>
+                              Awaiting challan receipt
+                            </Typography>
+                          ) : op.status === 'COMPLETED' ? (
                             <Box sx={{ minWidth: 100 }}>
                               <Stack direction="row" justifyContent="space-between" mb={0.5}>
                                 <Typography variant="caption" fontWeight={700} color="success.main">
@@ -696,7 +749,7 @@ export default function WorkOrderOperationsTab({
                           <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
                             {isEditMode && !isWoTerminal && (
                               <>
-                                {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && (
+                                {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && op.routingOperation?.costType !== 'SUB_CONTRACTED' && (
                                   <Tooltip title={!readiness.isStartable ? 'Insufficient input quantity to start' : 'Start execution'}>
                                     <span>
                                       <Button
@@ -708,6 +761,16 @@ export default function WorkOrderOperationsTab({
                                         {isCurrentAction && operationActionState?.action === 'start' ? 'Starting...' : 'Start'}
                                       </Button>
                                     </span>
+                                  </Tooltip>
+                                )}
+                                {['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && op.routingOperation?.costType === 'SUB_CONTRACTED' && (
+                                  <Tooltip title="Subcontract operation — manage via the Subcontract tab (create challan → dispatch → receive back → record completion here)">
+                                    <Chip
+                                      icon={<LocalShipping sx={{ fontSize: '12px !important' }} />}
+                                      label="Via Challan"
+                                      size="small"
+                                      sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600, bgcolor: '#f3e8ff', color: '#7c3aed', cursor: 'default' }}
+                                    />
                                   </Tooltip>
                                 )}
 
@@ -734,6 +797,20 @@ export default function WorkOrderOperationsTab({
                                   );
                                 })()}
                               </>
+                            )}
+                            {/* QA check button */}
+                            {op.id && op.routingOperation?.inspection && (
+                              <Tooltip title="QA Check">
+                                <IconButton size="small" onClick={() => openQaDialog(op)}
+                                  sx={{ color: (() => {
+                                    const entries = op.qaEntries || [];
+                                    if (entries.some(e => e.result === 'FAIL')) return '#c62828';
+                                    if (entries.every(e => e.result === 'PASS') && entries.length > 0) return '#2e7d32';
+                                    return '#94a3b8';
+                                  })() }}>
+                                  <FactCheck fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                             )}
                             {/* Labour time toggle */}
                             {op.id && (
@@ -841,6 +918,18 @@ export default function WorkOrderOperationsTab({
           Reason codes are required for Rej/Scrap. All three quantities consume input materials.
         </Typography>
       </Box>
+
+      {/* ── QA Check Dialog ── */}
+      <QaCheckDialog
+        open={qaDialog.open}
+        onClose={() => setQaDialog(d => ({ ...d, open: false }))}
+        operation={qaDialog.operation}
+        entries={qaDialog.entries}
+        batchQty={qaDialog.batchQty}
+        onSaved={() => {
+          onRefresh?.();
+        }}
+      />
 
       {/* ── Labour Time Dialog ── */}
       <LogLabourDialog

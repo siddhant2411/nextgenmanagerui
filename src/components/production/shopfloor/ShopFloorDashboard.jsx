@@ -6,6 +6,10 @@ import { getMachineDetailsList } from '../../../services/machineAssetsService';
 import { getMachineScheduleToday } from '../../../services/workOrderService';
 import ShopFloorTaskCard from './ShopFloorTaskCard';
 import ShopFloorCompleteDialog from './ShopFloorCompleteDialog';
+import ShopFloorDowntimeDialog from './ShopFloorDowntimeDialog';
+import productionAnalyticsService from '../../../services/productionAnalyticsService';
+import { Warning, PlayArrow } from '@mui/icons-material';
+import { Button } from '@mui/material';
 
 const PRIORITY_ORDER = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
@@ -17,6 +21,8 @@ export default function ShopFloorDashboard({ setSnackbar }) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [activeDowntime, setActiveDowntime] = useState(null);
+  const [downtimeDialogOpen, setDowntimeDialogOpen] = useState(false);
 
   useEffect(() => {
     const loadMachines = async () => {
@@ -34,22 +40,33 @@ export default function ShopFloorDashboard({ setSnackbar }) {
     loadMachines();
   }, [setSnackbar]);
 
+  const checkDowntime = useCallback(async (machineId) => {
+    try {
+      const active = await productionAnalyticsService.getActiveDowntime(machineId);
+      setActiveDowntime(active || null);
+    } catch (err) {
+      console.error('Failed to check downtime status', err);
+    }
+  }, []);
+
   const loadTasks = useCallback(async (machineId) => {
     if (!machineId) {
       setTasks([]);
+      setActiveDowntime(null);
       return;
     }
     try {
       setTasksLoading(true);
       const response = await getMachineScheduleToday(machineId);
       setTasks(response?.tasks || []);
+      checkDowntime(machineId);
     } catch (err) {
       setSnackbar('Failed to load machine tasks.', 'error');
       setTasks([]);
     } finally {
       setTasksLoading(false);
     }
-  }, [setSnackbar]);
+  }, [setSnackbar, checkDowntime]);
 
   const handleMachineChange = (_, value) => {
     setSelectedMachine(value);
@@ -65,6 +82,21 @@ export default function ShopFloorDashboard({ setSnackbar }) {
     setSnackbar('Operation progress recorded successfully.', 'success');
     if (selectedMachine?.id) {
       loadTasks(selectedMachine.id);
+    }
+  };
+
+  const handleStopDowntime = async () => {
+    try {
+      if (!activeDowntime?.id) {
+        console.error('No active downtime ID found:', activeDowntime);
+        setSnackbar('No active downtime session found.', 'error');
+        return;
+      }
+      await productionAnalyticsService.stopDowntime(activeDowntime.id);
+      setSnackbar('Machine is back online.', 'success');
+      checkDowntime(selectedMachine.id);
+    } catch (err) {
+      setSnackbar('Failed to stop downtime.', 'error');
     }
   };
 
@@ -127,10 +159,34 @@ export default function ShopFloorDashboard({ setSnackbar }) {
             </Typography>
             <Box sx={{ flex: 1 }} />
             {selectedMachine && (
-              <Typography variant="body2" color="text.secondary" sx={{ mr: 1 }}>
-                {selectedMachine.workCenterName || selectedMachine.workCenter?.name || ''}
-                {selectedMachine.status ? ` · ${selectedMachine.status}` : ''}
-              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  {selectedMachine.workCenterName || selectedMachine.workCenter?.name || ''}
+                </Typography>
+                {activeDowntime ? (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="small"
+                    startIcon={<PlayArrow />}
+                    onClick={handleStopDowntime}
+                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                  >
+                    Resume Production
+                  </Button>
+                ) : (
+                  <Button
+                    variant="contained"
+                    color="warning"
+                    size="small"
+                    startIcon={<Warning />}
+                    onClick={() => setDowntimeDialogOpen(true)}
+                    sx={{ textTransform: 'none', fontWeight: 600 }}
+                  >
+                    Report Downtime
+                  </Button>
+                )}
+              </Stack>
             )}
           </Stack>
         </Toolbar>
@@ -217,6 +273,16 @@ export default function ShopFloorDashboard({ setSnackbar }) {
         onClose={() => setCompleteDialogOpen(false)}
         task={selectedTask}
         onSuccess={handleCompleteSuccess}
+      />
+
+      <ShopFloorDowntimeDialog
+        open={downtimeDialogOpen}
+        onClose={() => setDowntimeDialogOpen(false)}
+        machine={selectedMachine}
+        onSuccess={() => {
+          setSnackbar('Downtime started.', 'success');
+          checkDowntime(selectedMachine.id);
+        }}
       />
     </Box>
   );
