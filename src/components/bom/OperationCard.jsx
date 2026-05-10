@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Chip, Collapse, Paper, Typography } from '@mui/material';
+import { Box, Chip, Collapse, Paper, Typography, Tooltip } from '@mui/material';
 import {
   AccessTime, ExpandMore, ExpandLess, Visibility, Build, Engineering
 } from '@mui/icons-material';
@@ -41,6 +41,12 @@ export default function OperationCard({ operation, onClick, highlight }) {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {operation.instructions && (
+            <Tooltip title="Has Instructions" arrow>
+              <Chip label="INS" size="small"
+                sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#e3f2fd', color: '#1565c0', border: '1px solid #1565c0' }} />
+            </Tooltip>
+          )}
           {operation.inspection && (
             <Chip icon={<Visibility sx={{ fontSize: 12 }} />} label="QC" size="small"
               sx={{ height: 20, fontSize: '0.65rem', fontWeight: 500, bgcolor: '#e8f5e9', color: '#2e7d32' }} />
@@ -77,7 +83,7 @@ export default function OperationCard({ operation, onClick, highlight }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <AccessTime sx={{ fontSize: 11, color: '#6b7280' }} />
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Setup: {operation.setupTime || 0} min + Run: {operation.runTime || 0} min/unit
+              {operation.setupTime || 0}m + {operation.runTime || 0}m/u
             </Typography>
           </Box>
         )}
@@ -85,18 +91,27 @@ export default function OperationCard({ operation, onClick, highlight }) {
 
       {/* Expanded Details */}
       <Collapse in={expanded}>
-        <Box sx={{ px: 1.5, pb: 1, pt: 0.5, borderTop: `1px solid ${BORDER_COLOR}` }}>
-          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={0.75}>
+        <Box sx={{ px: 1.5, pb: 1.5, pt: 1, borderTop: `1px solid ${BORDER_COLOR}`, bgcolor: '#fafafa' }}>
+          <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1}>
             <DetailItem label="Labor Role" value={operation.laborRole?.roleName} />
             <DetailItem label="Machine" value={operation.machineDetails?.machineName} />
             <DetailItem label="Operators" value={operation.numberOfOperators} />
             <DetailItem label="Cost Type" value={operation.costType?.replace(/_/g, ' ')} />
-            {operation.fixedCostPerUnit != null && (
-              <DetailItem label="Fixed Cost" value={`₹${operation.fixedCostPerUnit}`} />
-            )}
           </Box>
+          
+          {operation.instructions && (
+            <Box sx={{ mt: 1.5, p: 1, bgcolor: '#fff', borderRadius: 1, border: `1px solid ${BORDER_COLOR}` }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: '#1565c0', textTransform: 'uppercase', display: 'block', mb: 0.5 }}>
+                Manufacturing Instructions
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                {operation.instructions}
+              </Typography>
+            </Box>
+          )}
+
           {operation.notes && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block', fontSize: '0.7rem' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontSize: '0.7rem', fontStyle: 'italic' }}>
               Notes: {operation.notes}
             </Typography>
           )}

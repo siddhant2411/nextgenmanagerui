@@ -12,6 +12,8 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
+import BuildCircle from '@mui/icons-material/BuildCircle';
+import WarningIcon from '@mui/icons-material/Warning';
 import './style/bom.css';
 import apiService from '../../services/apiService';
 import {
@@ -24,14 +26,16 @@ import FilterBar from '../ui/filterbar/FilterBar';
 import { useAuth } from '../../auth/AuthContext';
 import { PRODUCTION_APPROVAL_ROLES, PRODUCTION_MANAGE_ROLES } from '../../auth/roles';
 import { EditIcon } from 'lucide-react';
+import { getAttachmentBlob } from '../../services/inventoryService';
 
 /* ── Theme constants ── */
-const HEADER_BG = '#0f2744';
-const HEADER_TEXT = '#e8edf3';
-const BORDER_COLOR = '#e5e7eb';
-const ROW_EVEN = '#fafbfc';
+const HEADER_BG = '#f0f7ff';
+const HEADER_TEXT = '#075985';
+const BORDER_COLOR = '#e2e8f0';
+const ROW_BORDER = '#f1f5f9';
+const ROW_EVEN = '#ffffff';
 const ROW_ODD = '#ffffff';
-const ROW_HOVER = '#e3f2fd';
+const ROW_HOVER = '#f8fafc';
 
 /* ── Column definitions ── */
 const allColumns = [
@@ -48,7 +52,7 @@ const allColumns = [
 const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
     let cols = allColumns.map(c => c.field);
     if (isNarrowDesktop) {
-        cols = cols.filter(f => !["parentDrawingNumber", "effectiveFrom", "effectiveTo"].includes(f));
+        cols = cols.filter(f => !["effectiveFrom", "effectiveTo"].includes(f));
     }
     if (isMobile) {
         cols = cols.filter(f => f !== "parentItemName");
@@ -72,6 +76,98 @@ const statusLabels = {
     ACTIVE: 'Active', INACTIVE: 'Inactive', OBSOLETE: 'Obsolete', ARCHIVED: 'Archived',
 };
 
+/* ── Mobile Card Component ── */
+const BomCard = ({ item, onEdit, onDelete, canManage, isAdmin, statusStyles, statusLabels, onDrawingClick }) => {
+    const statusStyle = statusStyles[item.bomStatus] || { bg: '#fafafa', color: '#757575' };
+    const statusLabel = statusLabels[item.bomStatus] || item.bomStatus || '-';
+
+    return (
+        <Paper
+            elevation={0}
+            sx={{
+                p: 2,
+                mb: 2,
+                borderRadius: 2,
+                border: `1px solid ${BORDER_COLOR}`,
+                background: '#fff',
+                '&:active': { transform: 'scale(0.98)' },
+                transition: 'transform 0.1s ease',
+            }}
+        >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, letterSpacing: '0.02em' }}>
+                        {item.parentItemCode}
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', lineHeight: 1.2, mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.bomName}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem', mt: 0.25 }}>
+                        {item.parentItemName}
+                    </Typography>
+                </Box>
+                <Chip
+                    label={statusLabel}
+                    size="small"
+                    sx={{
+                        height: 24,
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        bgcolor: statusStyle.bg,
+                        color: statusStyle.color,
+                        ml: 1
+                    }}
+                />
+            </Box>
+
+            <Divider sx={{ my: 1.5, borderStyle: 'dashed' }} />
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+                <Box>
+                    <Typography variant="caption" color="text.secondary">Revision</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.revision || '-'}</Typography>
+                </Box>
+                {item.parentDrawingNumber && (
+                    <Box>
+                        <Typography variant="caption" color="text.secondary">Drawing No.</Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.parentDrawingNumber}</Typography>
+                            {item.drawingFileId && (
+                                <IconButton size="small" onClick={(e) => onDrawingClick(e, item)} sx={{ p: 0.25 }}>
+                                    <FileDownloadIcon sx={{ fontSize: 14, color: '#1565c0' }} />
+                                </IconButton>
+                            )}
+                        </Box>
+                    </Box>
+                )}
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                <Button
+                    size="small"
+                    startIcon={<EditIcon size={16} />}
+                    onClick={() => onEdit(item.id)}
+                    disabled={!canManage}
+                    sx={{ color: '#1565c0', textTransform: 'none', fontWeight: 600 }}
+                >
+                    Edit
+                </Button>
+                {isAdmin && (
+                    <Button
+                        size="small"
+                        startIcon={<DeleteIcon sx={{ fontSize: '1rem !important' }} />}
+                        onClick={() => onDelete(item.id)}
+                        disabled={!canManage}
+                        sx={{ color: '#c62828', textTransform: 'none', fontWeight: 600 }}
+                    >
+                        Delete
+                    </Button>
+                )}
+            </Box>
+        </Paper>
+    );
+};
+
 function formatDate(dateStr) {
     if (!dateStr) return "-";
     const d = new Date(dateStr);
@@ -81,16 +177,15 @@ function formatDate(dateStr) {
 
 /* ── Header cell style ── */
 const headerCellSx = {
-    background: HEADER_BG,
+    bgcolor: HEADER_BG,
     color: HEADER_TEXT,
     fontWeight: 600,
-    fontSize: '0.8rem',
-    letterSpacing: 0.3,
-    borderBottom: `2px solid ${HEADER_TEXT}`,
-    borderRight: '1px solid rgba(255,255,255,0.08)',
-    whiteSpace: 'nowrap',
-    py: 1.25,
-    userSelect: 'none',
+    fontSize: '0.75rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    py: 1.5,
+    borderBottom: `1px solid ${BORDER_COLOR}`,
+    '& .MuiCheckbox-root': { color: HEADER_TEXT },
 };
 
 const BomList = ({
@@ -102,7 +197,11 @@ const BomList = ({
     const [visibleCols, setVisibleCols] = useState(() => getDefaultVisibleCols(isNarrowDesktop, isMobile));
     const stableColumns = useMemo(() => [...allColumns], [allColumns]);
     const [selectedRows, setSelectedRows] = useState([]);
-    const [filters, setFilters] = useState([]);
+    const [filters, setFilters] = useState([
+        { field: 'bomStatus', operator: '!=', value: 'INACTIVE' },
+        { field: 'bomStatus', operator: '!=', value: 'OBSOLETE' },
+        { field: 'bomStatus', operator: '!=', value: 'ARCHIVED' }
+    ]);
     const [totalElements, setTotalElements] = useState(0);
     const [itemsPerPage, setItemPerPage] = useState(10);
     const navigate = useNavigate();
@@ -114,10 +213,34 @@ const BomList = ({
     const [anchorEl, setAnchorEl] = useState(null);
     const [bomList, setBomList] = useState([]);
     const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
+    const [tableContainerWidth, setTableContainerWidth] = useState(0);
+    const tableContainerRef = useRef(null);
     const { hasAnyRole } = useAuth();
     const canManageBom = hasAnyRole(PRODUCTION_MANAGE_ROLES);
     const isAdminRole = hasAnyRole(PRODUCTION_APPROVAL_ROLES);
     const [exportAnchorEl, setExportAnchorEl] = useState(null);
+    const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
+
+    const handleDrawingClick = async (e, item) => {
+        e.stopPropagation();
+        if (!item.drawingFileId) return;
+
+        setLoading(true);
+        try {
+            const result = await getAttachmentBlob(item.drawingFileId);
+            setDrawingPreview({
+                open: true,
+                url: result.url,
+                contentType: result.contentType,
+                fileName: item.parentDrawingNumber || 'Drawing'
+            });
+        } catch (err) {
+            console.error('Error fetching drawing:', err);
+            setError('Failed to load drawing.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const downloadExport = async (type) => {
         setExportAnchorEl(null);
@@ -149,22 +272,6 @@ const BomList = ({
         setTotalElements(data.totalElements);
     };
 
-    const resizingCol = useRef(null);
-    const handleMouseDown = (e, field) => {
-        resizingCol.current = { field, startX: e.clientX, startWidth: columnWidths[field] };
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseup", handleMouseUp);
-    };
-    const handleMouseMove = (e) => {
-        if (!resizingCol.current) return;
-        const { field, startX, startWidth } = resizingCol.current;
-        setColumnWidths((prev) => ({ ...prev, [field]: Math.max(80, startWidth + (e.clientX - startX)) }));
-    };
-    const handleMouseUp = () => {
-        resizingCol.current = null;
-        document.removeEventListener("mousemove", handleMouseMove);
-        document.removeEventListener("mouseup", handleMouseUp);
-    };
 
     const handleEditClick = (id) => {
         if (!canManageBom) return;
@@ -187,6 +294,26 @@ const BomList = ({
     };
 
     useEffect(() => {
+        if (!tableContainerRef.current) return;
+        const element = tableContainerRef.current;
+        const updateWidth = () => {
+            const nextWidth = element.getBoundingClientRect().width;
+            if (nextWidth) setTableContainerWidth(nextWidth);
+        };
+        updateWidth();
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", updateWidth);
+            return () => window.removeEventListener("resize", updateWidth);
+        }
+        const observer = new ResizeObserver((entries) => {
+            const entry = entries[0];
+            if (entry?.contentRect?.width) setTableContainerWidth(entry.contentRect.width);
+        });
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
         return () => debounceTimeout.current && clearTimeout(debounceTimeout.current);
     }, []);
 
@@ -199,13 +326,53 @@ const BomList = ({
     }, [stableColumns, visibleCols]);
 
     const [columnWidths, setColumnWidths] = useState(
-        displayedColumns.reduce((acc, col) => { acc[col.field] = col.width || 150; return acc; }, {})
+        allColumns.reduce((acc, col) => { acc[col.field] = col.width || 150; return acc; }, {})
     );
+    const [utilityColumnWidths, setUtilityColumnWidths] = useState({
+        selection: 60,
+        rowNumber: 44,
+    });
 
-    const tableMinWidth = useMemo(() => {
-        const dynamicCols = displayedColumns.reduce((sum, col) => sum + (columnWidths[col.field] || col.width || 150), 0);
-        return dynamicCols + 56 + 40 + 100;
-    }, [displayedColumns, columnWidths]);
+    const getBaseWidth = (field) => columnWidths[field] || allColumns.find((c) => c.field === field)?.width || 150;
+
+    const extraColumnsWidth = utilityColumnWidths.selection + utilityColumnWidths.rowNumber + 100;
+
+    const { scaledColumnWidths, tableMinWidth } = useMemo(() => {
+        const baseWidths = displayedColumns.map((col) => ({ field: col.field, width: getBaseWidth(col.field) }));
+        const dataWidthTotal = baseWidths.reduce((sum, col) => sum + col.width, 0);
+        const availableWidth = tableContainerWidth || dataWidthTotal + extraColumnsWidth;
+        const availableForData = Math.max(0, availableWidth - extraColumnsWidth);
+        const scale = dataWidthTotal > availableForData && availableForData > 0 ? availableForData / dataWidthTotal : 1;
+        const scaled = baseWidths.reduce((acc, col) => { acc[col.field] = Math.max(60, Math.floor(col.width * scale)); return acc; }, {});
+        return { scaledColumnWidths: scaled, tableMinWidth: Math.min(dataWidthTotal + extraColumnsWidth, availableWidth) };
+    }, [displayedColumns, columnWidths, tableContainerWidth, extraColumnsWidth]);
+
+    const resizingCol = useRef(null);
+    const handleMouseDown = (e, field) => {
+        resizingCol.current = { type: 'data', field, startX: e.clientX, startWidth: getBaseWidth(field) };
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    };
+    const handleUtilityMouseDown = (e, field) => {
+        resizingCol.current = { type: 'utility', field, startX: e.clientX, startWidth: utilityColumnWidths[field] };
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    };
+    const handleMouseMove = (e) => {
+        if (!resizingCol.current) return;
+        const { type, field, startX, startWidth } = resizingCol.current;
+        const nextWidth = Math.max(44, startWidth + (e.clientX - startX));
+        if (type === 'utility') {
+            setUtilityColumnWidths((prev) => ({ ...prev, [field]: nextWidth }));
+            return;
+        }
+        setColumnWidths((prev) => ({ ...prev, [field]: Math.max(80, nextWidth) }));
+    };
+    const handleMouseUp = () => {
+        resizingCol.current = null;
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+    };
 
     const handleSortChange = (sortField) => {
         const newSortDir = sortBy === sortField && sortDir === 'asc' ? 'desc' : 'asc';
@@ -273,13 +440,13 @@ const BomList = ({
             <Paper
                 elevation={0}
                 sx={{
-                    p: { xs: 1.5, sm: 2, md: 2.5 },
+                    p: 0,
                     width: "100%",
                     maxWidth: "100%",
                     minWidth: 0,
-                    margin: "auto",
                     borderRadius: 2,
                     border: `1px solid ${BORDER_COLOR}`,
+                    overflow: 'hidden'
                 }}
             >
                 {/* ── Page Header ── */}
@@ -289,9 +456,9 @@ const BomList = ({
                         justifyContent: "space-between",
                         alignItems: { xs: "stretch", md: "center" },
                         flexDirection: { xs: "column", md: "row" },
-                        gap: 1,
-                        px: 0.5,
-                        pb: 1.5,
+                        gap: 1.5,
+                        p: { xs: 2, md: 2.5 },
+                        pb: 2,
                     }}
                 >
                     <Box>
@@ -368,13 +535,14 @@ const BomList = ({
                                     borderRadius: 1.5,
                                     fontWeight: 600,
                                     textTransform: 'none',
-                                    px: 2.5,
+                                    px: { xs: 1.5, sm: 2.5 },
                                     boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
                                     bgcolor: '#1565c0',
                                     '&:hover': { bgcolor: '#0d47a1' },
+                                    fontSize: { xs: '0.8125rem', sm: '0.875rem' }
                                 }}
                             >
-                                Add BOM
+                                {isMobile ? "Add" : "Add BOM"}
                             </Button>
                         )}
                     </Box>
@@ -394,6 +562,7 @@ const BomList = ({
                         gap: 1.5,
                         justifyContent: "space-between",
                         mb: 2,
+                        px: { xs: 2, md: 2.5 }
                     }}
                 >
                     <Box sx={{ flex: 1, width: "100%", minWidth: 0 }}>
@@ -448,51 +617,104 @@ const BomList = ({
                     </Box>
                 )}
 
-                {/* ── Table ── */}
+                {/* ── Table / Card View ── */}
                 {!loading && (
-                    <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "auto", position: "relative" }}>
-                        <TableContainer
-                            component={Box}
-                            sx={{
-                                borderRadius: 1.5,
-                                border: `1px solid ${BORDER_COLOR}`,
-                                maxHeight: "calc(100vh - 280px)",
-                                overflowY: "auto",
-                                overflowX: "auto",
-                                width: "100%",
-                                maxWidth: "100%",
-                            }}
-                        >
+                    isMobile ? (
+                        <Box sx={{ mt: 1 }}>
+                            {bomList.map((item) => (
+                                <BomCard
+                                    key={item.id}
+                                    item={item}
+                                    onEdit={handleEditClick}
+                                    onDelete={handleDeleteClick}
+                                    canManage={canManageBom}
+                                    isAdmin={isAdminRole}
+                                    statusStyles={statusStyles}
+                                    statusLabels={statusLabels}
+                                    onDrawingClick={handleDrawingClick}
+                                />
+                            ))}
+                            {bomList.length === 0 && (
+                                <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                                    <Typography variant="body2">No BOMs found</Typography>
+                                </Box>
+                            )}
+                        </Box>
+                    ) : (
+                        <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "auto", position: "relative", px: { xs: 2, md: 2.5 } }}>
+                            <TableContainer
+                                component={Box}
+                                ref={tableContainerRef}
+                                sx={{
+                                    borderRadius: 1.5,
+                                    border: `1px solid ${BORDER_COLOR}`,
+                                    maxHeight: "calc(100vh - 280px)",
+                                    overflowY: "auto",
+                                    overflowX: "auto",
+                                    width: "100%",
+                                    maxWidth: "100%",
+                                }}
+                            >
                             <Table
                                 stickyHeader
                                 size="small"
-                                sx={{ tableLayout: "auto", minWidth: tableMinWidth, width: "100%", borderCollapse: "collapse" }}
+                                sx={{ tableLayout: "fixed", minWidth: tableMinWidth, width: "100%", borderCollapse: "collapse" }}
                             >
                                 {/* ── Head ── */}
                                 <TableHead>
                                     <TableRow>
-                                        <TableCell padding="checkbox" sx={{ ...headerCellSx, width: 56 }}>
+                                        <TableCell
+                                            sx={{
+                                                ...headerCellSx,
+                                                width: utilityColumnWidths.selection,
+                                                maxWidth: utilityColumnWidths.selection,
+                                                minWidth: 60,
+                                                position: "relative",
+                                                px: 1,
+                                            }}
+                                        >
                                             <Checkbox
                                                 indeterminate={selectedRows?.length > 0 && selectedRows?.length < bomList?.length}
                                                 checked={bomList?.length > 0 && selectedRows?.length === bomList?.length}
                                                 onChange={handleSelectAll}
+                                                size="small"
                                                 sx={{
-                                                    color: 'rgba(255,255,255,0.7)',
-                                                    '&.Mui-checked': { color: '#fff' },
-                                                    '&.MuiCheckbox-indeterminate': { color: '#fff' },
+                                                    color: '#94a3b8',
+                                                    '&.Mui-checked': { color: '#2563eb' },
+                                                    '&.MuiCheckbox-indeterminate': { color: '#2563eb' },
                                                 }}
+                                            />
+                                            <div
+                                                onMouseDown={(e) => { e.stopPropagation(); handleUtilityMouseDown(e, 'selection'); }}
+                                                style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "5px", cursor: "col-resize", zIndex: 1 }}
                                             />
                                         </TableCell>
 
-                                        <TableCell align="center" sx={{ ...headerCellSx, width: 44, minWidth: 44 }}>#</TableCell>
+                                        <TableCell
+                                            align="center"
+                                            sx={{
+                                                ...headerCellSx,
+                                                width: utilityColumnWidths.rowNumber,
+                                                maxWidth: utilityColumnWidths.rowNumber,
+                                                minWidth: 44,
+                                                position: "relative",
+                                            }}
+                                        >
+                                            #
+                                            <div
+                                                onMouseDown={(e) => { e.stopPropagation(); handleUtilityMouseDown(e, 'rowNumber'); }}
+                                                style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: "5px", cursor: "col-resize", zIndex: 1 }}
+                                            />
+                                        </TableCell>
 
                                         {displayedColumns?.map((col) => (
                                             <TableCell
                                                 key={col.field}
                                                 sx={{
                                                     ...headerCellSx,
-                                                    width: columnWidths[col.field] || col.width || 150,
-                                                    minWidth: columnWidths[col.field] || col.width || 150,
+                                                    width: scaledColumnWidths[col.field] || col.width || 150,
+                                                    maxWidth: scaledColumnWidths[col.field] || col.width || 150,
+                                                    minWidth: 0,
                                                     cursor: "pointer",
                                                     position: "relative",
                                                     overflow: "hidden",
@@ -504,8 +726,8 @@ const BomList = ({
                                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{col.headerName}</span>
                                                     {sortBy === col.field && (
                                                         sortDir === 'asc'
-                                                            ? <ArrowUpward sx={{ fontSize: 14, color: '#90caf9' }} />
-                                                            : <ArrowDownward sx={{ fontSize: 14, color: '#90caf9' }} />
+                                                            ? <ArrowUpward sx={{ fontSize: 14, color: '#64748b' }} />
+                                                            : <ArrowDownward sx={{ fontSize: 14, color: '#64748b' }} />
                                                     )}
                                                     <div
                                                         onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, col.field); }}
@@ -536,10 +758,18 @@ const BomList = ({
                                                 cursor: "pointer",
                                                 transition: 'background 0.15s ease',
                                                 '&:hover': { background: ROW_HOVER },
-                                                '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.8125rem', py: 0.75 },
+                                                '& td': { borderBottom: `1px solid ${ROW_BORDER}`, fontSize: '0.8125rem', py: '10px', px: '14px', color: '#475569' },
                                             }}
                                         >
-                                            <TableCell padding="checkbox" align="center">
+                                            <TableCell
+                                                align="center"
+                                                sx={{
+                                                    width: utilityColumnWidths.selection,
+                                                    maxWidth: utilityColumnWidths.selection,
+                                                    minWidth: 60,
+                                                    px: 1,
+                                                }}
+                                            >
                                                 <Checkbox
                                                     color="primary"
                                                     size="small"
@@ -560,8 +790,9 @@ const BomList = ({
                                                 <TableCell
                                                     key={`${item.id}-${col.field}`}
                                                     sx={{
-                                                        width: columnWidths[col.field] || col.width || 150,
-                                                        minWidth: columnWidths[col.field] || col.width || 150,
+                                                        width: scaledColumnWidths[col.field] || col.width || 150,
+                                                        maxWidth: scaledColumnWidths[col.field] || col.width || 150,
+                                                        minWidth: 0,
                                                         whiteSpace: "nowrap",
                                                         overflow: "hidden",
                                                         textOverflow: "ellipsis",
@@ -575,9 +806,25 @@ const BomList = ({
                                                             ? <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>{item[col.field] || '-'}</Typography>
                                                             : col.field === 'parentItemCode'
                                                                 ? <Typography variant="body2" sx={{ fontWeight: 500 }}>{item[col.field] || '-'}</Typography>
-                                                                : col.type?.toLowerCase() === "date"
-                                                                    ? formatDate(item[col.field])
-                                                                    : (item[col.field] !== undefined && item[col.field] !== null ? item[col.field].toString() : "-")
+                                                                : col.field === 'parentDrawingNumber'
+                                                                    ? (item.drawingFileId ? (
+                                                                        <Typography
+                                                                            variant="body2"
+                                                                            onClick={(e) => handleDrawingClick(e, item)}
+                                                                            sx={{
+                                                                                color: '#1565c0',
+                                                                                fontWeight: 600,
+                                                                                textDecoration: 'underline',
+                                                                                cursor: 'pointer',
+                                                                                '&:hover': { color: '#0d47a1' }
+                                                                            }}
+                                                                        >
+                                                                            {item[col.field] || "View Drawing"}
+                                                                        </Typography>
+                                                                    ) : (item[col.field] || "-"))
+                                                                    : col.type?.toLowerCase() === "date"
+                                                                        ? formatDate(item[col.field])
+                                                                        : (item[col.field] !== undefined && item[col.field] !== null ? item[col.field].toString() : "-")
                                                     }
                                                 </TableCell>
                                             ))}
@@ -609,20 +856,30 @@ const BomList = ({
                         </TableContainer>
 
                         {/* ── Pagination ── */}
-                        <TablePagination
-                            component="div"
-                            count={totalElements}
-                            page={currentPage}
-                            onPageChange={(e, page) => onPageChange(page)}
-                            rowsPerPage={itemsPerPage}
-                            rowsPerPageOptions={[5, 10, 25, 50]}
-                            onRowsPerPageChange={handleChangeRowsPerPage}
-                            sx={{
-                                borderTop: `1px solid ${BORDER_COLOR}`,
-                                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.8125rem' },
-                            }}
-                        />
-                    </Box>
+                        </Box>
+                    )
+                )}
+
+                {/* ── Pagination ── */}
+                {!loading && (
+                    <TablePagination
+                        component="div"
+                        count={totalElements}
+                        page={currentPage}
+                        onPageChange={(e, page) => onPageChange(page)}
+                        rowsPerPage={itemsPerPage}
+                        rowsPerPageOptions={[5, 10, 25, 50]}
+                        onRowsPerPageChange={handleChangeRowsPerPage}
+                        sx={{
+                            borderTop: `1px solid ${BORDER_COLOR}`,
+                            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.8125rem' },
+                            '& .MuiTablePagination-toolbar': {
+                                flexWrap: isMobile ? 'wrap' : 'nowrap',
+                                justifyContent: isMobile ? 'center' : 'flex-end',
+                                px: isMobile ? 1 : 2
+                            }
+                        }}
+                    />
                 )}
 
                 <Dialog
@@ -654,6 +911,61 @@ const BomList = ({
                             Delete
                         </Button>
                     </DialogActions>
+                </Dialog>
+
+                {/* ── Drawing Preview Dialog ── */}
+                <Dialog
+                    open={drawingPreview.open}
+                    onClose={() => {
+                        URL.revokeObjectURL(drawingPreview.url);
+                        setDrawingPreview({ ...drawingPreview, open: false });
+                    }}
+                    maxWidth="lg"
+                    fullWidth
+                    PaperProps={{ sx: { borderRadius: 2, height: '90vh' } }}
+                >
+                    <DialogTitle sx={{ fontWeight: 600, color: '#0f2744', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <BuildCircle sx={{ color: '#1565c0' }} />
+                            Drawing: {drawingPreview.fileName}
+                        </Box>
+                        <Button size="small" onClick={() => {
+                            URL.revokeObjectURL(drawingPreview.url);
+                            setDrawingPreview({ ...drawingPreview, open: false });
+                        }}>Close</Button>
+                    </DialogTitle>
+                    <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', bgcolor: '#f3f4f6' }}>
+                        {drawingPreview.contentType.startsWith('image/') ? (
+                            <Box sx={{ p: 2, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
+                                <img
+                                    src={drawingPreview.url}
+                                    alt={drawingPreview.fileName}
+                                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                />
+                            </Box>
+                        ) : drawingPreview.contentType === 'application/pdf' ? (
+                            <iframe
+                                src={`${drawingPreview.url}#toolbar=0`}
+                                title={drawingPreview.fileName}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 'none' }}
+                            />
+                        ) : (
+                            <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={2}>
+                                <WarningIcon color="warning" sx={{ fontSize: 48 }} />
+                                <Typography>Preview not available for this file type ({drawingPreview.contentType}).</Typography>
+                                <Button variant="contained" onClick={() => {
+                                    const link = document.createElement("a");
+                                    link.href = drawingPreview.url;
+                                    link.setAttribute("download", drawingPreview.fileName);
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                }}>Download Instead</Button>
+                            </Box>
+                        )}
+                    </DialogContent>
                 </Dialog>
             </Paper>
         </Box>

@@ -6,25 +6,28 @@ import {
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 
-const HEADER_BG = '#0f2744';
-const BORDER_COLOR = '#e5e7eb';
-const ROW_HOVER = '#e3f2fd';
+const HEADER_BG = '#f8fafc';
+const BORDER_COLOR = '#e2e8f0';
+const ROW_BORDER = '#f1f5f9';
+const ROW_HOVER = '#f8fafc';
 
 const headerCellSx = {
     background: HEADER_BG,
-    color: '#e8edf3',
-    fontWeight: 600,
-    fontSize: '0.8rem',
-    letterSpacing: 0.3,
-    py: 1.25,
+    color: '#475569',
+    fontWeight: 700,
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    py: '12px',
+    px: '14px',
     whiteSpace: 'nowrap',
-    borderBottom: '2px solid rgba(255,255,255,0.15)',
+    borderBottom: `1px solid ${BORDER_COLOR}`,
     cursor: 'pointer',
 };
 
 const filterCellSx = {
     py: 0.75,
-    bgcolor: '#fafbfc',
+    bgcolor: '#fff',
     borderBottom: `1px solid ${BORDER_COLOR}`,
 };
 
@@ -59,11 +62,11 @@ const InventoryList = ({
                 {/* Header */}
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} flexDirection={{ xs: 'column', sm: 'row' }} gap={1}>
                     <Box>
-                        <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.2rem', md: '1.4rem' } }}>
-                            Inventory Products
+                        <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.25rem', md: '1.5rem' } }}>
+                            Inventory Register
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                            View and filter inventory product records
+                            View and manage stock levels for your product catalog
                         </Typography>
                     </Box>
                     <Button
@@ -159,10 +162,10 @@ const InventoryList = ({
                                     <TableRow
                                         key={inventory.inventoryItemId}
                                         sx={{
-                                            bgcolor: rowIndex % 2 === 0 ? '#fafbfc' : '#fff',
+                                            bgcolor: '#fff',
                                             transition: 'background 0.15s',
                                             '&:hover': { bgcolor: ROW_HOVER },
-                                            '& td': { fontSize: '0.8125rem', py: 0.75, borderBottom: `1px solid ${BORDER_COLOR}` },
+                                            '& td': { fontSize: '0.8125rem', py: '10px', px: '14px', borderBottom: `1px solid ${ROW_BORDER}`, color: '#475569' },
                                         }}
                                     >
                                         {columns.map((key) => (

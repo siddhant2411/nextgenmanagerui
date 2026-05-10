@@ -35,6 +35,7 @@ import {
     INVENTORY_ACCESS_ROLES,
     ITEM_CODE_MAPPING_ACCESS_ROLES,
     PRODUCTION_ACCESS_ROLES,
+    PURCHASE_ACCESS_ROLES,
     SALES_ACCESS_ROLES,
     USER_MANAGEMENT_ACCESS_ROLES,
 } from "./auth/roles";
@@ -45,6 +46,7 @@ import CompanyDetailsPage from "./pages/CompanyDetailsPage";
 import AuthStatusSnackbar from "./components/ui/feedback/AuthStatusSnackbar";
 import OEEDashboardPage from "./pages/OEEDashboardPage";
 import DowntimeReasonPage from "./pages/DowntimeReasonPage";
+import PurchasePage from "./pages/PurchasePage";
 
 function AppShell() {
     const isSmallScreen = useMediaQuery("(max-width:900px)");
@@ -317,6 +319,17 @@ function AppShell() {
                                 deniedMessage="You are not authorized for sales orders."
                             >
                                 <SalesOrder />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/purchase/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PURCHASE_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for purchase orders."
+                            >
+                                <PurchasePage />
                             </RoleProtectedRoute>
                         }
                     />

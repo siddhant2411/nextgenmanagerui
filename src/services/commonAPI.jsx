@@ -4,17 +4,14 @@ import { searchInventoryItems } from "./inventoryService";
 
 export const searchContacts = async (search='') => {
     try {
-        const params = {
+        const response = await apiService.get('/contact', {
             page: 0,
             size: 10,
             sortBy: "companyName",
             sortDir: "asc",
-            companyName:search,
-            gstNumber:'',
-            state:''
-        };
-        const response = await apiClient.get('/contact',params);
-        return response.content;
+            query: search,
+        });
+        return response?.content ?? [];
     } catch (error) {
         throw error;
     }
@@ -105,6 +102,18 @@ export const searchLaborRoles = async (search='') => {
 export const searchMachines = async (search='') => {
     try {
         const response = await apiClient.get('/machine-details');
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const searchUsers = async (search='') => {
+    try {
+        const response = await apiService.get('/auth/users');
+        if (search && Array.isArray(response)) {
+            return response.filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
+        }
         return response;
     } catch (error) {
         throw error;

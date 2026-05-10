@@ -3,7 +3,7 @@ import {Route, Routes, useLocation, useNavigate} from "react-router-dom";
 import apiService from "../../services/apiService";
 import {Alert, Paper,Divider,CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
-import { ViewList, ViewKanban, AddCircleOutline, Refresh } from "@mui/icons-material";
+import { ViewList, ViewKanban, AddCircleOutline, Refresh, FileDownload } from "@mui/icons-material";
 import EnquiryList from "./EnquiryList";
 import AddUpdateEnquiry from "./AddUpdateEnquiry";
 import EnquiryDashboard from "./EnquiryDashboard";
@@ -22,17 +22,18 @@ const Enquiry = () => {
     const [summary, setSummary] = useState(null);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
+    const [exportLoading, setExportLoading] = useState(false);
+    const [activeFilters, setActiveFilters] = useState([]);
     const [filters, setFilters] = useState({
         companyName: '',
         enqNo: '',
-        lastContactDate: '',
+        lastContactedDate: '',
         enqDate: '',
         closedDate: '',
         daysForNextFollowup: '',
         lastContactedDateComp: '=',
         enqDateComp: '=',
         closedDateComp: '>',
-        statusFilter: '',
     });
 
     
@@ -41,18 +42,44 @@ const Enquiry = () => {
     const location = useLocation();
     const debounceTimeout = useRef(null);
 
+    const mapFiltersToParams = (filterArray) => {
+        const newParams = {
+            companyName: '', enqNo: '', lastContactedDate: '', enqDate: '', closedDate: '',
+            daysForNextFollowup: '', lastContactedDateComp: '=', enqDateComp: '=', closedDateComp: '>'
+        };
+        filterArray.forEach(f => {
+            if (f.field === 'enqNo') newParams.enqNo = f.value;
+            if (f.field === 'companyName') newParams.companyName = f.value;
+            if (f.field === 'daysForNextFollowup') newParams.daysForNextFollowup = f.value;
+            if (f.field === 'enqDate') {
+                newParams.enqDate = f.value;
+                newParams.enqDateComp = f.operator;
+            }
+            if (f.field === 'lastContactedDate') {
+                newParams.lastContactedDate = f.value;
+                newParams.lastContactedDateComp = f.operator;
+            }
+            if (f.field === 'closedDate') {
+                newParams.closedDate = f.value;
+                newParams.closedDateComp = f.operator;
+            }
+        });
+        return newParams;
+    };
+
+    const handleApplyFilters = (filterArray) => {
+        setActiveFilters(filterArray);
+        const newParams = mapFiltersToParams(filterArray);
+        setFilters(newParams);
+        fetchEnquiryList(1, sortBy, sortDir, newParams);
+        fetchEnquirySummary();
+    };
+
     const handleFilterChange = (key, value) => {
         if (key === 'viewMode') {
             setViewMode(value);
             return;
         }
-        const newFilters = { ...filters, [key]: value };
-        setFilters(newFilters);
-
-        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-        debounceTimeout.current = setTimeout(() => {
-            fetchEnquiryList(1, sortBy, sortDir, newFilters);
-        }, 600);
     };
 
     const handleSort = (column) => {
@@ -76,7 +103,35 @@ const Enquiry = () => {
         }
     };
 
+    const handleExport = async () => {
+        setExportLoading(true);
+        try {
+            const params = {};
+            if (filters.enqNo)            params.enqNo = filters.enqNo;
+            if (filters.companyName)      params.companyName = filters.companyName;
+            if (filters.enqDate)          params.enqDate = filters.enqDate;
+            if (filters.lastContactedDate) params.lastContactedDate = filters.lastContactedDate;
+            if (filters.closedDate)       params.closedDate = filters.closedDate;
+            if (filters.enqDateComp)      params.enqDateComp = filters.enqDateComp;
+            if (filters.lastContactedDateComp) params.lastContactedDateComp = filters.lastContactedDateComp;
+            if (filters.closedDateComp)   params.closedDateComp = filters.closedDateComp;
+
+            await apiService.download('/enquiry/export', params);
+            showSnackbar('Export successful', 'success');
+        } catch (err) {
+            showSnackbar('Export failed: ' + err.message);
+        } finally {
+            setExportLoading(false);
+        }
+    };
+
     const handleDelete = async (id) => {
+        if (id === null) {
+            // Bulk operation refresh — just reload without confirmation
+            fetchEnquiryList(currentPage, sortBy, sortDir, filters);
+            fetchEnquirySummary();
+            return;
+        }
         if (!window.confirm('Are you sure you want to delete this enquiry?')) return;
         try {
             await apiService.delete(`/enquiry/${id}`);
@@ -218,6 +273,20 @@ const Enquiry = () => {
                                             </ToggleButton>
                                         </ToggleButtonGroup>
                                         <Button
+                                            variant="outlined" disableElevation
+                                            startIcon={exportLoading ? <CircularProgress size={14} /> : <FileDownload />}
+                                            onClick={handleExport}
+                                            disabled={exportLoading}
+                                            sx={{
+                                                borderRadius: 2, textTransform: 'none',
+                                                fontWeight: 700, px: 2,
+                                                borderColor: '#e2e8f0', color: '#475569',
+                                                '&:hover': { borderColor: '#2563eb', color: '#2563eb', bgcolor: '#eff6ff' },
+                                            }}
+                                        >
+                                            {exportLoading ? 'Exporting...' : 'Export'}
+                                        </Button>
+                                        <Button
                                             variant="contained" disableElevation
                                             startIcon={<AddCircleOutline />}
                                             onClick={() => navigate('add')}
@@ -267,7 +336,8 @@ const Enquiry = () => {
                                             currentPage={currentPage}
                                             totalPages={totalPages}
                                             handlePageChange={handlePageChange}
-                                            handleFilterChange={handleFilterChange}
+                                            handleApplyFilters={handleApplyFilters}
+                                            activeFilters={activeFilters}
                                             handleDelete={handleDelete}
                                         />
                                     )

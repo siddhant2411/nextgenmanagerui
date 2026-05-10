@@ -27,6 +27,7 @@ import {
     PrecisionManufacturing,
     ChevronLeft,
     ChevronRight,
+    ShoppingCart,
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -51,6 +52,7 @@ const Sidebar = ({
     const [openSubMenus, setOpenSubMenus] = useState({});
     const canManageUsers = canModule(MODULE_KEYS.USER_MANAGEMENT);
     const canAccessSales = canModule(MODULE_KEYS.SALES);
+    const canAccessPurchase = canModule(MODULE_KEYS.PURCHASE);
     const canAccessInventory = canModule(MODULE_KEYS.INVENTORY);
     const canAccessProduction = canModule(MODULE_KEYS.WORK_ORDER);
     const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
@@ -136,6 +138,18 @@ const Sidebar = ({
                 { text: "Company", icon: <Contact />, path: "/contact" },
                 { text: "Enquiry", icon: <RequestQuote />, path: "/enquiry" },
                 { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
+            ]
+            : []),
+        ...(canAccessPurchase
+            ? [
+                {
+                    text: "Purchase",
+                    icon: <ShoppingCart />,
+                    children: [
+                        { text: "Purchase Orders", path: "/purchase" },
+                        { text: "Requisitions", path: "/purchase/requisitions" },
+                    ],
+                },
             ]
             : []),
         ...(canAccessInventory
