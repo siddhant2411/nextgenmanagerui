@@ -22,7 +22,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material'
-import { DeleteOutline, ExpandMore, ExpandLess, WarningAmber, AttachFile } from '@mui/icons-material'
+import { DeleteOutline, ExpandMore, ExpandLess, WarningAmber, AttachFile, AddCircleOutline, Build } from '@mui/icons-material'
 import {
     DragDropContext,
     Droppable,
@@ -248,32 +248,42 @@ export default function BomRouting({
 
             {/* LEFT PANEL — Operations List */}
             <Grid item xs={2.5}
-                sx={{ borderRight: `1px solid ${BORDER_COLOR}`, height: "100%", bgcolor: '#fafbfc' }}>
-                <Box sx={{ p: 1.5, height: "100%", overflowY: "auto" }}>
+                sx={{ 
+                    borderRight: `1px solid ${BORDER_COLOR}`, 
+                    height: "100%", 
+                    bgcolor: '#fafbfc',
+                    boxShadow: 'inset -2px 0 8px rgba(0,0,0,0.02)'
+                }}>
+                <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
                     <Box sx={{
-                        bgcolor: HEADER_BG, color: '#fff', px: 1.5, py: 1, borderRadius: 1, mb: 1.5,
+                        bgcolor: HEADER_BG, color: '#fff', px: 2, py: 1.25, borderRadius: 2, mb: 2,
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                     }}>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', letterSpacing: 0.3 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', letterSpacing: 0.5, textTransform: 'uppercase' }}>
                             Operations
                         </Typography>
-                        <Typography sx={{ fontSize: '0.7rem', opacity: 0.7 }}>
-                            {operations?.length || 0}
-                        </Typography>
+                        <Chip 
+                            label={operations?.length || 0} 
+                            size="small" 
+                            sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', fontWeight: 700, height: 20, fontSize: '0.7rem' }} 
+                        />
                     </Box>
 
                     <Button
-                        variant="outlined"
+                        variant="contained"
                         onClick={handleAddOperation}
                         fullWidth
                         size="small"
+                        startIcon={<AddCircleOutline sx={{ fontSize: 18 }} />}
                         sx={{
-                            mb: 1.5, textTransform: 'none', fontWeight: 500, fontSize: '0.8rem',
-                            borderColor: '#1565c0', color: '#1565c0', borderRadius: 1,
-                            '&:hover': { bgcolor: '#e3f2fd', borderColor: '#0d47a1' },
+                            mb: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.8rem',
+                            bgcolor: '#1565c0', color: '#fff', borderRadius: 1.5, py: 1,
+                            boxShadow: '0 2px 6px rgba(21,101,192,0.2)',
+                            '&:hover': { bgcolor: '#0d47a1' },
                         }}
                     >
-                        + Add Operation
+                        New Operation
                     </Button>
 
                     <DragDropContext onDragEnd={onDragEnd}>
@@ -291,23 +301,31 @@ export default function BomRouting({
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
                                                     {...provided.dragHandleProps}
-                                                    elevation={snapshot.isDragging ? 3 : 0}
+                                                    elevation={snapshot.isDragging ? 4 : 0}
                                                     sx={{
-                                                        p: 1, mb: 0.75, cursor: "pointer", borderRadius: 1,
+                                                        p: 1.5, mb: 1, cursor: "pointer", borderRadius: 2,
                                                         border: `1px solid ${BORDER_COLOR}`,
                                                         borderLeft: selectedOperation &&
                                                             (selectedOperation.id || selectedOperation._tempId) ===
                                                             (operation.id || operation._tempId)
-                                                            ? "3px solid #1565c0"
+                                                            ? "4px solid #1565c0"
                                                             : hasParallelChainWarning(operation)
-                                                                ? "3px solid #fa8c16"
-                                                                : `3px solid ${BORDER_COLOR}`,
+                                                                ? "4px solid #fa8c16"
+                                                                : `1px solid ${BORDER_COLOR}`,
                                                         bgcolor: selectedOperation &&
                                                             (selectedOperation.id || selectedOperation._tempId) ===
                                                             (operation.id || operation._tempId)
-                                                            ? '#e3f2fd' : '#fff',
-                                                        transition: 'all 0.15s',
-                                                        "&:hover": { bgcolor: '#f0f7ff' },
+                                                            ? '#f0f7ff' : '#fff',
+                                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                        boxShadow: selectedOperation &&
+                                                            (selectedOperation.id || selectedOperation._tempId) ===
+                                                            (operation.id || operation._tempId)
+                                                            ? '0 2px 8px rgba(21,101,192,0.12)' : 'none',
+                                                        "&:hover": { 
+                                                            bgcolor: selectedOperation && (selectedOperation.id || selectedOperation._tempId) === (operation.id || operation._tempId) ? '#e3f2fd' : '#f9fafb',
+                                                            transform: 'translateY(-1px)',
+                                                            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+                                                        },
                                                     }}
                                                     onClick={() => {
                                                         setSelectedOperation(operation);
@@ -316,18 +334,18 @@ export default function BomRouting({
                                                     }}
                                                 >
                                                     <Box display="flex" alignItems="center" justifyContent="space-between" gap={0.5}>
-                                                        <Typography sx={{ fontWeight: 500, fontSize: 12.5, color: '#0f2744' }}>
+                                                        <Typography sx={{ fontWeight: 600, fontSize: 13, color: '#0f2744' }}>
                                                             {operation.sequenceNumber}. {operation.name}
                                                         </Typography>
                                                         {hasParallelChainWarning(operation) && (
                                                             <Tooltip title="parallelPath set but allowParallel is off" arrow>
-                                                                <WarningAmber sx={{ fontSize: 14, color: '#fa8c16', flexShrink: 0 }} />
+                                                                <WarningAmber sx={{ fontSize: 16, color: '#fa8c16', flexShrink: 0 }} />
                                                             </Tooltip>
                                                         )}
                                                     </Box>
                                                     {operation.productionJob && (
-                                                        <Typography sx={{ fontSize: 11, color: '#6b7280', mt: 0.25 }}>
-                                                            {operation.productionJob.jobName}
+                                                        <Typography sx={{ fontSize: 11.5, color: '#6b7280', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                            <Build sx={{ fontSize: 12 }} /> {operation.productionJob.jobName}
                                                         </Typography>
                                                     )}
                                                 </Paper>
@@ -348,20 +366,26 @@ export default function BomRouting({
                 bgcolor={"#f8f9fa"}>
                 <Box sx={{ p: 2, height: "100%", overflowY: "auto" }}>
                     <Box sx={{
-                        bgcolor: HEADER_BG, color: '#fff', px: 1.5, py: 0.75, borderRadius: 1, mb: 1.5,
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        bgcolor: HEADER_BG, color: '#fff', px: 2, py: 1, borderRadius: 2, mb: 2,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                     }}>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.78rem' }}>Dependency Graph</Typography>
-                        <Typography sx={{ fontSize: '0.7rem', opacity: 0.65 }}>Visual preview</Typography>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', letterSpacing: 0.5, textTransform: 'uppercase' }}>Visual Flow</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', opacity: 0.7, fontWeight: 500 }}>Live Dependency Graph</Typography>
                     </Box>
                     {(!operations || operations.length === 0) ? (
-                        <Box display="flex" justifyContent="center" alignItems="center" height="70%">
-                            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-                                No operations yet.<br />Add operations from the left panel.
+                        <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="70%" gap={2}>
+                            <Box sx={{ p: 3, borderRadius: '50%', bgcolor: '#fff', border: `1px dashed ${BORDER_COLOR}` }}>
+                                <Build sx={{ fontSize: 40, color: '#d1d5db' }} />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', fontWeight: 500 }}>
+                                No operations defined.<br />Get started by adding one from the left panel.
                             </Typography>
                         </Box>
                     ) : (
-                        <RoutingDAGPreview operations={operations} />
+                        <Box sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${BORDER_COLOR}`, bgcolor: '#fff', height: 'calc(100% - 60px)' }}>
+                            <RoutingDAGPreview operations={operations} />
+                        </Box>
                     )}
                 </Box>
             </Grid>
@@ -371,10 +395,11 @@ export default function BomRouting({
                 <Box sx={{ p: 2, height: "100%", overflowY: "auto", bgcolor: '#fff' }}>
 
                     <Box sx={{
-                        bgcolor: HEADER_BG, color: '#fff', px: 1.5, py: 1, borderRadius: 1, mb: 1.5,
+                        bgcolor: HEADER_BG, color: '#fff', px: 2, py: 1.25, borderRadius: 2, mb: 2,
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                     }}>
-                        <Typography sx={{ fontWeight: 600, fontSize: '0.8rem', letterSpacing: 0.3 }}>
-                            Operation Details
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                            {selectedOperation ? `Edit: ${selectedOperation.name}` : 'Operation Details'}
                         </Typography>
                     </Box>
 
@@ -486,6 +511,20 @@ export default function BomRouting({
                                     />
                                 }
                                 label={<Typography variant="body2" sx={{ fontSize: '0.8rem' }}>Requires Inspection</Typography>}
+                            />
+
+                            {/* Manufacturing Instructions */}
+                            <SectionLabel>Manufacturing Instructions</SectionLabel>
+                            <TextField 
+                                fullWidth 
+                                size="small" 
+                                label="SOP / Work Instructions" 
+                                sx={{ ...fieldSx, mb: 1.5 }}
+                                value={selectedOperation.instructions || ""}
+                                onChange={(e) => setSelectedOperation({ ...selectedOperation, instructions: e.target.value })}
+                                multiline 
+                                minRows={4}
+                                placeholder="Enter detailed steps for the operator..."
                             />
 
                             {/* ── Parallel Operation Controls ── */}
@@ -669,10 +708,11 @@ export default function BomRouting({
                                     </Box>
                                 )}
                             </Collapse>
-                            <TextField fullWidth size="small" label="Notes" sx={{ ...fieldSx, mb: 2 }}
+                            <TextField fullWidth size="small" label="Internal Notes" sx={{ ...fieldSx, mb: 2 }}
                                 value={selectedOperation.notes || ""}
                                 onChange={(e) => setSelectedOperation({ ...selectedOperation, notes: e.target.value })}
                                 multiline minRows={2}
+                                placeholder="Internal remarks (not shown in Work Order)..."
                             />
 
                             {/* ── Attachments Section ── */}
@@ -779,20 +819,23 @@ export default function BomRouting({
                             )}
 
                             {/* Action Buttons */}
-                            <Button variant="contained" fullWidth size="small"
-                                sx={{
-                                    mb: 1, textTransform: 'none', fontWeight: 600, borderRadius: 1,
-                                    bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' },
-                                }}
-                                onClick={handleSaveOperation}>
-                                Save Operation
-                            </Button>
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                                <Button variant="contained" fullWidth size="small"
+                                    sx={{
+                                        textTransform: 'none', fontWeight: 600, borderRadius: 1.5,
+                                        bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' },
+                                        boxShadow: '0 2px 8px rgba(21,101,192,0.25)'
+                                    }}
+                                    onClick={handleSaveOperation}>
+                                    Save Changes
+                                </Button>
 
-                            <Button variant="outlined" color="error" fullWidth size="small"
-                                sx={{ textTransform: 'none', fontWeight: 500, borderRadius: 1 }}
-                                onClick={handleDeleteOperation}>
-                                Delete Operation
-                            </Button>
+                                <Button variant="outlined" color="error" fullWidth size="small"
+                                    sx={{ textTransform: 'none', fontWeight: 500, borderRadius: 1.5 }}
+                                    onClick={handleDeleteOperation}>
+                                    Delete
+                                </Button>
+                            </Box>
                         </>
                     )}
                 </Box>

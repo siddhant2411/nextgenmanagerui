@@ -16,7 +16,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { useNavigate } from 'react-router-dom';
 import FilterBar from '../ui/filterbar/FilterBar';
-import { filterInventoryItems, exportInventoryItems, getAttachmentBlob } from '../../services/inventoryService';
+import { filterInventoryItems, exportInventoryItems, getAttachmentBlob, getInventorySummary } from '../../services/inventoryService';
 import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
 
@@ -24,38 +24,54 @@ import BulkImportItems from './BulkImportItems';
 const allColumns = [
   { field: 'itemCode', headerName: 'Product Code', width: 120, type: 'string' },
   { field: 'name', headerName: 'Product Name', width: 180, type: 'string' },
-  { field: 'hsnCode', headerName: 'HSN Code', width: 90, type: 'string' },
-  { field: 'taxCategory', headerName: 'GST %', width: 70, type: 'string' },
   { field: 'uom', headerName: 'UOM', width: 70, type: "enum", options: ["NOS", "KG", "GRAM", "TON", "METER", "CENTIMETER", "INCH", "LITER", "SET"] },
   { field: 'itemType', headerName: 'Type', width: 130, type: "enum", options: ["RAW_MATERIAL", "SEMI_FINISHED", "FINISHED_GOOD", "SUB_CONTRACTED", "CONSUMABLE"] },
   { field: 'basicMaterial', headerName: 'Material', width: 110, type: 'string' },
   { field: 'dimension', headerName: 'Dimension', width: 100, type: 'string' },
   { field: 'weight', headerName: 'Weight', width: 80, type: 'number' },
-  { field: 'availableQuantity', headerName: 'Available', width: 90, type: 'number' },
-  { field: 'reservedQuantity', headerName: 'Reserved', width: 90, type: 'number' },
-  { field: 'sellingPrice', headerName: 'Price', width: 100, type: 'number' },
-  { field: 'revision', headerName: 'Rev', width: 60, type: 'string' },
   { field: 'drawingNumber', headerName: 'Drawing No.', width: 120, type: 'string' },
 ];
 
 const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
   let cols = allColumns.map(c => c.field);
   if (isNarrowDesktop) {
-    cols = cols.filter(f => !["dimension", "weight", "revision", "drawingNumber"].includes(f));
+    cols = cols.filter(f => !["dimension", "weight", "drawingNumber"].includes(f));
   }
   if (isMobile) {
-    cols = cols.filter(f => !["hsnCode", "taxCategory", "basicMaterial", "dimension", "weight", "revision", "drawingNumber", "sellingPrice"].includes(f));
+    cols = cols.filter(f => !["basicMaterial", "dimension", "weight", "drawingNumber"].includes(f));
   }
   return cols;
 };
 
 /* ── Theme constants ── */
-const HEADER_BG = '#0f2744';
-const HEADER_TEXT = '#e8edf3';
-const ROW_EVEN = '#fafbfc';
+const HEADER_BG = '#f0f7ff';
+const HEADER_TEXT = '#075985';
+const BORDER_COLOR = '#e2e8f0';
+const ROW_BORDER = '#f1f5f9';
+const ROW_EVEN = '#ffffff';
 const ROW_ODD = '#ffffff';
-const ROW_HOVER = '#e3f2fd';
-const BORDER_COLOR = '#e5e7eb';
+const ROW_HOVER = '#f8fafc';
+
+/* ── Summary stat card ── */
+const StatCard = ({ title, value, accent = '#1565c0', onClick }) => (
+  <Paper
+    elevation={0}
+    onClick={onClick}
+    sx={{
+      p: '11px 14px',
+      borderRadius: 1.5,
+      border: `1px solid ${BORDER_COLOR}`,
+      borderLeft: `3px solid ${accent}`,
+      background: '#fff',
+      cursor: onClick ? 'pointer' : 'default',
+      transition: 'all 0.15s ease',
+      '&:hover': onClick ? { boxShadow: '0 4px 12px rgba(0,0,0,0.07)', transform: 'translateY(-2px)' } : undefined,
+    }}
+  >
+    <Typography sx={{ fontSize: '0.65625rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', mb: '5px' }}>{title}</Typography>
+    <Typography sx={{ fontSize: '1.625rem', fontWeight: 500, color: '#1e293b', lineHeight: 1 }}>{value}</Typography>
+  </Paper>
+);
 
 /* ── Type icons ── */
 const typeIcons = {
@@ -84,11 +100,98 @@ const typeIcons = {
     textColor: "#6a1b9a",
   },
   CONSUMABLE: {
-    icon: <Inventory2Rounded sx={{ color: "#00796b", fontSize: 16 }} />,
+    icon: <Calculate sx={{ color: "#00838f", fontSize: 16 }} />,
     label: "Consumable",
     color: "#e0f2f1",
-    textColor: "#00796b",
-  },
+    textColor: "#00838f",
+  }
+};
+
+/* ── Mobile Card Component ── */
+const InventoryItemCard = ({ item, onEdit, onDelete, canWrite, typeIcons, onDrawingClick }) => {
+  const typeInfo = typeIcons[item.itemType] || { label: item.itemType, color: "#f1f5f9", textColor: "#64748b" };
+  
+  return (
+    <Paper
+      elevation={0}
+      sx={{
+        p: 2,
+        mb: 2,
+        borderRadius: 2,
+        border: `1px solid ${BORDER_COLOR}`,
+        background: '#fff',
+        '&:active': { transform: 'scale(0.98)' },
+        transition: 'transform 0.1s ease',
+      }}
+    >
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+        <Box>
+          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, letterSpacing: '0.02em' }}>
+            {item.itemCode}
+          </Typography>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#1e293b', lineHeight: 1.2, mt: 0.5 }}>
+            {item.name}
+          </Typography>
+        </Box>
+        <Chip
+          icon={typeInfo.icon}
+          label={typeInfo.label}
+          size="small"
+          sx={{
+            height: 24,
+            fontSize: '0.7rem',
+            fontWeight: 600,
+            bgcolor: typeInfo.color,
+            color: typeInfo.textColor,
+            '& .MuiChip-icon': { color: 'inherit' }
+          }}
+        />
+      </Box>
+
+      <Divider sx={{ my: 1.5, borderStyle: 'dashed' }} />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 2 }}>
+        <Box>
+          <Typography variant="caption" color="text.secondary">UOM</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.uom}</Typography>
+        </Box>
+        {item.drawingNumber && (
+          <Box>
+            <Typography variant="caption" color="text.secondary">Drawing No.</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography variant="body2" sx={{ fontWeight: 500 }}>{item.drawingNumber}</Typography>
+              {item.drawingFileId && (
+                <IconButton size="small" onClick={() => onDrawingClick(item)} sx={{ p: 0.25 }}>
+                  <DownloadIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              )}
+            </Box>
+          </Box>
+        )}
+      </Box>
+
+      <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+        <Button
+          size="small"
+          startIcon={<EditIcon sx={{ fontSize: '1rem !important' }} />}
+          onClick={() => onEdit(item.inventoryItemId)}
+          disabled={!canWrite}
+          sx={{ color: '#1565c0', textTransform: 'none', fontWeight: 600 }}
+        >
+          Edit
+        </Button>
+        <Button
+          size="small"
+          startIcon={<DeleteIcon sx={{ fontSize: '1rem !important' }} />}
+          onClick={() => onDelete(item.inventoryItemId)}
+          disabled={!canWrite}
+          sx={{ color: '#c62828', textTransform: 'none', fontWeight: 600 }}
+        >
+          Delete
+        </Button>
+      </Box>
+    </Paper>
+  );
 };
 
 const InventoryItemList = ({
@@ -123,6 +226,26 @@ const InventoryItemList = ({
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
   const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
+  const [summary, setSummary] = useState(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+  const fetchSummary = async () => {
+    try {
+      setIsSummaryLoading(true);
+      const response = await getInventorySummary();
+      setSummary(response);
+    } catch (err) {
+      console.error('Error fetching inventory summary:', err);
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSummary();
+  }, []);
+
+  const summaryValue = (value) => value === null || value === undefined ? "-" : value;
 
   const handleDrawingClick = async (e, item) => {
     e.stopPropagation();
@@ -335,13 +458,15 @@ const InventoryItemList = ({
   const headerCellSx = {
     background: HEADER_BG,
     color: HEADER_TEXT,
-    fontWeight: 600,
-    fontSize: '0.8rem',
-    letterSpacing: 0.3,
-    borderBottom: `2px solid ${HEADER_TEXT}`,
-    borderRight: '1px solid rgba(255,255,255,0.08)',
+    fontWeight: 700,
+    fontSize: '0.6875rem',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    borderBottom: `1px solid ${BORDER_COLOR}`,
+    borderRight: 'none',
     whiteSpace: 'nowrap',
-    py: 1.25,
+    py: '9px',
+    px: '14px',
     userSelect: 'none',
   };
 
@@ -398,7 +523,7 @@ const InventoryItemList = ({
                 variant="outlined" 
                 startIcon={<DownloadIcon />}
                 onClick={handleExportClick}
-                sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, borderColor: BORDER_COLOR, color: '#374151', bgcolor: '#fff' }}
+                sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, borderColor: BORDER_COLOR, color: '#475569', bgcolor: '#fff', '&:hover': { borderColor: '#1565c0', color: '#1565c0' } }}
             >
                 Export
             </Button>
@@ -448,18 +573,20 @@ const InventoryItemList = ({
                 borderRadius: 1.5,
                 fontWeight: 600,
                 textTransform: 'none',
-                px: 2.5,
+                px: { xs: 1.5, sm: 2.5 },
                 boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
                 bgcolor: '#1565c0',
                 '&:hover': { bgcolor: '#0d47a1' },
+                fontSize: { xs: '0.8125rem', sm: '0.875rem' }
               }}
             >
-              Add Product
+              {isMobile ? "Add" : "Add Product"}
             </Button>
           </Box>
         </Toolbar>
 
         <Divider sx={{ mb: 2 }} />
+
 
         {/* ── Filter Bar + Column Toggle ── */}
         <Box
@@ -527,22 +654,42 @@ const InventoryItemList = ({
           </Box>
         )}
 
-        {/* ── Table ── */}
+        {/* ── Table / Card View ── */}
         {!loading && (
-          <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "auto", position: "relative" }}>
-            <TableContainer
-              component={Box}
-              ref={tableContainerRef}
-              sx={{
-                borderRadius: 1.5,
-                border: `1px solid ${BORDER_COLOR}`,
-                maxHeight: "calc(100vh - 280px)",
-                overflowY: "auto",
-                overflowX: "auto",
-                width: "100%",
-                maxWidth: "100%",
-              }}
-            >
+          isMobile ? (
+            <Box sx={{ mt: 1 }}>
+              {inventoryItems.map((item) => (
+                <InventoryItemCard
+                  key={item.inventoryItemId}
+                  item={item}
+                  onEdit={handleEditClick}
+                  onDelete={handleDeleteClick}
+                  canWrite={canWriteInventoryItems}
+                  typeIcons={typeIcons}
+                  onDrawingClick={(item) => handleDrawingClick({ stopPropagation: () => {} }, item)}
+                />
+              ))}
+              {inventoryItems.length === 0 && (
+                <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                  <Typography variant="body2">No products found</Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, overflowX: "auto", position: "relative" }}>
+              <TableContainer
+                component={Box}
+                ref={tableContainerRef}
+                sx={{
+                  borderRadius: 1.5,
+                  border: `1px solid ${BORDER_COLOR}`,
+                  maxHeight: "calc(100vh - 280px)",
+                  overflowY: "auto",
+                  overflowX: "auto",
+                  width: "100%",
+                  maxWidth: "100%",
+                }}
+              >
               <Table
                 stickyHeader
                 size="small"
@@ -566,9 +713,9 @@ const InventoryItemList = ({
                         checked={inventoryItems?.length > 0 && selectedRows?.length === inventoryItems?.length}
                         onChange={handleSelectAll}
                         sx={{
-                          color: 'rgba(255,255,255,0.7)',
-                          '&.Mui-checked': { color: '#fff' },
-                          '&.MuiCheckbox-indeterminate': { color: '#fff' },
+                          color: '#94a3b8',
+                          '&.Mui-checked': { color: '#2563eb' },
+                          '&.MuiCheckbox-indeterminate': { color: '#2563eb' },
                         }}
                       />
                       <div
@@ -613,8 +760,8 @@ const InventoryItemList = ({
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{col.headerName}</span>
                           {sortBy === col.field && (
                             sortDir === 'asc'
-                              ? <ArrowUpward sx={{ fontSize: 14, color: '#90caf9' }} />
-                              : <ArrowDownward sx={{ fontSize: 14, color: '#90caf9' }} />
+                              ? <ArrowUpward sx={{ fontSize: 14, color: '#64748b' }} />
+                              : <ArrowDownward sx={{ fontSize: 14, color: '#64748b' }} />
                           )}
                           <div
                             onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, col.field); }}
@@ -645,7 +792,7 @@ const InventoryItemList = ({
                         cursor: "pointer",
                         transition: 'background 0.15s ease',
                         '&:hover': { background: ROW_HOVER },
-                        '& td': { borderBottom: `1px solid ${BORDER_COLOR}`, fontSize: '0.8125rem', py: 0.75 },
+                        '& td': { borderBottom: `1px solid ${ROW_BORDER}`, fontSize: '0.8125rem', py: '10px', px: '14px', color: '#475569' },
                       }}
                     >
                       <TableCell
@@ -736,13 +883,21 @@ const InventoryItemList = ({
 
                       <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                         <Tooltip title="Make/Buy Analysis">
-                          <IconButton onClick={() => navigate(`/production/make-or-buy?itemId=${item.inventoryItemId}`)} size="small">
+                          <IconButton 
+                            onClick={() => navigate(`/production/make-or-buy?itemId=${item.inventoryItemId}`)} 
+                            size="small"
+                            sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, mr: 0.5 }}
+                          >
                             <Calculate fontSize="small" sx={{ color: '#f57c00' }} />
                           </IconButton>
                         </Tooltip>
                         {canWriteInventoryItems && (
                           <Tooltip title="Edit">
-                            <IconButton onClick={() => handleEditClick(item.inventoryItemId)} size="small">
+                            <IconButton 
+                              onClick={() => handleEditClick(item.inventoryItemId)} 
+                              size="small"
+                              sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, mr: 0.5 }}
+                            >
                               <EditIcon fontSize="small" sx={{ color: '#1565c0' }} />
                             </IconButton>
                           </Tooltip>
@@ -753,6 +908,7 @@ const InventoryItemList = ({
                               onClick={() => handleDeleteClick(item.inventoryItemId)}
                               size="small"
                               disabled={!canWriteInventoryItems}
+                              sx={{ border: '1px solid #fee2e2', borderRadius: 1.5 }}
                             >
                               <DeleteIcon fontSize="small" sx={{ color: "#d32f2f" }} />
                             </IconButton>
@@ -765,21 +921,29 @@ const InventoryItemList = ({
               </Table>
             </TableContainer>
 
-            {/* ── Pagination ── */}
-            <TablePagination
-              component="div"
-              count={totalElements}
-              page={currentPage}
-              onPageChange={(e, page) => onPageChange(page)}
-              rowsPerPage={itemsPerPage}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              sx={{
-                borderTop: `1px solid ${BORDER_COLOR}`,
-                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.8125rem' },
-              }}
-            />
           </Box>
+        ))}
+
+        {/* ── Pagination ── */}
+        {!loading && (
+          <TablePagination
+            component="div"
+            count={totalElements}
+            page={currentPage}
+            onPageChange={(e, page) => onPageChange(page)}
+            rowsPerPage={itemsPerPage}
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            sx={{
+              borderTop: `1px solid ${BORDER_COLOR}`,
+              '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': { fontSize: '0.8125rem' },
+              '& .MuiTablePagination-toolbar': {
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
+                justifyContent: isMobile ? 'center' : 'flex-end',
+                px: isMobile ? 1 : 2
+              }
+            }}
+          />
         )}
 
         <Dialog

@@ -69,7 +69,17 @@ export default function FilterBar({
                     <InputLabel sx={{ fontSize: 13 }}>Field</InputLabel>
                     <Select
                         value={selectedField}
-                        onChange={(e) => setSelectedField(e.target.value)}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedField(val);
+                            const col = allColumns.find(c => c.field === val);
+                            const type = col?.type?.toLowerCase();
+                            if (type === 'number' || type === 'date') {
+                                setOperator('=');
+                            } else {
+                                setOperator('contains');
+                            }
+                        }}
                         label="Field"
                         sx={{ ...compactSx }}
                     >

@@ -1,20 +1,35 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  Box, Button, Card, CardContent, CardHeader, Divider, Grid, TextField, Typography, Autocomplete, Tabs, Tab, Paper, List, ListItem, ListItemText, InputAdornment
+  Box, Button, Card, CardContent, CardHeader, Divider, Grid, TextField, Typography, Autocomplete, Tabs, Tab, Paper, List, ListItem, ListItemText, InputAdornment, Stack, Tooltip
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import apiService from '../../services/apiService';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Save, ArrowBack, Add, Delete, History, ShoppingCart, Info } from '@mui/icons-material';
-import {IconButton} from '@mui/material';
+import {Save, ArrowBack, Add, Delete, History, ShoppingCart, Info, SwapHoriz, LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description} from '@mui/icons-material';
+import {IconButton, ToggleButton, ToggleButtonGroup, Chip} from '@mui/material';
+
+const SOURCES = ['IndiaMart', 'TradeIndia', 'Website', 'Exhibition', 'Referral', 'Phone', 'Direct', 'Social Media'];
+const PRIORITIES = [
+  { value: 'HOT', label: 'Hot', icon: <LocalFireDepartment />, color: '#ef4444' },
+  { value: 'WARM', label: 'Warm', icon: <Thermostat />, color: '#f59e0b' },
+  { value: 'COLD', label: 'Cold', icon: <AcUnit />, color: '#3b82f6' }
+];
+const CONVERSATION_TYPES = [
+  { value: 'NOTE', label: 'Note', icon: <Description sx={{fontSize: 14}} /> },
+  { value: 'CALL', label: 'Call', icon: <Call sx={{fontSize: 14}} /> },
+  { value: 'EMAIL', label: 'Email', icon: <Email sx={{fontSize: 14}} /> },
+  { value: 'MEETING', label: 'Meeting', icon: <MeetingRoom sx={{fontSize: 14}} /> }
+];
 const AddUpdateEnquiry = ({ onSave }) => {
   const { enquiryId } = useParams();
   const navigate = useNavigate();
   const [initialData, setInitialData] = useState({});
   const [companyList, setCompanyList] = useState([]);
+  const [userList, setUserList] = useState([]);
   const [productList, setProductList] = useState([]);
+  const [isConverting, setIsConverting] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const debounceTimeout = useRef(null);
 
@@ -26,6 +41,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
     const res = await apiService.get(`/enquiry/${id}`);
     setInitialData(res);
     if (res.contact) setCompanyList([res.contact]);
+    if (res.assignedTo) setUserList([res.assignedTo]);
     const initialProductOptions = res.enquiredProducts?.map(p => p.inventoryItem).filter(Boolean);
     if (initialProductOptions?.length) setProductList(initialProductOptions);
   };
@@ -55,6 +71,11 @@ const AddUpdateEnquiry = ({ onSave }) => {
       expectedRevenue: initialData.expectedRevenue || 0,
       probability: initialData.probability || 0,
       targetCloseDate: initialData.targetCloseDate || '',
+      priority: initialData.priority || 'WARM',
+      city: initialData.city || '',
+      state: initialData.state || '',
+      assignedTo: initialData.assignedTo || null,
+      leadQuality: initialData.leadQuality || 'UNKNOWN',
     },
     validationSchema: Yup.object({
       opportunityName: Yup.string().required('Opportunity Name is required'),
@@ -69,6 +90,12 @@ const AddUpdateEnquiry = ({ onSave }) => {
   const handleSearchContacts = async (query) => {
     const result = await searchContacts(query);
     setCompanyList(result);
+  };
+
+  const handleSearchUsers = async (query) => {
+    const { searchUsers } = await import('../../services/commonAPI');
+    const result = await searchUsers(query);
+    setUserList(result);
   };
 
   const handleSearchProducts = (query) => {
@@ -94,9 +121,24 @@ const AddUpdateEnquiry = ({ onSave }) => {
 
   const addConversation = () => {
     formik.setFieldValue('enquiryConversationRecords', [
-      { conversation: '', creationDate: new Date() },
+      { conversation: '', conversationType: 'NOTE', creationDate: new Date() },
       ...formik.values.enquiryConversationRecords
     ]);
+  };
+
+  const handleConvertToQuotation = async () => {
+    if (!enquiryId) return;
+    if (window.confirm('Convert this enquiry to a formal Quotation?')) {
+      setIsConverting(true);
+      try {
+        const res = await apiService.post(`/enquiry/convert-to-quotation/${enquiryId}`);
+        navigate(`/quotation/edit/${res}`);
+      } catch (err) {
+        alert('Failed to convert: ' + err.message);
+      } finally {
+        setIsConverting(false);
+      }
+    }
   };
 
   return (
@@ -108,6 +150,17 @@ const AddUpdateEnquiry = ({ onSave }) => {
           </Typography>
           <Box display="flex" gap={2}>
             <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)}>Back</Button>
+            {enquiryId && (
+              <Button 
+                variant="outlined" 
+                color="secondary" 
+                startIcon={<SwapHoriz />} 
+                onClick={handleConvertToQuotation}
+                disabled={isConverting}
+              >
+                {isConverting ? 'Converting...' : 'Convert to Quotation'}
+              </Button>
+            )}
             <Button variant="contained" type="submit" startIcon={<Save />}>Save Enquiry</Button>
           </Box>
         </Box>
@@ -180,6 +233,12 @@ const AddUpdateEnquiry = ({ onSave }) => {
                     <Grid item xs={4}>
                       <TextField label="Email" name="contactPersonEmail" fullWidth size="small" value={formik.values.contactPersonEmail} onChange={formik.handleChange} />
                     </Grid>
+                    <Grid item xs={6}>
+                      <TextField label="City" name="city" fullWidth size="small" value={formik.values.city} onChange={formik.handleChange} />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField label="State" name="state" fullWidth size="small" value={formik.values.state} onChange={formik.handleChange} />
+                    </Grid>
                   </Grid>
 
                   <Typography variant="subtitle2" sx={{ mt: 4, mb: 2, color: 'primary.main' }}>PIPELINE & SALES DATA</Typography>
@@ -221,6 +280,17 @@ const AddUpdateEnquiry = ({ onSave }) => {
                         onChange={formik.handleChange}
                       />
                     </Grid>
+                    <Grid item xs={12}>
+                       <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>ASSIGNED TO</Typography>
+                       <Autocomplete
+                        options={userList}
+                        getOptionLabel={(opt) => opt?.username || ''}
+                        value={formik.values.assignedTo}
+                        onInputChange={(e, val) => handleSearchUsers(val)}
+                        onChange={(e, val) => formik.setFieldValue('assignedTo', val)}
+                        renderInput={(params) => <TextField {...params} label="Sales Representative" size="small" fullWidth />}
+                      />
+                    </Grid>
                   </Grid>
                 </Grid>
 
@@ -239,8 +309,26 @@ const AddUpdateEnquiry = ({ onSave }) => {
                           onChange={formik.handleChange}
                           SelectProps={{ native: true }}
                         >
-                          {['NEW', 'CONTACTED', 'FOLLOW_UP', 'CONVERTED', 'LOST', 'CLOSED'].map(s => <option key={s} value={s}>{s}</option>)}
+                          {['NEW', 'QUALIFIED', 'CONTACTED', 'FOLLOW_UP', 'QUOTED', 'NEGOTIATION', 'CONVERTED', 'LOST', 'JUNK', 'CLOSED'].map(s => <option key={s} value={s}>{s}</option>)}
                         </TextField>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 1 }}>LEAD PRIORITY</Typography>
+                        <ToggleButtonGroup
+                          value={formik.values.priority}
+                          exclusive
+                          onChange={(e, val) => val && formik.setFieldValue('priority', val)}
+                          size="small"
+                          fullWidth
+                        >
+                          {PRIORITIES.map(p => (
+                            <ToggleButton key={p.value} value={p.value} sx={{ 
+                              '&.Mui-selected': { bgcolor: `${p.color}20`, color: p.color, fontWeight: 'bold' } 
+                            }}>
+                              {p.icon} <Box ml={1}>{p.label}</Box>
+                            </ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
                       </Grid>
                       <Grid item xs={12}>
                         <TextField label="Enquiry Date" type="date" name="enqDate" fullWidth size="small" InputLabelProps={{ shrink: true }} value={formik.values.enqDate} onChange={formik.handleChange} />
@@ -249,7 +337,14 @@ const AddUpdateEnquiry = ({ onSave }) => {
                         <TextField label="Next Follow-up" type="date" name="nextFollowupDate" fullWidth size="small" InputLabelProps={{ shrink: true }} value={formik.values.nextFollowupDate} onChange={formik.handleChange} />
                       </Grid>
                       <Grid item xs={12}>
-                        <TextField label="Source" name="enquirySource" fullWidth size="small" value={formik.values.enquirySource} onChange={formik.handleChange} />
+                        <Autocomplete
+                          freeSolo
+                          options={SOURCES}
+                          value={formik.values.enquirySource}
+                          onChange={(e, val) => formik.setFieldValue('enquirySource', val)}
+                          onInputChange={(e, val) => formik.setFieldValue('enquirySource', val)}
+                          renderInput={(params) => <TextField {...params} label="Source" size="small" fullWidth />}
+                        />
                       </Grid>
                     </Grid>
                   </Paper>
@@ -334,9 +429,23 @@ const AddUpdateEnquiry = ({ onSave }) => {
                           />
                         </Grid>
                         <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
-                          <Typography variant="caption" color="textSecondary">
-                            {item.creationDate ? new Date(item.creationDate).toLocaleString() : 'New Note'}
-                          </Typography>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <ToggleButtonGroup
+                              value={item.conversationType || 'NOTE'}
+                              exclusive
+                              onChange={(e, val) => val && formik.setFieldValue(`enquiryConversationRecords[${index}].conversationType`, val)}
+                              size="small"
+                            >
+                              {CONVERSATION_TYPES.map(t => (
+                                <Tooltip title={t.label} key={t.value}>
+                                  <ToggleButton value={t.value} sx={{ p: 0.5 }}>{t.icon}</ToggleButton>
+                                </Tooltip>
+                              ))}
+                            </ToggleButtonGroup>
+                            <Typography variant="caption" color="textSecondary">
+                              {item.creationDate ? new Date(item.creationDate).toLocaleString() : 'New Entry'}
+                            </Typography>
+                          </Stack>
                           <Button 
                             size="small" 
                             color="error" 

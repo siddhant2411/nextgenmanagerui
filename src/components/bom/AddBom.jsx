@@ -27,7 +27,8 @@ import { useFormik } from "formik";
 import * as Yup from "yup";
 import apiService, { resolveApiErrorMessage } from "../../services/apiService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { DeleteOutline, FileDownload } from "@mui/icons-material";
+import { DeleteOutline, FileDownload, BuildCircle, Warning as WarningIcon } from "@mui/icons-material";
+import { getAttachmentBlob } from "../../services/inventoryService";
 import dayjs from "dayjs";
 import BomRouting from "./BomRouting";
 import BomPositionTable from "./BomPositionTable";
@@ -368,6 +369,29 @@ const AddBom = () => {
     const [costBreakdownLoading, setCostBreakdownLoading] = useState(false);
     const [statusDialogOpen, setStatusDialogOpen] = useState(false);
     const [nextStatus, setNextStatus] = useState(null);
+    const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
+
+    const handleDrawingClick = async (e) => {
+        if (e) e.stopPropagation();
+        const drawingId = bomDetails?.bom?.drawingFileId || selectedItem?.drawingFileId;
+        if (!drawingId) return;
+
+        setLoading(true);
+        try {
+            const result = await getAttachmentBlob(drawingId);
+            setDrawingPreview({
+                open: true,
+                url: result.url,
+                contentType: result.contentType,
+                fileName: selectedItem?.drawingNumber || bomDetails?.bom?.parentInventoryItem?.productSpecification?.drawingNumber || 'Drawing'
+            });
+        } catch (err) {
+            console.error('Error fetching drawing:', err);
+            showSnackbar('Failed to load drawing.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const { canAction } = useAuth();
     const canChangeBomStatus = canAction(ACTION_KEYS.BOM_STATUS_VERSION_WRITE);
@@ -1320,6 +1344,23 @@ const AddBom = () => {
                                                     onInputChange={(_, value, reason) => handleParentItemSearch(value, reason)}
                                                     loading={loading}
                                                 />
+                                                {(bomDetails?.bom?.drawingFileId || selectedItem?.drawingFileId) && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        onClick={handleDrawingClick}
+                                                        sx={{
+                                                            mt: 0.5,
+                                                            color: '#1565c0',
+                                                            fontWeight: 600,
+                                                            textDecoration: 'underline',
+                                                            cursor: 'pointer',
+                                                            display: 'block',
+                                                            '&:hover': { color: '#0d47a1' }
+                                                        }}
+                                                    >
+                                                        View Drawing
+                                                    </Typography>
+                                                )}
                                             </FormControl>
                                         </Grid>
                                         <Grid item xs={12} sm={6} md={3}>
@@ -1784,6 +1825,61 @@ const AddBom = () => {
                             : "Save"}
                     </Button>
                 </DialogActions>
+            </Dialog>
+
+            {/* ── Drawing Preview Dialog ── */}
+            <Dialog
+                open={drawingPreview.open}
+                onClose={() => {
+                    URL.revokeObjectURL(drawingPreview.url);
+                    setDrawingPreview({ ...drawingPreview, open: false });
+                }}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 2, height: '90vh' } }}
+            >
+                <DialogTitle sx={{ fontWeight: 600, color: '#0f2744', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box display="flex" alignItems="center" gap={1}>
+                        <BuildCircle sx={{ color: '#1565c0' }} />
+                        Drawing: {drawingPreview.fileName}
+                    </Box>
+                    <Button size="small" onClick={() => {
+                        URL.revokeObjectURL(drawingPreview.url);
+                        setDrawingPreview({ ...drawingPreview, open: false });
+                    }}>Close</Button>
+                </DialogTitle>
+                <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', bgcolor: '#f3f4f6' }}>
+                    {drawingPreview.contentType.startsWith('image/') ? (
+                        <Box sx={{ p: 2, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
+                            <img
+                                src={drawingPreview.url}
+                                alt={drawingPreview.fileName}
+                                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                            />
+                        </Box>
+                    ) : drawingPreview.contentType === 'application/pdf' ? (
+                        <iframe
+                            src={`${drawingPreview.url}#toolbar=0`}
+                            title={drawingPreview.fileName}
+                            width="100%"
+                            height="100%"
+                            style={{ border: 'none' }}
+                        />
+                    ) : (
+                        <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100%" gap={2}>
+                            <WarningIcon color="warning" sx={{ fontSize: 48 }} />
+                            <Typography>Preview not available for this file type ({drawingPreview.contentType}).</Typography>
+                            <Button variant="contained" onClick={() => {
+                                const link = document.createElement("a");
+                                link.href = drawingPreview.url;
+                                link.setAttribute("download", drawingPreview.fileName);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            }}>Download Instead</Button>
+                        </Box>
+                    )}
+                </DialogContent>
             </Dialog>
 
         </Box>
