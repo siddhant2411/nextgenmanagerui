@@ -1,645 +1,897 @@
-// --- Imports & Services as you have them ---
-
-// Additional subcomponent imports (can be in the same file or separated)
-import { Card, CardContent, CardHeader, Grid, TextField, Box, Button, MenuItem, Autocomplete, Select, FormControl, InputLabel, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
-import SalesOrderItemsTable from './SalesOrderItemsTable'; // see below
-import SalesOrderSummary from './SalesOrderSummary';      // see below
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFormik } from 'formik';
-import { useEffect, useRef, useState } from 'react';
 import * as Yup from 'yup';
-import { useParams, useLocation } from 'react-router-dom';
-import { searchContacts, searchQuotations } from '../../../services/commonAPI';
+import {
+    Autocomplete, Box, Button, Card, CardContent, Chip, CircularProgress,
+    Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
+    Divider, Grid, IconButton, Paper, Stack, Table, TableBody, TableCell,
+    TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, Alert,
+    Avatar, MenuItem, Menu,
+} from '@mui/material';
+import {
+    Add, ArrowBack, Save, ShoppingCart, Business, AccountBalance,
+    LocalShipping, DeleteOutline, CheckCircle, Cancel, HourglassTop,
+    Send, Refresh, Warning, History, Email, LocalShippingOutlined,
+    Receipt,
+} from '@mui/icons-material';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import apiService from '../../../services/apiService';
-import TaxAndDiscountCard from './TaxAndDiscountCard';
+import { inventoryItemSearch, searchContacts, searchQuotations } from '../../../services/commonAPI';
 import convertAddressToString from '../../../commonTools/convertAddress';
-import { SALES_ORDER_STATUSES } from './SalesOrderStatus';
-import axios from 'axios';
+import {
+    getSalesOrder, createSalesOrder, updateSalesOrder,
+    submitSalesOrder, approveSalesOrder, rejectSalesOrder,
+    sendSalesOrder, cancelSalesOrder, completeSalesOrder,
+    recalculateSalesOrder, deleteSalesOrder, getNextSONumber,
+    createTaxInvoice, getNextInvoiceNumber,
+    getTaxInvoicesBySalesOrder, listDeliveryNotes, getSalesOrderProfitability
+} from '../../../services/salesOrderService';
+import SendSalesOrderDialog from './SendSalesOrderDialog';
+
+/* ── Premium Design Tokens ── */
+const T = {
+    primary: '#2563eb',
+    success: '#059669',
+    error:   '#dc2626',
+    warning: '#d97706',
+    bg:      '#f8fafc',
+    card:    '#ffffff',
+    border:  '#e2e8f0',
+    text:    '#0f172a',
+    textSec: '#64748b',
+    header:  'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+};
+
+const STATUS_STYLE = {
+    DRAFT:                { color: '#64748b', bg: '#f8fafc' },
+    APPROVED:             { color: '#2563eb', bg: '#eff6ff' },
+    IN_PROGRESS:          { color: '#7c3aed', bg: '#f5f3ff' },
+    PARTIALLY_DISPATCHED: { color: '#d97706', bg: '#fffbeb' },
+    FULLY_DISPATCHED:     { color: '#059669', bg: '#ecfdf5' },
+    INVOICED:             { color: '#0891b2', bg: '#ecfeff' },
+    COMPLETED:            { color: '#059669', bg: '#ecfdf5' },
+    CANCELLED:            { color: '#dc2626', bg: '#fef2f2' },
+};
+
+const APPROVAL_STYLE = {
+    DRAFT:            { color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' },
+    PENDING_APPROVAL: { color: '#d97706', bg: '#fffbeb', border: '#fcd34d' },
+    APPROVED:         { color: '#059669', bg: '#ecfdf5', border: '#6ee7b7' },
+    REJECTED:         { color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
+};
+
+const parseNum = (v) => parseFloat(v) || 0;
 
 const AddUpdateSalesOrder = ({ onSave }) => {
-    // ...your existing hooks
-
-    // --- Commercial summary state (optional: you can calculate on fly) ---
-    const [summary, setSummary] = useState({
-
-    });
-    // const [freightCharges, setFreightCharges] = useState(0);
-
-
-
-    const voucherTypes = [
-        { value: 'SALES_ORDER', label: 'Sales Order' },
-        { value: 'DELIVERY_NOTE', label: 'Delivery Note' },
-        { value: 'TAX_INVOICE', label: 'Tax Invoice' }
-    ];
-    const [contactOptions, setContactOptions] = useState([]);
-    const [quotationOptions, setQuotationOptions] = useState([]);
-    const [quotationLoading, setQuotationLoading] = useState(false)
-    const [pendingStatus, setPendingStatus] = useState(null); // temporary selected value
-    const [openInventoryConsumeDialog, setOpenInventoryConsumeDialog] = useState(false);
-    const [status, setStatus] = useState('DRAFT');
-
-    const customerDebounce = useRef();
-    const quotationDebounce = useRef();
+    const navigate   = useNavigate();
+    const location   = useLocation();
     const { orderId } = useParams();
-    const location = useLocation();
+    const isEdit     = Boolean(orderId);
+    const debounce   = useRef(null);
 
-    const currencyMapping = {
-        INR: "₹",
-        USD: "$"
-    };
+    const [loading, setLoading]           = useState(false);
+    const [saving, setSaving]             = useState(false);
+    const [actionLoading, setActionLoading] = useState(false);
+    const [error, setError]               = useState(null);
+    const [dialog, setDialog]             = useState(null);  // { type, title, body, input? }
+    const [dialogInput, setDialogInput]   = useState('');
+    const [sendDialogOpen, setSendDialogOpen] = useState(false);
 
-    const [taxType, setTaxType] = useState('CGST_SGST');
-    const formatCurrency = (type) => currencyMapping[type] || type;
-    // --- Items state (can lift up or let Formik handle it, up to you) ---
-    const [items, setItems] = useState([]);
-    const [initialData, setInitialData] = useState(null);
+    const [invoiceDialog, setInvoiceDialog] = useState(false);
+    const [invoiceForm, setInvoiceForm]     = useState({ invoiceDate: new Date().toISOString().split('T')[0], dueDate: '' });
+    const [invoiceNextNum, setInvoiceNextNum] = useState('');
+    const [invoiceSaving, setInvoiceSaving] = useState(false);
+    const [invoiceError, setInvoiceError]   = useState(null);
 
-    useEffect(() => {
-        if (orderId) fetchSalesOrderDetails(orderId);
-    }, [orderId]);
+    const [contactOptions, setContactOptions]     = useState([]);
+    const [quotationOptions, setQuotationOptions] = useState([]);
+    const [productOptions, setProductOptions]     = useState([]);
 
-    useEffect(() => {
-        const prefillQuotationId = location.state?.prefillQuotationId;
-        if (!prefillQuotationId || orderId) return;
-        apiService.get(`/quotation/${prefillQuotationId}`).then((quotation) => {
-            formik.setFieldValue('quotation', quotation);
-            if (quotation?.enquiry?.contact) {
-                formik.setFieldValue('contact', quotation.enquiry.contact);
-            }
-        });
-    }, []);
+    const [linkedInvoices, setLinkedInvoices] = useState([]);
+    const [linkedChallans, setLinkedChallans] = useState([]);
+    
+    const [profitability, setProfitability] = useState(null);
 
+    const [invAnchor, setInvAnchor] = useState(null);
+    const [dnAnchor, setDnAnchor] = useState(null);
 
-    const fetchSalesOrderDetails = async (id) => {
-        const res = await apiService.get(`/sales-orders/${id}`);
-        setInitialData(res);
-        formik.setFieldValue("items", res?.items);
-
-    };
-
-
-    useEffect(() => {
-        if (initialData?.quotationId) {
-            apiService.get(`/quotation/${initialData.quotationId}`)
-                .then((response) => {
-                    formik.setFieldValue("quotation", response);
-                });
-        }
-
-        if (initialData?.customerId) {
-            apiService.get(`/contact/${initialData.customerId}`)
-                .then((response) => {
-                    formik.setFieldValue("contact", response);
-                });
-        }
-
-        if (orderId) {
-            setStatus(initialData?.status)
-        }
-
-
-    }, [initialData]);
-
-
-    const [isTaxOnFreight, setIsTaxOnFreight] = useState(0);
-    const [freightValue, setFreightValue] = useState(0);
-
-
-    // --- Other formik set up as before, but with more fields mirrored to DTO ---
     const formik = useFormik({
         enableReinitialize: true,
         initialValues: {
-            id: initialData?.id || 0,
-            orderNumber: initialData?.orderNumber || null,
-            voucherType: initialData?.voucherType || 'SALES_ORDER',
-            contact: initialData?.contact || null,  // Customer
-            enquiry: initialData?.enquiry || null,
-            quotation: initialData?.quotation || null,
-            orderDate: initialData?.orderDate ? formatDateToInput(initialData.orderDate) : '',
-            items: initialData?.items || [],   // 👈 only Formik owns items now
-            paymentTerms: initialData?.paymentTerms || '',
-            incoterms: initialData?.incoterms || '',
-            currency: initialData?.currency || 'INR',
-            deliveryAddress: initialData?.deliveryAddress || '',
-            dispatchThrough: initialData?.dispatchThrough || '',
-            transportMode: initialData?.transportMode || '',
-            deliveryDate: initialData?.deliveryDate || '',
-            packagingInstructions: initialData?.packagingInstructions || '',
-            shippingMethod: initialData?.shippingMethod || '',
-            ewayBillNumber: initialData?.ewayBillNumber || '',
-            poNumber: initialData?.poNumber || '',
-            poDate: initialData?.poDate || '',
-            reference: initialData?.reference || '',
-            remarks: initialData?.remarks || '',
-            status: initialData?.status || 'DRAFT'
-            // ...other fields
+            id: 0,
+            orderNumber: '',
+            orderDate: new Date().toISOString().split('T')[0],
+            contact: null,
+            quotation: null,
+            items: [],
+            currency: 'INR',
+            taxType: 'CGST_SGST',
+            placeOfSupply: '',
+            placeOfSupplyStateCode: '',
+            poNumber: '',
+            poDate: '',
+            deliveryAddress: '',
+            dispatchThrough: '',
+            transportMode: '',
+            deliveryDate: '',
+            remarks: '',
+            discountPercentage: 0,
+            freightAndForwardingCharges: 0,
+            includeFreightCharges: false,
+            subTotal: 0,
+            taxableValue: 0,
+            cgstAmount: 0,
+            sgstAmount: 0,
+            igstAmount: 0,
+            totalPayableAmount: 0,
+            discountAmount: 0,
+            roundOffAmount: 0,
+            status: 'DRAFT',
+            approvalStatus: 'DRAFT',
+            approvedBy: null,
+            approvedDate: null,
+            rejectionReason: null,
+            sentToCustomerAt: null,
+            revisionNo: 0,
         },
         validationSchema: Yup.object({
-            contact: Yup.object().required('Customer Required'),
-            items: Yup.array().min(1, 'At least 1 item'),
-            orderDate: Yup.date().required('Order date required'),
-            currency: Yup.string().required('Currency required'),
+            contact:   Yup.object().nullable().required('Customer is required'),
+            orderDate: Yup.date().required('Order date is required'),
+            items:     Yup.array().min(1, 'At least one item is required'),
         }),
         onSubmit: async (values) => {
-            const payload = {
-                ...values,
-                customerId: values.contact?.id,
-                quotationId: values.quotation?.id,
-                items: values.items,
-                currency: values.currency,
-                paymentTerms: values.paymentTerms,
-                incoterms: values.incoterms,
-                poNumber: values.poNumber,
-                poDate: values.poDate,
-                discountPercentage: extraDiscountPercentage,
-                taxType: taxType,
-                taxPercentage: taxCategory,
-                includeFreightCharges: isTaxOnFreight,
-                freightAndForwardingCharges: freightValue
-
-
-
-
-                // items already included inside values.items
-            };
-            onSave(payload)
-
-        }
+            setSaving(true);
+            setError(null);
+            try {
+                const payload = buildPayload(values);
+                let res;
+                if (isEdit) {
+                    res = await updateSalesOrder(orderId, payload);
+                } else {
+                    res = await createSalesOrder(payload);
+                }
+                applyServerData(res);
+                if (!isEdit) navigate(`/sales/sales-order/edit/${res.id}`);
+            } catch (e) {
+                setError(e?.response?.data?.message ?? 'Failed to save sales order.');
+            } finally {
+                setSaving(false);
+            }
+        },
     });
 
-
+    // ── Live tax calculation ──────────────────────────────────────────────────
     useEffect(() => {
+        const items   = formik.values.items || [];
+        const isIntra = formik.values.taxType === 'CGST_SGST';
+        const gDisc   = parseNum(formik.values.discountPercentage);
+        let sub = 0, cgst = 0, sgst = 0, igst = 0;
 
-        setExtraDiscountPercentage(initialData?.discountPercentage)
+        items.forEach(item => {
+            const gross   = parseNum(item.qty) * parseNum(item.pricePerUnit);
+            const taxable = gross * (1 - gDisc / 100);
+            const gst     = parseNum(item.gstRatePct);
+            sub  += gross;
+            if (isIntra) {
+                cgst += taxable * (gst / 2) / 100;
+                sgst += taxable * (gst / 2) / 100;
+            } else {
+                igst += taxable * gst / 100;
+            }
+        });
 
-        setFreightValue(initialData?.freightAndForwardingCharges)
-        setIsTaxOnFreight(initialData?.includeFreightCharges)
-        // setStatus(initialData?.status)
-    }, [initialData])
+        const gDiscAmt = sub * (gDisc / 100);
+        const taxable  = sub - gDiscAmt;
+        const freight  = parseNum(formik.values.freightAndForwardingCharges);
+        const before   = taxable + cgst + sgst + igst + freight;
+        const rounded  = Math.round(before);
+        const roundOff = rounded - before;
 
-
-
-    const handleQuotationChange = async (event, value) => {
-
-        if (!value) {
-            formik.setFieldValue("quotation", null);
-            return;
-        }
-
-        const response = await apiService.get('/quotation/' + value.id);
-        formik.setFieldValue("quotation", response);
-        formik.setFieldValue("enquiry", response?.enquiry);
-        formik.setFieldValue("contact", response?.enquiry?.contact);
-        formik.setFieldValue("items", response?.quotationProducts)
-
-    };
-
-    const handleContactSearch = (event, value) => {
-        clearTimeout(customerDebounce.current);
-        customerDebounce.current = setTimeout(async () => {
-            const res = await searchContacts(value);
-            setContactOptions(res);
-        }, 500);
-    };
-
-
-    const handleQuotationSearch = (event, value) => {
-        if (value === 'undefined') {
-            // setSearchQuery('')
-            return
-        }
-        clearTimeout(quotationDebounce.current);
-        quotationDebounce.current = setTimeout(async () => {
-            setQuotationLoading(true)
-            const res = await searchQuotations(value);
-            setQuotationOptions(res);
-            setQuotationLoading(false)
-        }, 500);
-    };
-
-
-
-    function formatDateToInput(date) {
-        if (!date) return '';
-
-        // If it's already a valid string in yyyy-MM-dd, return as is
-        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            return date;
-        }
-
-        // Parse date object or string
-        const d = new Date(date);
-        if (isNaN(d)) return '';
-
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0'); // Months 0-indexed
-        const dd = String(d.getDate()).padStart(2, '0');
-
-        return `${yyyy}-${mm}-${dd}`;
-    }
-
-
-    // state with default from quotation
-    const [extraDiscountPercentage, setExtraDiscountPercentage] = useState(null);
-    const [taxCategory, setTaxCategory] = useState(null);
-
-    useEffect(() => {
-        if (!initialData?.deliveryAddress && formik.values.contact) {
-            formik.setFieldValue("deliveryAddress", convertAddressToString(formik.values.contact?.addresses[0]))
-        }
-
-    }, [formik.values.contact])
-    useEffect(() => {
         if (
-            formik.values.quotation?.discountPercentage !== undefined &&
-            formik.values.quotation?.discountPercentage !== null &&
-            (summary.extraDiscountPercentage === undefined ||
-                summary.extraDiscountPercentage === null)
+            Math.abs(formik.values.totalPayableAmount - rounded) > 0.01 ||
+            Math.abs(formik.values.cgstAmount - cgst) > 0.01 ||
+            Math.abs(formik.values.sgstAmount - sgst) > 0.01 ||
+            Math.abs(formik.values.igstAmount - igst) > 0.01 ||
+            Math.abs(formik.values.discountAmount - gDiscAmt) > 0.01
         ) {
-            setExtraDiscountPercentage(formik.values.quotation.discountPercentage);
+            formik.setFieldValue('subTotal',           sub,      false);
+            formik.setFieldValue('discountAmount',      gDiscAmt, false);
+            formik.setFieldValue('taxableValue',        taxable,  false);
+            formik.setFieldValue('cgstAmount',          cgst,     false);
+            formik.setFieldValue('sgstAmount',          sgst,     false);
+            formik.setFieldValue('igstAmount',          igst,     false);
+            formik.setFieldValue('totalPayableAmount',  rounded,  false);
+            formik.setFieldValue('roundOffAmount',      roundOff, false);
         }
-    }, [formik.values.quotation?.discountPercentage]);
+    }, [formik.values.items, formik.values.taxType, formik.values.discountPercentage, formik.values.freightAndForwardingCharges]);
 
+    // ── Load order ────────────────────────────────────────────────────────────
+    const applyServerData = (data) => {
+        formik.setValues({
+            id: data.id ?? 0,
+            orderNumber: data.orderNumber ?? '',
+            orderDate:   data.orderDate ?? new Date().toISOString().split('T')[0],
+            contact:     data.contact
+                ?? (data.customerId ? { id: data.customerId, contactId: data.customerId, companyName: data.customerName } : null),
+            quotation:   data.quotation
+                ?? (data.quotationId ? { id: data.quotationId, qtnNo: data.quotationNumber } : null),
+            items:       (data.items ?? []).map(i => ({
+                id: i.id,
+                inventoryItem:      i.inventoryItem,
+                qty:                i.qty ?? 0,
+                pricePerUnit:       i.pricePerUnit ?? 0,
+                discountPercentage: i.discountPercentage ?? 0,
+                gstRatePct:         i.cgstRate != null ? (parseNum(i.cgstRate) + parseNum(i.sgstRate || 0)) || parseNum(i.igstRate) : (i.gstRatePct ?? 18),
+                hsnCode:            i.hsnCode ?? '',
+                unitPriceAfterDiscount: i.unitPriceAfterDiscount ?? 0,
+                totalAmountOfProduct:   i.totalAmountOfProduct ?? 0,
+                cgstAmount: i.cgstAmount ?? 0,
+                sgstAmount: i.sgstAmount ?? 0,
+                igstAmount: i.igstAmount ?? 0,
+            })),
+            currency:    data.currency    ?? 'INR',
+            taxType:     data.taxType     ?? 'CGST_SGST',
+            placeOfSupply:          data.placeOfSupply ?? '',
+            placeOfSupplyStateCode: data.placeOfSupplyStateCode ?? '',
+            poNumber:    data.poNumber    ?? '',
+            poDate:      data.poDate      ?? '',
+            deliveryAddress:        data.deliveryAddress ?? '',
+            dispatchThrough:        data.dispatchThrough ?? '',
+            transportMode:          data.transportMode ?? '',
+            deliveryDate:           data.deliveryDate ?? '',
+            remarks:     data.remarks ?? '',
+            discountPercentage:     data.discountPercentage ?? 0,
+            freightAndForwardingCharges: data.freightAndForwardingCharges ?? 0,
+            includeFreightCharges:  data.includeFreightCharges ?? false,
+            subTotal:    data.subTotal    ?? 0,
+            taxableValue: data.taxableValue ?? 0,
+            cgstAmount:  data.cgstAmount  ?? 0,
+            sgstAmount:  data.sgstAmount  ?? 0,
+            igstAmount:  data.igstAmount  ?? 0,
+            totalPayableAmount: data.totalPayableAmount ?? 0,
+            roundOffAmount:     data.roundOffAmount ?? 0,
+            status:           data.status          ?? 'DRAFT',
+            approvalStatus:   data.approvalStatus  ?? 'DRAFT',
+            approvedBy:       data.approvedBy      ?? null,
+            approvedDate:     data.approvedDate    ?? null,
+            rejectionReason:  data.rejectionReason ?? null,
+            sentToCustomerAt: data.sentToCustomerAt ?? null,
+            revisionNo:       data.revisionNo      ?? 0,
+        });
+    };
 
     useEffect(() => {
-        if (
-            formik.values.quotation?.gstPercentage !== undefined &&
-            formik.values.quotation?.gstPercentage !== null &&
-            (summary.taxCategory === undefined ||
-                summary.taxCategory === null)
-        ) {
-            setTaxCategory(formik.values.quotation.gstPercentage);
-        }
-    }, [formik.values.quotation?.gstPercentage]);
-
-
-    useEffect(() => {
-        const itemsToCalculate = formik.values.items || [];
-
-        let subTotal =
-            itemsToCalculate.reduce(
-                (acc, item) => acc + (item?.pricePerUnit * item?.qty || 0),
-                0
-            ) || 0;
-
-        const discountAmount =
-            itemsToCalculate.reduce(
-                (acc, item) =>
-                    acc +
-                    ((item?.discountPercentage || 0) *
-                        (item?.pricePerUnit || 0) /
-                        100 *
-                        (item?.qty || 0)),
-                0
-            ) || 0;
-
-        subTotal -= discountAmount;
-
-        const extraDiscountValue = ((extraDiscountPercentage || 0) / 100) * subTotal;
-
-        const baseTaxableValue = subTotal - extraDiscountValue;
-        const freightCharges = freightValue || 0;
-        const isFreightTaxable = isTaxOnFreight || false;
-        const taxableValue = isFreightTaxable
-            ? baseTaxableValue + freightCharges
-            : baseTaxableValue;
-
-        let cgstAmount = 0;
-        let sgstAmount = 0;
-        let igstAmount = 0;
-
-        if (taxType === "CGST_SGST") {
-            cgstAmount = taxableValue * (taxCategory / 2) / 100;
-            sgstAmount = taxableValue * (taxCategory / 2) / 100;
-            igstAmount = 0;
-        } else if (taxType === "IGST") {
-            igstAmount = taxableValue * taxCategory / 100;
-            cgstAmount = 0;
-            sgstAmount = 0;
+        if (isEdit) {
+            setLoading(true);
+            getSalesOrder(orderId).then(applyServerData).catch(() => setError('Failed to load order.')).finally(() => setLoading(false));
+            
+            // Fetch linked documents
+            getTaxInvoicesBySalesOrder(orderId).then(setLinkedInvoices).catch(() => {});
+            listDeliveryNotes({ salesOrderId: orderId }).then(res => setLinkedChallans(res.content || [])).catch(() => {});
+            
+            // Fetch profitability (only works for authorized roles)
+            getSalesOrderProfitability(orderId).then(setProfitability).catch(() => {});
         } else {
-            // For STANDARD, ZERO or others, set all tax to 0 or handle differently
-            cgstAmount = 0;
-            sgstAmount = 0;
-            igstAmount = 0;
+            getNextSONumber().then(n => formik.setFieldValue('orderNumber', n)).catch(() => {});
+            
+            // Handle prefill from Quotation
+            if (location.state?.prefillQuotationId) {
+                setLoading(true);
+                apiService.get(`/quotation/${location.state.prefillQuotationId}`)
+                    .then(q => {
+                        formik.setFieldValue('quotation', q);
+                        if (q.enquiry?.contact) {
+                            formik.setFieldValue('contact', q.enquiry.contact);
+                            if (q.enquiry.contact.addresses?.length > 0) {
+                                formik.setFieldValue('deliveryAddress', convertAddressToString(q.enquiry.contact.addresses[0]));
+                            }
+                        }
+                        if (q.quotationProducts) {
+                            formik.setFieldValue('items', q.quotationProducts.map(p => ({
+                                inventoryItem: p.inventoryItem,
+                                qty: p.qty || 1,
+                                pricePerUnit: p.pricePerUnit || 0,
+                                discountPercentage: p.discountPercentage || 0,
+                                gstRatePct: q.gstPercentage || 18,
+                                hsnCode: p.inventoryItem?.hsnCode || '',
+                            })));
+                        }
+                        formik.setFieldValue('discountPercentage', q.discountPercentage || 0);
+                    })
+                    .catch(() => setError('Failed to load prefilled quotation.'))
+                    .finally(() => setLoading(false));
+            }
         }
-        const cessAmount = 0;
+    }, [orderId, isEdit, location.state]);
 
-        const totalBeforeRound =
-            taxableValue + cgstAmount + sgstAmount + igstAmount + cessAmount;
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const buildPayload = (v) => ({
+        customerId:   v.contact?.id ?? v.contact?.contactId,
+        quotationId:  v.quotation?.id ?? null,
+        orderDate:    v.orderDate,
+        currency:     v.currency,
+        taxType:      v.taxType,
+        placeOfSupply:          v.placeOfSupply,
+        placeOfSupplyStateCode: v.placeOfSupplyStateCode,
+        paymentTerms: v.paymentTerms,
+        incoterms:    v.incoterms,
+        poNumber:     v.poNumber,
+        poDate:       v.poDate || null,
+        deliveryAddress:     v.deliveryAddress,
+        dispatchThrough:     v.dispatchThrough,
+        transportMode:       v.transportMode,
+        deliveryDate:        v.deliveryDate || null,
+        remarks:             v.remarks,
+        discountPercentage:  parseFloat(v.discountPercentage) || 0,
+        taxPercentage:       0,
+        freightAndForwardingCharges: parseFloat(v.freightAndForwardingCharges) || 0,
+        includeFreightCharges: v.includeFreightCharges,
+        items: (v.items ?? []).map(i => ({
+            inventoryItem:      i.inventoryItem,
+            qty:                parseFloat(i.qty) || 0,
+            pricePerUnit:       parseFloat(i.pricePerUnit) || 0,
+            discountPercentage: parseFloat(i.discountPercentage) || 0,
+            gstRatePct:         parseFloat(i.gstRatePct) || 0,
+            hsnCode:            i.hsnCode || '',
+        })),
+    });
 
-        const roundOffAmount = Math.round(totalBeforeRound) - totalBeforeRound;
-        const totalPayableAmount = Math.round(totalBeforeRound)
-        const netAmount =
-            taxableValue +
-            cgstAmount +
-            sgstAmount +
-            igstAmount +
-            cessAmount +
-            (!isFreightTaxable ? freightCharges : 0);
+    const handleSearch = (type, value) => {
+        if (debounce.current) clearTimeout(debounce.current);
+        debounce.current = setTimeout(async () => {
+            if (type === 'contact')   setContactOptions(await searchContacts(value));
+            if (type === 'quotation') setQuotationOptions(await searchQuotations(value));
+            if (type === 'product')   setProductOptions(await inventoryItemSearch(value));
+        }, 400);
+    };
 
-        setSummary((s) => ({
-            ...s,
-            subTotal,
-            extraDiscountPercentage, // ✅ picks up new state
-            extraDiscountValue,
-            taxableValue,
-            cgstAmount,
-            sgstAmount,
-            igstAmount,
-            netAmount,
-            roundOffAmount,
-            totalPayableAmount
+    const addItem = () => formik.setFieldValue('items', [...formik.values.items,
+        { inventoryItem: null, qty: 1, pricePerUnit: 0, gstRatePct: 18, hsnCode: '' }]);
 
-        }));
-    }, [
-        formik.values.items,
-        freightValue,
-        isTaxOnFreight,
-        extraDiscountPercentage,
-        taxType,
-        taxCategory // ✅ will now update when user edits
-    ]);
+    const removeItem = (i) => {
+        const updated = [...formik.values.items];
+        updated.splice(i, 1);
+        formik.setFieldValue('items', updated);
+    };
 
-
-
-    const onStatusChange = (event) => {
-
-        const newStatus = event.target.value;
-
-        if(!orderId)
-            return
-        // if DRAFT -> APPROVED, ask confirmation
-        if (status === "DRAFT" && newStatus === "APPROVED") {
-            setPendingStatus(newStatus);
-            setOpenInventoryConsumeDialog(true);
-        } else {
-            updateStatus(newStatus);
-        }
-    }
-
-    const updateStatus = async (newStatus) => {
+    const runAction = async (fn, label) => {
+        setActionLoading(true);
+        setError(null);
         try {
-            await apiService.post(
-                `/sales-orders/${orderId}/change-status/?inventoryAction=true`,
-                newStatus,
-                { headers: { "Content-Type": "application/json" } }
-            );
-            setStatus(newStatus);
-        } catch (error) {
-            // handled
-        }
-    };
-    const handleConfirm = () => {
-        setOpenInventoryConsumeDialog(false);
-        if (pendingStatus) {
-            updateStatus(pendingStatus);
-            setOpenInventoryConsumeDialog(null);
+            const res = await fn();
+            if (res) applyServerData(res);
+        } catch (e) {
+            setError(e?.response?.data?.message ?? `${label} failed.`);
+        } finally {
+            setActionLoading(false);
+            setDialog(null);
+            setDialogInput('');
         }
     };
 
-
-    const handleCancel = () => {
-        setOpenInventoryConsumeDialog(false);
-        setPendingStatus(null);
+    const confirmDialog = () => {
+        const t = dialog?.type;
+        if (t === 'submit')   runAction(() => submitSalesOrder(orderId),           'Submit');
+        if (t === 'approve')  runAction(() => approveSalesOrder(orderId),          'Approve');
+        if (t === 'reject')   runAction(() => rejectSalesOrder(orderId, dialogInput), 'Reject');
+        if (t === 'cancel')   runAction(() => cancelSalesOrder(orderId, dialogInput), 'Cancel');
+        if (t === 'complete') runAction(() => completeSalesOrder(orderId),         'Complete');
+        if (t === 'delete')   runAction(async () => { await deleteSalesOrder(orderId); navigate('/sales/sales-order'); }, 'Delete');
     };
+
+    const handleCreateInvoice = async () => {
+        setInvoiceSaving(true);
+        setInvoiceError(null);
+        try {
+            const res = await createTaxInvoice({
+                salesOrderId: orderId,
+                invoiceDate:  invoiceForm.invoiceDate,
+                dueDate:      invoiceForm.dueDate || null,
+                invoiceNumber: invoiceForm.invoiceNumber || null,
+            });
+            setInvoiceDialog(false);
+            navigate(`/sales/sales-order/invoices/view/${res.id}`);
+        } catch (e) {
+            setInvoiceError(e?.response?.data?.message ?? 'Failed to create invoice.');
+        } finally {
+            setInvoiceSaving(false);
+        }
+    };
+
+    // ── Derived state ─────────────────────────────────────────────────────────
+    const isDraft      = ['DRAFT', 'REJECTED'].includes(formik.values.approvalStatus);
+    const isPending    = formik.values.approvalStatus === 'PENDING_APPROVAL';
+    const isApproved   = formik.values.approvalStatus === 'APPROVED';
+    const isCancelled  = formik.values.status === 'CANCELLED';
+    const isCompleted  = formik.values.status === 'COMPLETED';
+    const isDispatched = ['FULLY_DISPATCHED','INVOICED','COMPLETED'].includes(formik.values.status);
+    const readOnly     = !isDraft || isCancelled || isCompleted;
+
+    const ss = STATUS_STYLE[formik.values.status]          ?? STATUS_STYLE.DRAFT;
+    const as = APPROVAL_STYLE[formik.values.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
+
+    const SectionHeader = ({ icon, title, subtitle }) => (
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
+            <Avatar sx={{ bgcolor: `${T.primary}15`, color: T.primary, width: 40, height: 40, borderRadius: 2 }}>{icon}</Avatar>
+            <Box>
+                <Typography sx={{ fontWeight: 900, color: T.text, fontSize: '1rem', lineHeight: 1.2 }}>{title}</Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: T.textSec, fontWeight: 500 }}>{subtitle}</Typography>
+            </Box>
+        </Stack>
+    );
+
+    if (loading) return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: 2, bgcolor: T.bg }}>
+            <CircularProgress size={48} thickness={4} />
+            <Typography sx={{ fontWeight: 800, color: T.textSec }}>Loading Sales Order...</Typography>
+        </Box>
+    );
 
     return (
-        <form onSubmit={formik.handleSubmit}>
-            <Card sx={{ mb: 2 }}>
-                <CardHeader
-                    title={formik.values.orderNumber || 'New Sales Order'}
-                    action={
-                        <FormControl fullWidth size="small">
-                            <InputLabel id="status-label">Status</InputLabel>
-                            <Select
-                                labelId="status-label"
-                                value={status || ""}
-                                onChange={(event) => onStatusChange(event)}
-                            >
-                                {Object.entries(SALES_ORDER_STATUSES).map(([value, { label }]) => (
+        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+            {/* ── Hero Header ── */}
+            <Box sx={{ 
+                bgcolor: '#0f172a', 
+                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
+                color: 'white', pt: 6, pb: 15
+            }}>
+                <Container maxWidth="xl">
+                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Stack direction="row" spacing={3} alignItems="center">
+                            <Tooltip title="Exit to Hub">
+                                <IconButton onClick={() => navigate('/sales/sales-order')} sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                    <ArrowBack />
+                                </IconButton>
+                            </Tooltip>
+                            <Box>
+                                <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 1 }}>
+                                    {isEdit ? `Order #${formik.values.orderNumber}` : 'New Sales Order'}
+                                </Typography>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    <Chip label={formik.values.status?.replace(/_/g, ' ')} size="small"
+                                        sx={{ fontSize: '0.65rem', fontWeight: 900, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', height: 22, textTransform: 'uppercase' }} />
+                                    {isEdit && (
+                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                                            Revision {formik.values.revisionNo}
+                                        </Typography>
+                                    )}
+                                </Stack>
+                            </Box>
+                        </Stack>
 
-                                    <MenuItem key={value} value={value}>
+                        <Stack direction="row" spacing={2}>
+                            {isDraft && !isCancelled && (
+                                <Button variant="contained" disableElevation disabled={saving}
+                                    startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                                    sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: T.primary, px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}
+                                    onClick={() => formik.submitForm()}>
+                                    {saving ? 'Saving...' : 'Save Sales Order'}
+                                </Button>
+                            )}
+                        </Stack>
+                    </Stack>
+                </Container>
+            </Box>
 
-                                        {label}
-                                    </MenuItem>
+            <Container maxWidth="xl" sx={{ mt: -8 }}>
+                {error && <Alert severity="error" variant="filled" onClose={() => setError(null)} sx={{ mb: 4, borderRadius: 4, fontWeight: 700 }}>{error}</Alert>}
 
-                                ))}
-                            </Select>
-                        </FormControl>
+                <Grid container spacing={4}>
+                    {/* ── Main Document Registry ── */}
+                    <Grid item xs={12} lg={9}>
+                        <Stack spacing={4}>
+                            
+                            {/* Status Workflow Ribbon */}
+                            {isEdit && !isCancelled && (
+                                <Paper elevation={0} sx={{ p: 1.5, borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                        {isDraft && (
+                                            <Button size="small" variant="outlined" startIcon={<HourglassTop />}
+                                                sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none', borderColor: T.primary, color: T.primary }}
+                                                onClick={() => setDialog({ type: 'submit', title: 'Finalize Order', body: 'Submit this order for approval? It will be locked for editing.' })}>
+                                                Submit for Approval
+                                            </Button>
+                                        )}
+                                        {isPending && (
+                                            <>
+                                                <Button size="small" variant="contained" color="success" disableElevation startIcon={<CheckCircle />}
+                                                    sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none' }}
+                                                    onClick={() => setDialog({ type: 'approve', title: 'Approve Order', body: 'This will authorize the order and reserve inventory.' })}>
+                                                    Approve
+                                                </Button>
+                                                <Button size="small" variant="outlined" color="error" startIcon={<Cancel />}
+                                                    sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none' }}
+                                                    onClick={() => setDialog({ type: 'reject', title: 'Reject Order', body: 'Reason for rejection:', input: 'Rejection Reason' })}>
+                                                    Reject
+                                                </Button>
+                                            </>
+                                        )}
+                                        {isApproved && !isCompleted && (
+                                            <Button size="small" variant="contained" disableElevation startIcon={<Send />}
+                                                sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none', bgcolor: '#0891b2' }}
+                                                onClick={() => setSendDialogOpen(true)}>
+                                                {formik.values.sentToCustomerAt ? 'Resend to Customer' : 'Send to Customer'}
+                                            </Button>
+                                        )}
+                                        {isApproved && !isDispatched && (
+                                            <Button size="small" variant="outlined" startIcon={<LocalShippingOutlined />}
+                                                sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none', color: T.success, borderColor: T.success }}
+                                                onClick={() => navigate(`/sales/sales-order/delivery-notes/add?soId=${orderId}`)}>
+                                                Create Dispatch
+                                            </Button>
+                                        )}
+                                        {(formik.values.status === 'FULLY_DISPATCHED' || formik.values.status === 'APPROVED') && (
+                                            <Button size="small" variant="outlined" startIcon={<Receipt />}
+                                                sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none', color: '#7c3aed', borderColor: '#7c3aed' }}
+                                                onClick={() => {
+                                                    setInvoiceError(null);
+                                                    setInvoiceForm({ 
+                                                        invoiceDate: new Date().toISOString().split('T')[0], 
+                                                        dueDate: '', 
+                                                        invoiceNumber: '' 
+                                                    });
+                                                    getNextInvoiceNumber().then(n => setInvoiceNextNum(n)).catch(() => {});
+                                                    setInvoiceDialog(true);
+                                                }}>
+                                                Create Invoice
+                                            </Button>
+                                        )}
+                                        <Box sx={{ flexGrow: 1 }} />
+                                        {!isCompleted && (
+                                            <Button size="small" color="error" startIcon={<Cancel />} sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none' }}
+                                                onClick={() => setDialog({ type: 'cancel', title: 'Cancel Order', body: 'Reason for cancellation:', input: 'Reason' })}>
+                                                Void Order
+                                            </Button>
+                                        )}
+                                    </Stack>
+                                </Paper>
+                            )}
 
+                            {/* Main Form Content */}
+                            <Paper elevation={0} sx={{ p: 5, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.06)' }}>
+                                <SectionHeader icon={<Business />} title="Entity Details" subtitle="Client identification and order reference" />
+                                <Grid container spacing={4}>
+                                    <Grid item xs={12} md={6}>
+                                        <Autocomplete options={contactOptions} getOptionLabel={(o) => o?.companyName || ''}
+                                            value={formik.values.contact}
+                                            onInputChange={(_, v) => handleSearch('contact', v)}
+                                            onChange={(_, v) => {
+                                                formik.setFieldValue('contact', v);
+                                                if (v?.addresses?.length > 0)
+                                                    formik.setFieldValue('deliveryAddress', convertAddressToString(v.addresses[0]));
+                                            }}
+                                            disabled={readOnly}
+                                            renderInput={(p) => <TextField {...p} label="Select Customer *" error={Boolean(formik.errors.contact)} helperText={formik.errors.contact} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} md={6}>
+                                        <Autocomplete options={quotationOptions} getOptionLabel={(o) => o?.qtnNo || ''}
+                                            value={formik.values.quotation}
+                                            onInputChange={(_, v) => handleSearch('quotation', v)}
+                                            onChange={async (_, v) => {
+                                                formik.setFieldValue('quotation', v);
+                                                if (v?.quotationProducts) {
+                                                    formik.setFieldValue('items', v.quotationProducts.map(p => ({
+                                                        inventoryItem: p.inventoryItem, qty: p.qty,
+                                                        pricePerUnit: p.pricePerUnit,
+                                                        gstRatePct: 18, hsnCode: p.inventoryItem?.hsnCode || '',
+                                                    })));
+                                                }
+                                            }}
+                                            disabled={readOnly}
+                                            renderInput={(p) => <TextField {...p} label="Link Reference Quotation" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />}
+                                        />
+                                    </Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth type="date" label="Order Date" name="orderDate" value={formik.values.orderDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth label="Client PO#" name="poNumber" value={formik.values.poNumber} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth type="date" label="PO Date" name="poDate" value={formik.values.poDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth label="Currency" name="currency" value={formik.values.currency} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                </Grid>
 
-                    }
-                />
-                <CardContent>
-                    {/* 1. Customer & Reference */}
-                    <Grid container spacing={2}>
-                        {/* Customer Information */}
+                                <Divider sx={{ my: 5, borderStyle: 'dashed' }} />
 
-                        {/* Order Information */}
-                        <Grid item xs={4}>
-                            <TextField
-                                type="date"
-                                name="orderDate"
-                                label="Sales Order Date"
-                                value={formatDateToInput(formik.values.orderDate)}
-                                onChange={formik.handleChange}
-                                InputLabelProps={{ shrink: true }}
-                                size="small"
-                                fullWidth
-                                required
-                            />
-                        </Grid>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                                    <SectionHeader icon={<ShoppingCart />} title="Order Manifest" subtitle={`Line item breakdown (${formik.values.items.length} positions)`} />
+                                    {!readOnly && (
+                                        <Button variant="outlined" startIcon={<Add />} onClick={addItem} sx={{ borderRadius: 3, fontWeight: 800, textTransform: 'none' }}>
+                                            Add Row
+                                        </Button>
+                                    )}
+                                </Stack>
+                                
+                                <TableContainer sx={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
+                                    <Table size="small">
+                                        <TableHead sx={{ bgcolor: T.bg }}>
+                                            <TableRow>
+                                                {['Item Specification', 'HSN', 'Quantity', 'Rate', 'GST', 'Subtotal', ''].map(h => (
+                                                    <TableCell key={h} sx={{ fontWeight: 900, color: T.textSec, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.1em', py: 2 }}>{h}</TableCell>
+                                                ))}
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {formik.values.items.map((item, idx) => (
+                                                <TableRow key={idx} sx={{ '&:hover': { bgcolor: `${T.bg}50` } }}>
+                                                    <TableCell sx={{ width: '35%', py: 2 }}>
+                                                        <Autocomplete options={productOptions} getOptionLabel={(o) => o.name || ''}
+                                                            value={item.inventoryItem}
+                                                            onInputChange={(_, v) => handleSearch('product', v)}
+                                                            onChange={(_, v) => {
+                                                                const u = [...formik.values.items];
+                                                                u[idx] = { 
+                                                                    ...u[idx], 
+                                                                    inventoryItem: v, 
+                                                                    pricePerUnit: v?.productFinanceSettings?.sellingPrice || 0, 
+                                                                    gstRatePct: v?.productFinanceSettings?.gstRate || 18,
+                                                                    hsnCode: v?.hsnCode || '' 
+                                                                };
+                                                                formik.setFieldValue('items', u);
+                                                            }}
+                                                            disabled={readOnly}
+                                                            renderInput={(p) => <TextField {...p} size="small" placeholder="Find Product..." variant="standard" sx={{ '& .MuiInput-root': { fontWeight: 700 } }} />}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell><TextField variant="standard" value={item.hsnCode} disabled={readOnly} sx={{ width: 70 }} /></TableCell>
+                                                    <TableCell><TextField variant="standard" type="number" value={item.qty} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].qty = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'center', fontWeight: 700 } }} sx={{ width: 60 }} /></TableCell>
+                                                    <TableCell><TextField variant="standard" type="number" value={item.pricePerUnit} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].pricePerUnit = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'right', fontWeight: 700 } }} sx={{ width: 80 }} /></TableCell>
+                                                    <TableCell><TextField variant="standard" type="number" value={item.gstRatePct} disabled={readOnly} sx={{ width: 50 }} inputProps={{ style: { textAlign: 'center' } }} /></TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 900, color: T.text }}>
+                                                        ₹{(parseNum(item.qty) * parseNum(item.pricePerUnit)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {!readOnly && (
+                                                            <IconButton size="small" onClick={() => removeItem(idx)} sx={{ color: T.error, bgcolor: `${T.error}10`, '&:hover': { bgcolor: `${T.error}20` } }}>
+                                                                <DeleteOutline fontSize="small" />
+                                                            </IconButton>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
 
-                        <Grid item xs={4}>
-                            <Autocomplete
-                                options={quotationOptions}
-                                getOptionLabel={(opt) => opt?.qtnNo || ""}
-                                value={formik.values.quotation}
-                                onInputChange={(event, newInputValue) =>
-                                    handleQuotationSearch(event, newInputValue)
-                                }
-                                onChange={(e, val) => handleQuotationChange(e, val)}
-                                isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                                renderInput={(params) => (
-                                    <TextField
-                                        {...params}
-                                        label="Quotation No."
-                                        size="small"
-                                        fullWidth
-                                    />
-                                )}
-                                loading={quotationLoading}
-                                noOptionsText={quotationLoading ? "Loading..." : "No items found"}
-                            />
-                        </Grid>
+                                <Divider sx={{ my: 5, borderStyle: 'dashed' }} />
 
-                        <Grid item xs={4}>
-                            <Autocomplete
-                                options={contactOptions}
-                                getOptionLabel={(opt) => opt?.companyName || ""}
-                                value={formik.values.contact}
-                                onInputChange={handleContactSearch}
-                                onChange={(e, val) => formik.setFieldValue("contact", val)}
-                                renderInput={(params) => (
-                                    <TextField {...params} label="Customer" size="small" required fullWidth />
-                                )}
-                            />
-                        </Grid>
-
-
-                        <Grid item xs={4}>
-                            <TextField
-                                name="poNumber"
-                                label="PO Number"
-                                value={formik.values.poNumber}
-                                onChange={formik.handleChange}
-                                fullWidth
-                                size="small"
-                            />
-                        </Grid>
-
-                        <Grid item xs={4}>
-                            <TextField
-                                name="poDate"
-                                label="PO Date"
-                                type="date"
-                                InputLabelProps={{ shrink: true }}
-                                value={formik.values.poDate || ""}
-                                onChange={formik.handleChange}
-                                fullWidth
-                                size="small"
-                            />
-                        </Grid>
-
-                        {/* Commercials */}
-                        <Grid item xs={4}>
-                            <TextField
-                                name="currency"
-                                label="Currency"
-                                value={formik.values.currency}
-                                onChange={formik.handleChange}
-                                fullWidth
-                                size="small"
-                                select
-                                required
-                            >
-                                <MenuItem value="INR">INR</MenuItem>
-                                <MenuItem value="USD">USD</MenuItem>
-                            </TextField>
-                        </Grid>
-
-                        <Grid item xs={6}>
-                            <TextField
-                                name="paymentTerms"
-                                label="Payment Terms"
-                                value={formik.values.paymentTerms}
-                                onChange={formik.handleChange}
-                                fullWidth
-                                size="small"
-                            />
-                        </Grid>
+                                <Grid container spacing={5}>
+                                    <Grid item xs={12} md={6}>
+                                        <SectionHeader icon={<LocalShipping />} title="Delivery & Dispatch" subtitle="Logistics and routing parameters" />
+                                        <Stack spacing={3}>
+                                            <TextField fullWidth multiline rows={3} label="Consignee Delivery Address" name="deliveryAddress" value={formik.values.deliveryAddress} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }} />
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={6}><TextField fullWidth label="Dispatch Through" name="dispatchThrough" value={formik.values.dispatchThrough} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                                <Grid item xs={6}><TextField fullWidth label="Transport Mode" name="transportMode" value={formik.values.transportMode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                            </Grid>
+                                            <TextField fullWidth multiline rows={2} label="Internal Remarks" name="remarks" value={formik.values.remarks} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }} />
+                                        </Stack>
+                                    </Grid>
+                                    <Grid item xs={12} md={6}>
+                                        <SectionHeader icon={<AccountBalance />} title="Taxation Strategy" subtitle="GST treatment and supplemental charges" />
+                                        <Stack spacing={3}>
+                                            <TextField select fullWidth label="GST Treatment" name="taxType" value={formik.values.taxType} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}>
+                                                <MenuItem value="CGST_SGST">Intra-State (CGST + SGST)</MenuItem>
+                                                <MenuItem value="IGST">Inter-State (IGST)</MenuItem>
+                                            </TextField>
+                                            <Grid container spacing={2}>
+                                                <Grid item xs={8}><TextField fullWidth label="Place of Supply" name="placeOfSupply" value={formik.values.placeOfSupply} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                                <Grid item xs={4}><TextField fullWidth label="Code" name="placeOfSupplyStateCode" value={formik.values.placeOfSupplyStateCode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                            </Grid>
+                                            <TextField fullWidth label="Global Discount %" name="discountPercentage" type="number" value={formik.values.discountPercentage} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+                                            <TextField fullWidth label="Freight Charges (₹)" name="freightAndForwardingCharges" type="number" value={formik.values.freightAndForwardingCharges} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+                                        </Stack>
+                                    </Grid>
+                                </Grid>
+                            </Paper>
+                        </Stack>
                     </Grid>
 
-                </CardContent>
-            </Card>
+                    {/* ── Sidebar Analytics & Actions ── */}
+                    <Grid item xs={12} lg={3}>
+                        <Stack spacing={4} sx={{ position: 'sticky', top: 32 }}>
+                            
+                            {/* Summary Card */}
+                            <Paper elevation={0} sx={{ borderRadius: 5, border: `1px solid ${T.border}`, overflow: 'hidden', bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                <Box sx={{ p: 4, bgcolor: T.text, color: 'white' }}>
+                                    <Typography sx={{ fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, mb: 1 }}>Grand Total</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>₹{parseNum(formik.values.totalPayableAmount).toLocaleString('en-IN')}</Typography>
+                                </Box>
+                                <Box sx={{ p: 4 }}>
+                                    <Stack spacing={2.5}>
+                                        {[
+                                            ['Net Taxable', formik.values.taxableValue],
+                                            ['Tax Liability', parseNum(formik.values.cgstAmount) + parseNum(formik.values.sgstAmount) + parseNum(formik.values.igstAmount)],
+                                            ['Adjustments', formik.values.roundOffAmount + parseNum(formik.values.freightAndForwardingCharges)],
+                                        ].map(([label, val]) => (
+                                            <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>{label}</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>₹{parseNum(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                            </Box>
+                                        ))}
+                                        <Divider sx={{ my: 1 }} />
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Typography sx={{ fontWeight: 900, color: T.textSec, fontSize: '0.7rem', textTransform: 'uppercase' }}>Fulfillment</Typography>
+                                            <Chip label={formik.values.status} size="small" sx={{ borderRadius: 1.5, fontWeight: 900, fontSize: '0.65rem', bgcolor: `${T.primary}10`, color: T.primary }} />
+                                        </Box>
+                                    </Stack>
+                                </Box>
+                            </Paper>
 
-            {/* 2. Line Items Section */}
-            <SalesOrderItemsTable
-                items={formik.values.items}
-                setItems={items => { setItems(items); formik.setFieldValue('items', items); }}
-                currency={formik.values.currency}
-            />
+                            {/* Profitability Card (Only visible to authorized roles) */}
+                            {profitability && (
+                                <Paper elevation={0} sx={{ borderRadius: 5, border: `1px solid ${T.border}`, overflow: 'hidden', bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                    <Box sx={{ p: 3, bgcolor: '#0f172a', color: 'white' }}>
+                                        <Typography sx={{ fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, mb: 1 }}>Gross Profit</Typography>
+                                        <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.03em', color: profitability.grossProfit >= 0 ? '#4ade80' : '#f87171' }}>
+                                            ₹{parseNum(profitability.grossProfit).toLocaleString('en-IN')}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ p: 3 }}>
+                                        <Stack spacing={2}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>Total Revenue</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>₹{parseNum(profitability.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>Actual COGS</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>₹{parseNum(profitability.totalActualCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                            </Box>
+                                            <Divider sx={{ my: 1 }} />
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <Typography sx={{ fontWeight: 900, color: T.textSec, fontSize: '0.7rem', textTransform: 'uppercase' }}>Margin</Typography>
+                                                <Chip label={`${parseNum(profitability.grossMarginPercentage).toFixed(2)}%`} size="small" sx={{ borderRadius: 1.5, fontWeight: 900, fontSize: '0.65rem', bgcolor: profitability.grossMarginPercentage >= 0 ? '#dcfce7' : '#fee2e2', color: profitability.grossMarginPercentage >= 0 ? '#166534' : '#991b1b' }} />
+                                            </Box>
+                                        </Stack>
+                                    </Box>
+                                </Paper>
+                            )}
 
-            {/* 3. Commercial Summary Section */}
-            <Card sx={{ width: "100%", mt: 2 }}>
-                <CardHeader title="Finanical Details"
-                    titleTypographyProps={{ fontSize: 16, fontWeight: 500 }}
-                    sx={{ pb: 0.5 }} />
-                <CardContent>
-                    <div style={{ display: "flex", gap: "10px;" }}>
-                        <TaxAndDiscountCard
-                            summary={summary}
-                            setSummary={setSummary}
-                            currency={formatCurrency(formik.values.currency)}
-                            setExtraDiscountPercentage={setExtraDiscountPercentage}
-                            taxType={taxType}
-                            setTaxType={setTaxType}
-                            setTaxCategory={setTaxCategory}
-                            taxCategory={taxCategory}
-                            freightValue={freightValue}
-                            setFreightValue={setFreightValue}
-                            isTaxOnFreight={isTaxOnFreight}
-                            setIsTaxOnFreight={setIsTaxOnFreight}
-                        />
-                        <SalesOrderSummary summary={summary} setSummary={setSummary} currency={formatCurrency(formik.values.currency)} setExtraDiscountPercentage={setExtraDiscountPercentage} taxType={taxType} taxCategory={taxCategory} />
-                    </div>
-                </CardContent>
+                            {/* Approval Status Card */}
+                            <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                <Typography sx={{ fontWeight: 900, mb: 3, color: T.text, fontSize: '1.1rem' }}>Approval Flow</Typography>
+                                <Stack spacing={3}>
+                                    <Box sx={{ p: 2, borderRadius: 3, bgcolor: `${as.bg}`, border: `1px solid ${as.border}` }}>
+                                        <Stack direction="row" spacing={2} alignItems="center">
+                                            <Avatar sx={{ bgcolor: as.color, width: 32, height: 32 }}>
+                                                {formik.values.approvalStatus === 'APPROVED' ? <CheckCircle sx={{ fontSize: 20 }} /> : <History sx={{ fontSize: 20 }} />}
+                                            </Avatar>
+                                            <Box>
+                                                <Typography sx={{ fontWeight: 900, fontSize: '0.85rem', color: as.color }}>{formik.values.approvalStatus.replace(/_/g, ' ')}</Typography>
+                                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{formik.values.approvedBy ? `By ${formik.values.approvedBy}` : 'Pending review'}</Typography>
+                                            </Box>
+                                        </Stack>
+                                    </Box>
+                                    {formik.values.rejectionReason && (
+                                        <Alert severity="error" icon={<Cancel />} sx={{ borderRadius: 3, fontSize: '0.75rem', fontWeight: 600 }}>
+                                            {formik.values.rejectionReason}
+                                        </Alert>
+                                    )}
+                                </Stack>
+                            </Paper>
 
-            </Card>
-            {/* 4. Logistics & References */}
-            <Card sx={{ mt: 2 }}>
-                <CardHeader title="Logistics & References" />
-                <CardContent>
-                    <Grid container spacing={2}>
-                        <Grid item xs={6}>
-                            <TextField
-                                name="deliveryAddress"
-                                label="Delivery Address"
-                                value={formik.values.deliveryAddress}
-                                onChange={formik.handleChange}
-                                fullWidth
-                                size="small"
-                                multiline
-                                InputProps={{
-                                    style: { fontSize: 13 },   // text inside the input
-                                }}
-                                InputLabelProps={{
-                                    style: { fontSize: 13 },   // label text
-                                }}
-                            />
+                            {/* Related Documents Card */}
+                            {isEdit && (
+                                <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                    <Typography sx={{ fontWeight: 900, mb: 3, color: T.text, fontSize: '1.1rem' }}>Quick Links</Typography>
+                                    <Stack spacing={1.5}>
+                                        <Button fullWidth variant="outlined" startIcon={<Receipt />} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 800, color: T.textSec, borderColor: T.border }}
+                                            onClick={(e) => {
+                                                if (linkedInvoices.length === 1) {
+                                                    navigate(`/sales/sales-order/invoices/view/${linkedInvoices[0].id}`);
+                                                } else if (linkedInvoices.length > 1) {
+                                                    setInvAnchor(e.currentTarget);
+                                                } else {
+                                                    navigate(`/sales/sales-order/invoices?salesOrderNumber=${formik.values.orderNumber}`);
+                                                }
+                                            }}>
+                                            {linkedInvoices.length > 0 ? `Invoices (${linkedInvoices.length})` : 'Linked Invoices'}
+                                        </Button>
 
-                        </Grid>
-                        <Grid item xs={3}><TextField name="dispatchThrough" label="Dispatch Through" value={formik.values.dispatchThrough} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={3}><TextField name="transportMode" label="Transport Mode" value={formik.values.transportMode} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={2}><TextField name="deliveryDate" label="Delivery Date" type="date" InputLabelProps={{ shrink: true }} value={formik.values.deliveryDate || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={2}><TextField name="packagingInstructions" label="Packaging Instructions" value={formik.values.packagingInstructions || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={2}><TextField name="shippingMethod" label="Shipping Method" value={formik.values.shippingMethod || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={2}><TextField name="ewayBillNumber" label="E-Way Bill No." value={formik.values.ewayBillNumber || ''} onChange={formik.handleChange} fullWidth size="small" helperText="Required for goods > ₹50,000" /></Grid>
-
-                        <Grid item xs={2}><TextField name="reference" label="Reference" value={formik.values.reference || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
-                        <Grid item xs={2}><TextField name="remarks" label="Remarks" value={formik.values.remarks || ''} onChange={formik.handleChange} fullWidth size="small" /></Grid>
+                                        <Button fullWidth variant="outlined" startIcon={<LocalShippingOutlined />} sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 800, color: T.textSec, borderColor: T.border }}
+                                            onClick={(e) => {
+                                                if (linkedChallans.length === 1) {
+                                                    navigate(`/sales/sales-order/delivery-notes/view/${linkedChallans[0].id}`);
+                                                } else if (linkedChallans.length > 1) {
+                                                    setDnAnchor(e.currentTarget);
+                                                } else {
+                                                    navigate(`/sales/sales-order/delivery-notes?salesOrderNumber=${formik.values.orderNumber}`);
+                                                }
+                                            }}>
+                                            {linkedChallans.length > 0 ? `Challans (${linkedChallans.length})` : 'Linked Challans'}
+                                        </Button>
+                                    </Stack>
+                                </Paper>
+                            )}
+                        </Stack>
                     </Grid>
-                </CardContent>
-            </Card>
+                </Grid>
+            </Container>
 
+            {/* Document Context Menus */}
+            <Menu anchorEl={invAnchor} open={Boolean(invAnchor)} onClose={() => setInvAnchor(null)} PaperProps={{ sx: { borderRadius: 3, minWidth: 200, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' } }}>
+                <Typography sx={{ px: 2, py: 1, fontSize: '0.65rem', fontWeight: 900, color: T.textSec, textTransform: 'uppercase' }}>Select Invoice</Typography>
+                {linkedInvoices.map(inv => (
+                    <MenuItem key={inv.id} onClick={() => { setInvAnchor(null); navigate(`/sales/sales-order/invoices/view/${inv.id}`); }} sx={{ py: 1.5 }}>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <Receipt sx={{ fontSize: 16, color: T.primary }} />
+                            <Box>
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{inv.invoiceNumber}</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{inv.invoiceDate} · ₹{parseFloat(inv.totalAmount || 0).toLocaleString()}</Typography>
+                            </Box>
+                        </Stack>
+                    </MenuItem>
+                ))}
+                <Divider />
+                <MenuItem onClick={() => { setInvAnchor(null); navigate(`/sales/sales-order/invoices?salesOrderNumber=${formik.values.orderNumber}`); }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: T.primary, width: '100%', textAlign: 'center' }}>View All Invoices</Typography>
+                </MenuItem>
+            </Menu>
 
+            <Menu anchorEl={dnAnchor} open={Boolean(dnAnchor)} onClose={() => setDnAnchor(null)} PaperProps={{ sx: { borderRadius: 3, minWidth: 200, boxShadow: '0 10px 40px rgba(0,0,0,0.1)' } }}>
+                <Typography sx={{ px: 2, py: 1, fontSize: '0.65rem', fontWeight: 900, color: T.textSec, textTransform: 'uppercase' }}>Select Challan</Typography>
+                {linkedChallans.map(dn => (
+                    <MenuItem key={dn.id} onClick={() => { setDnAnchor(null); navigate(`/sales/sales-order/delivery-notes/view/${dn.id}`); }} sx={{ py: 1.5 }}>
+                        <Stack direction="row" spacing={1.5} alignItems="center">
+                            <LocalShipping sx={{ fontSize: 16, color: T.success }} />
+                            <Box>
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{dn.deliveryNoteNo}</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{dn.deliveryDate}</Typography>
+                            </Box>
+                        </Stack>
+                    </MenuItem>
+                ))}
+                <Divider />
+                <MenuItem onClick={() => { setDnAnchor(null); navigate(`/sales/sales-order/delivery-notes?salesOrderNumber=${formik.values.orderNumber}`); }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: T.success, width: '100%', textAlign: 'center' }}>View All Challans</Typography>
+                </MenuItem>
+            </Menu>
 
-            <Dialog open={openInventoryConsumeDialog} onClose={handleCancel}>
-                <DialogTitle>Approve Sales Order</DialogTitle>
+            {/* Standard Dialogs */}
+            <Dialog open={Boolean(dialog)} onClose={() => { setDialog(null); setDialogInput(''); }} PaperProps={{ sx: { borderRadius: 5, p: 1 } }}>
+                <DialogTitle sx={{ fontWeight: 900, fontSize: '1.25rem' }}>{dialog?.title}</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Approving this order will reserve the listed items in inventory.
-                        Do you want to proceed?
-                    </DialogContentText>
+                    <DialogContentText sx={{ fontWeight: 500, color: T.textSec }}>{dialog?.body}</DialogContentText>
+                    {dialog?.input && (
+                        <TextField fullWidth multiline rows={3} label={dialog.input} value={dialogInput}
+                            onChange={(e) => setDialogInput(e.target.value)}
+                            sx={{ mt: 3, '& .MuiOutlinedInput-root': { borderRadius: 3 } }} autoFocus />
+                    )}
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCancel} color="inherit">
-                        Cancel
-                    </Button>
-                    <Button onClick={handleConfirm} color="primary" variant="contained">
-                        Reserve Inventory &amp; Approve
+                <DialogActions sx={{ p: 3 }}>
+                    <Button onClick={() => { setDialog(null); setDialogInput(''); }} sx={{ borderRadius: 2, fontWeight: 800, textTransform: 'none', color: T.textSec }}>Cancel</Button>
+                    <Button variant="contained" disableElevation onClick={confirmDialog}
+                        sx={{ borderRadius: 3, fontWeight: 900, textTransform: 'none', bgcolor: ['reject','cancel','delete'].includes(dialog?.type) ? T.error : T.primary }}>
+                        {actionLoading ? <CircularProgress size={20} color="inherit" /> : 'Proceed'}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* 5. Submit Button */}
-            <Box mt={2} display="flex" justifyContent="flex-end">
-                <Button variant="contained" type="submit" color="primary" disabled={formik.isSubmitting}>
-                    {orderId ? 'Update' : 'Create'} Sales Order
-                </Button>
-            </Box>
-        </form >
+            <SendSalesOrderDialog open={sendDialogOpen} onClose={() => setSendDialogOpen(false)} orderId={orderId} order={formik.values} onSent={(res) => { setSendDialogOpen(false); if (res) applyServerData(res); }} />
+
+            <Dialog open={invoiceDialog} onClose={() => !invoiceSaving && setInvoiceDialog(false)} PaperProps={{ sx: { borderRadius: 5, p: 2 } }}>
+                <DialogTitle sx={{ fontWeight: 900 }}>Create Tax Invoice {invoiceNextNum && `· ${invoiceNextNum}`}</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={3} sx={{ mt: 1 }}>
+                        <TextField 
+                            fullWidth label="Invoice Number" 
+                            placeholder="[ Auto-Generate ]"
+                            value={invoiceForm.invoiceNumber} 
+                            onChange={e => setInvoiceForm({ ...invoiceForm, invoiceNumber: e.target.value })} 
+                            helperText="Leave blank for automatic professional sequence"
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} 
+                        />
+                        <TextField fullWidth type="date" label="Invoice Date" value={invoiceForm.invoiceDate} onChange={e => setInvoiceForm({ ...invoiceForm, invoiceDate: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+                        <TextField fullWidth type="date" label="Payment Due Date (Optional)" value={invoiceForm.dueDate} onChange={e => setInvoiceForm({ ...invoiceForm, dueDate: e.target.value })} InputLabelProps={{ shrink: true }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+                        {invoiceError && <Alert severity="error" sx={{ borderRadius: 3 }}>{invoiceError}</Alert>}
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ p: 3 }}>
+                    <Button onClick={() => setInvoiceDialog(false)} sx={{ fontWeight: 800, textTransform: 'none' }}>Back</Button>
+                    <Button variant="contained" disableElevation disabled={invoiceSaving} onClick={handleCreateInvoice} sx={{ borderRadius: 3, fontWeight: 900, textTransform: 'none', bgcolor: '#7c3aed' }}>
+                        {invoiceSaving ? <CircularProgress size={20} color="inherit" /> : 'Generate Invoice'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
     );
-}
+};
 
 export default AddUpdateSalesOrder;

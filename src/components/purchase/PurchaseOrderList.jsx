@@ -7,6 +7,7 @@ import {
 import {
     Add, FileDownload, Refresh, Visibility, Search,
     FilterList, Event, Storefront, LocalAtm, ChevronRight,
+    BarChart, Warning, Receipt,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { listPurchaseOrders, downloadPOPdf } from '../../services/purchaseOrderService';
@@ -59,7 +60,7 @@ const StatCard = ({ title, value, accent, icon: Icon }) => (
     </Paper>
 );
 
-const POCard = ({ row, onClick, onDownload }) => {
+const POCard = ({ row, onClick, onDownload, onInvoices }) => {
     const ss = STATUS_STYLE[row.status] ?? STATUS_STYLE.DRAFT;
     const as = APPROVAL_STYLE[row.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
     const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -121,6 +122,12 @@ const POCard = ({ row, onClick, onDownload }) => {
                             </Typography>
                         </Box>
                         <Stack direction="row" spacing={0.5}>
+                            <Tooltip title="Vendor Invoices">
+                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onInvoices(); }}
+                                    sx={{ color: '#64748b', '&:hover': { color: '#7c3aed', background: '#f5f3ff' } }}>
+                                    <Receipt sx={{ fontSize: 18 }} />
+                                </IconButton>
+                            </Tooltip>
                             <Tooltip title="Download PDF">
                                 <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDownload(); }}
                                     sx={{ color: '#64748b', '&:hover': { color: PRIMARY, background: PRIMARY_LIGHT } }}>
@@ -192,12 +199,25 @@ export default function PurchaseOrderList() {
                         Create and manage your procurement pipeline with vendors
                     </Typography>
                 </Box>
-                <Stack direction="row" spacing={1.5}>
+                <Stack direction="row" spacing={1.5} flexWrap="wrap">
                     <Tooltip title="Refresh data">
                         <IconButton onClick={load} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
                             <Refresh />
                         </IconButton>
                     </Tooltip>
+                    <Tooltip title="Overdue POs">
+                        <IconButton onClick={() => navigate('overdue')}
+                            sx={{ border: `1px solid #fca5a5`, borderRadius: 2, bgcolor: 'white', color: '#dc2626',
+                                '&:hover': { bgcolor: '#fef2f2' } }}>
+                            <Warning />
+                        </IconButton>
+                    </Tooltip>
+                    <Button variant="outlined" startIcon={<BarChart />}
+                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: BORDER, color: '#475569',
+                            '&:hover': { bgcolor: PRIMARY_LIGHT, borderColor: PRIMARY, color: PRIMARY } }}
+                        onClick={() => navigate('analytics')}>
+                        Analytics
+                    </Button>
                     <Button variant="contained" disableElevation startIcon={<Add />}
                         sx={{ background: PRIMARY, borderRadius: 2, px: 3, py: 1, textTransform: 'none', fontWeight: 700, fontSize: '0.9rem',
                             boxShadow: '0 4px 12px rgba(21, 101, 192, 0.2)', '&:hover': { background: '#0d47a1' } }}
@@ -277,7 +297,7 @@ export default function PurchaseOrderList() {
                     <Grid container spacing={3}>
                         {rows.map(row => (
                             <Grid item xs={12} sm={6} md={4} lg={3} key={row.id}>
-                                <POCard row={row} onClick={() => navigate(`${row.id}`)} onDownload={() => downloadPOPdf(row.id)} />
+                                <POCard row={row} onClick={() => navigate(`${row.id}`)} onDownload={() => downloadPOPdf(row.id)} onInvoices={() => navigate(`${row.id}/invoices`)} />
                             </Grid>
                         ))}
                     </Grid>

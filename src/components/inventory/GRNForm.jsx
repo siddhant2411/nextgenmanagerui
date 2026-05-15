@@ -22,7 +22,9 @@ const emptyLine = () => ({
     rate: 0,
     amount: 0,
     batchNo: '',
+    manufacturingDate: '',
     expiryDate: '',
+    manualSerialNumbers: [],
     rejectionReason: '',
 });
 
@@ -93,7 +95,9 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                     rate: poi.unitPrice || 0,
                     amount: (poi.quantityOrdered || 0) * (poi.unitPrice || 0),
                     batchNo: '',
+                    manufacturingDate: '',
                     expiryDate: '',
+                    manualSerialNumbers: [],
                     rejectionReason: '',
                 })));
             }
@@ -147,8 +151,10 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                     rejectedQty: parseFloat(l.rejectedQty) || 0,
                     rate: parseFloat(l.rate) || 0,
                     amount: parseFloat(l.amount) || 0,
-                    batchNo: l.batchNo || null,
+                    supplierBatchNo: l.batchNo || null,
+                    manufacturingDate: l.manufacturingDate || null,
                     expiryDate: l.expiryDate || null,
+                    manualSerialNumbers: l.manualSerialNumbers?.length ? l.manualSerialNumbers : null,
                     rejectionReason: l.rejectionReason || null,
                 })),
             });
@@ -236,6 +242,8 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                                 <TableCell sx={{ fontWeight: 700 }} align="right">Rate (₹)</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }} align="right">Amount (₹)</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Batch #</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Mfg Date</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Serials (CSV)</TableCell>
                                 {!isView && <TableCell />}
                             </TableRow>
                         </TableHead>
@@ -291,6 +299,29 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                                                 onChange={(e) => updateLine(idx, 'batchNo', e.target.value)}
                                                 placeholder="Batch"
                                                 sx={{ width: 100 }}
+                                            />
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {isView ? (line.manufacturingDate || '-') : (
+                                            <TextField
+                                                size="small"
+                                                type="date"
+                                                value={line.manufacturingDate}
+                                                onChange={(e) => updateLine(idx, 'manufacturingDate', e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                sx={{ width: 130 }}
+                                            />
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {isView ? (line.manualSerialNumbers?.join(', ') || '-') : (
+                                            <TextField
+                                                size="small"
+                                                value={line.manualSerialNumbers?.join(', ') || ''}
+                                                onChange={(e) => updateLine(idx, 'manualSerialNumbers', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                                                placeholder="SN1, SN2..."
+                                                sx={{ width: 150 }}
                                             />
                                         )}
                                     </TableCell>

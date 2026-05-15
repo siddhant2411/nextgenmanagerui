@@ -1,54 +1,71 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import AddUpdateSalesOrder from './AddUpdateSalesOrder';
-import SalesOrderRegister from './SalesOrderRegister';
-import apiService from '../../../services/apiService';
+import SalesOrderHub from './SalesOrderHub';
 import RoleProtectedRoute from '../../../auth/RoleProtectedRoute';
 import { SALES_MANAGE_ROLES } from '../../../auth/roles';
+import DeliveryNoteHub from '../deliverynote/DeliveryNoteHub';
+import AddUpdateDeliveryNote from '../deliverynote/AddUpdateDeliveryNote';
+import InvoiceHub from '../invoice/InvoiceHub';
+import AddUpdateInvoice from '../invoice/AddUpdateInvoice';
 
 export default function SalesOrder() {
-
-  const handleSave = async (data) => {
-
-    try {
-      if (data.id) {
-        await apiService.put(`/sales-orders/${data.id}`, data); // Update
-      } else {
-        await apiService.post('/sales-orders', data); // Create
-      }
-      // navigate(-1);
-    } catch (err) {
-      // handled
-    }
-  };
   return (
     <Routes>
-      {/* Main register (sales order list) */}
-      <Route path="/" element={<SalesOrderRegister />} />
-      {/* Add (Create New) route */}
+      {/* Sales Order List + Analytics */}
+      <Route path="/" element={<SalesOrderHub />} />
+
+      {/* Create */}
       <Route
         path="/add"
         element={
-          <RoleProtectedRoute
-            allowedRoles={SALES_MANAGE_ROLES}
-            deniedMessage="You are not authorized to create sales orders."
-          >
-            <AddUpdateSalesOrder mode="add" onSave={handleSave} />
+          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to create sales orders.">
+            <AddUpdateSalesOrder />
           </RoleProtectedRoute>
         }
       />
-      {/* Edit route; param is orderId */}
+
+      {/* Edit / View */}
       <Route
         path="/edit/:orderId"
         element={
-          <RoleProtectedRoute
-            allowedRoles={SALES_MANAGE_ROLES}
-            deniedMessage="You are not authorized to edit sales orders."
-          >
-            <AddUpdateSalesOrder mode="edit" onSave={handleSave} />
+          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to edit sales orders.">
+            <AddUpdateSalesOrder />
           </RoleProtectedRoute>
         }
       />
+
+      {/* Delivery Notes list */}
+      <Route path="/delivery-notes" element={<DeliveryNoteHub />} />
+
+      {/* Create Delivery Note (soId passed as query param: ?soId=123) */}
+      <Route
+        path="/delivery-notes/add"
+        element={
+          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to create delivery notes.">
+            <AddUpdateDeliveryNote />
+          </RoleProtectedRoute>
+        }
+      />
+
+      {/* View existing Delivery Note */}
+      <Route path="/delivery-notes/view/:dnId" element={<AddUpdateDeliveryNote />} />
+
+      {/* Tax Invoices list */}
+      <Route path="/invoices" element={<InvoiceHub />} />
+
+      {/* Create Invoice (soId passed as query param: ?soId=123) */}
+      <Route
+        path="/invoices/add"
+        element={
+          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to create invoices.">
+            <AddUpdateInvoice />
+          </RoleProtectedRoute>
+        }
+      />
+
+      {/* View existing Invoice */}
+      <Route path="/invoices/view/:invoiceId" element={<AddUpdateInvoice />} />
     </Routes>
   );
 }

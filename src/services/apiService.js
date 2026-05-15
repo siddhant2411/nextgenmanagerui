@@ -214,8 +214,8 @@ const apiService = {
         });
     },
 
-    post: async (endpoint, data) => {
-        const response = await apiClient.post(endpoint, data);
+    post: async (endpoint, data, config = {}) => {
+        const response = await apiClient.post(endpoint, data, config);
         return response.data;
     },
 

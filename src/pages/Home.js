@@ -258,7 +258,7 @@ export default function Home() {
                                                 <TableRow
                                                     key={wo.id}
                                                     hover
-                                                    onClick={() => navigate(`/production/work-order/${wo.id}`)}
+                                                    onClick={() => navigate(`/production/work-order/edit/${wo.id}`)}
                                                     sx={{ cursor: "pointer", "&:hover": { bgcolor: "#e3f2fd" } }}
                                                 >
                                                     <TableCell sx={{ fontSize: "0.8125rem", fontWeight: 600, color: "#1565c0" }}>
