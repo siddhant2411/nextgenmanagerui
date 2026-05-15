@@ -277,7 +277,7 @@ const QuotationList = ({
                             </IconButton>
                           </Tooltip>
                         )}
-                        {row.quotationStatus === 'ACCEPTED' && (
+                        {(row.quotationStatus === 'ACCEPTED' || row.quotationStatus === 'SENT') && (
                           <Tooltip title="Convert to Sales Order">
                             <IconButton size="small" onClick={(e) => { e.stopPropagation(); navigate('/sales/sales-order/add', { state: { prefillQuotationId: row.id } }); }} sx={{ color: '#64748b', '&:hover': { color: '#059669' } }}>
                               <PlayArrow sx={{ fontSize: 16 }} />

@@ -13,6 +13,15 @@ export const getPurchaseOrder = (id) =>
 export const getNextPONumber = () =>
     apiService.get('/purchase-orders/next-number');
 
+export const getPendingReceiptPOs = () =>
+    apiService.get('/purchase-orders/pending-receipt');
+
+export const getOverduePOs = () =>
+    apiService.get('/purchase-orders/overdue');
+
+export const getPurchaseAnalytics = () =>
+    apiService.get('/purchase-orders/analytics');
+
 // ── Create / Update / Delete ─────────────────────────────────────────────────
 
 export const createPurchaseOrder = (payload) =>
@@ -61,6 +70,9 @@ const purchaseOrderService = {
     listPurchaseOrders,
     getPurchaseOrder,
     getNextPONumber,
+    getPendingReceiptPOs,
+    getOverduePOs,
+    getPurchaseAnalytics,
     createPurchaseOrder,
     updatePurchaseOrder,
     deletePurchaseOrder,

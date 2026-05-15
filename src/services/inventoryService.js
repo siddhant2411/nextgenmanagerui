@@ -124,6 +124,8 @@ const inventoryService = {
     getGroupedInventory,
     updateInventory,
     addInventory,
+    getAvailableInstancesWithDetails: (itemId) => apiService.get(`/inventory/instances/available/${itemId}`),
+    getInstanceHistory: (id) => apiService.get(`/inventory/instances/${id}/history`),
     getAttachmentBlob,
 };
 

@@ -1,11 +1,25 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Routes, useLocation, useNavigate, Route} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Alert, CircularProgress, Box, Paper, Stack, Typography, Button, Divider, Grid} from "@mui/material";
+import {Alert, CircularProgress, Box, Paper, Stack, Typography, Button, Divider, Grid, Container, Avatar} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
-import { AddCircleOutline, Description, PlayArrow, Autorenew, AttachMoney } from "@mui/icons-material";
+import { AddCircleOutline, Description, PlayArrow, Autorenew, AttachMoney, ChevronLeft } from "@mui/icons-material";
 import QuotationList from "./QuotationList";
 import AddUpdateQuotation from "./AddUpdateQuotation";
+
+/* ── Premium Design Tokens ── */
+const T = {
+    primary: '#2563eb',
+    success: '#059669',
+    error:   '#dc2626',
+    warning: '#d97706',
+    bg:      '#f8fafc',
+    card:    '#ffffff',
+    border:  '#e2e8f0',
+    text:    '#0f172a',
+    textSec: '#64748b',
+    header:  'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+};
 
 const Quotation = () => {
     const [loading, setLoading] = useState(false);
@@ -66,7 +80,6 @@ const Quotation = () => {
                     sortDir: dir,
                 };
 
-                // Only add filters that have a non-empty value
                 Object.keys(filterData).forEach(key => {
                     if (filterData[key] !== '' && filterData[key] !== null && filterData[key] !== undefined) {
                         params[key] = filterData[key];
@@ -129,75 +142,77 @@ const Quotation = () => {
     }, [location]);
 
     return (
-        <div>
+        <Box sx={{ bgcolor: T.bg, minHeight: '100vh' }}>
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={5000}
                 onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>
+                <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}>
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+            
             <Routes>
                 <Route
                     path="/"
                     element={
-                        <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: { xs: 2, md: 3 },
-                                    width: '100%',
-                                    borderRadius: 2,
-                                    border: '1px solid #e2e8f0',
-                                    bgcolor: 'white'
-                                }}
-                            >
-                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
-                                    <Box>
-                                        <Typography variant="h4" sx={{ fontWeight: 900, color: '#0f172a', letterSpacing: '-0.03em', mb: 0.5 }}>
-                                            Quotation Hub
-                                        </Typography>
-                                        <Typography variant="body1" sx={{ color: '#64748b', fontWeight: 500 }}>
-                                            Review, track and send professional proposals
-                                        </Typography>
-                                    </Box>
-                                    <Button
-                                        variant="contained" 
-                                        disableElevation
-                                        startIcon={<AddCircleOutline />}
-                                        onClick={() => navigate('add')}
-                                        sx={{
-                                            borderRadius: 3, textTransform: 'none',
-                                            fontWeight: 800, px: 3, py: 1.2,
-                                            bgcolor: '#2563eb', '&:hover': { bgcolor: '#1e40af' },
-                                            boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.2)'
-                                        }}
-                                    >
-                                        Create New Quotation
-                                    </Button>
-                                </Stack>
+                        <Box>
+                            {/* ── Hero Header ── */}
+                            <Box sx={{ 
+                                bgcolor: '#0f172a', 
+                                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
+                                color: 'white', pt: 6, pb: 15
+                            }}>
+                                <Container maxWidth="xl">
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                        <Box>
+                                            <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em', mb: 1 }}>
+                                                Quotation Hub
+                                            </Typography>
+                                            <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500, maxWidth: 600 }}>
+                                                Generate, track, and manage professional proposals for your clients.
+                                            </Typography>
+                                        </Box>
+                                        <Button
+                                            variant="contained" 
+                                            disableElevation
+                                            startIcon={<AddCircleOutline />}
+                                            onClick={() => navigate('add')}
+                                            sx={{
+                                                borderRadius: 3, textTransform: 'none',
+                                                fontWeight: 900, px: 4, py: 1.5, fontSize: '1rem',
+                                                bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' },
+                                                boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)'
+                                            }}
+                                        >
+                                            New Quotation
+                                        </Button>
+                                    </Stack>
+                                </Container>
+                            </Box>
 
-                                <Grid container spacing={3} sx={{ mb: 4 }}>
+                            <Container maxWidth="xl" sx={{ mt: -8 }}>
+                                {/* Stats Cards */}
+                                <Grid container spacing={3} sx={{ mb: 5 }}>
                                     {[
-                                        { label: 'Total Volume', value: quotationList.length, color: '#2563eb', bg: '#eff6ff', icon: <Description /> },
-                                        { label: 'Accepted', value: quotationList.filter(q => q.quotationStatus === 'ACCEPTED').length, color: '#059669', bg: '#ecfdf5', icon: <PlayArrow /> },
-                                        { label: 'Pending/Draft', value: quotationList.filter(q => q.quotationStatus === 'DRAFT' || q.quotationStatus === 'SENT').length, color: '#d97706', bg: '#fffbeb', icon: <Autorenew /> },
-                                        { label: 'Conversion Rate', value: quotationList.length ? Math.round((quotationList.filter(q => q.quotationStatus === 'ACCEPTED').length / quotationList.length) * 100) + '%' : '0%', color: '#7c3aed', bg: '#f5f3ff', icon: <AttachMoney /> },
+                                        { label: 'Total Quotes', value: quotationList.length, color: T.primary, bg: '#eff6ff', icon: <Description /> },
+                                        { label: 'Conversion', value: quotationList.length ? Math.round((quotationList.filter(q => q.quotationStatus === 'ACCEPTED').length / quotationList.length) * 100) + '%' : '0%', color: T.success, bg: '#ecfdf5', icon: <AttachMoney /> },
+                                        { label: 'Pending Approval', value: quotationList.filter(q => q.quotationStatus === 'DRAFT' || q.quotationStatus === 'SENT').length, color: T.warning, bg: '#fffbeb', icon: <Autorenew /> },
+                                        { label: 'Active Pipeline', value: quotationList.filter(q => q.quotationStatus !== 'REJECTED').length, color: '#7c3aed', bg: '#f5f3ff', icon: <PlayArrow /> },
                                     ].map((stat, i) => (
                                         <Grid item xs={12} sm={6} md={3} key={i}>
-                                            <Paper elevation={0} sx={{ p: 2.5, borderRadius: 4, border: '1px solid #f1f5f9', bgcolor: '#f8fafc' }}>
-                                                <Stack direction="row" spacing={2} alignItems="center">
-                                                    <Box sx={{ p: 1.5, borderRadius: 3, bgcolor: stat.bg, color: stat.color, display: 'flex' }}>
-                                                        {React.cloneElement(stat.icon, { fontSize: 'small' })}
-                                                    </Box>
+                                            <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                                <Stack direction="row" spacing={2.5} alignItems="center">
+                                                    <Avatar sx={{ bgcolor: stat.bg, color: stat.color, width: 54, height: 54, borderRadius: 3 }}>
+                                                        {React.cloneElement(stat.icon, { fontSize: 'medium' })}
+                                                    </Avatar>
                                                     <Box>
-                                                        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                                             {stat.label}
                                                         </Typography>
-                                                        <Typography variant="h5" sx={{ fontWeight: 900, color: '#0f172a' }}>
+                                                        <Typography variant="h4" sx={{ fontWeight: 900, color: T.text, mt: 0.5 }}>
                                                             {stat.value}
                                                         </Typography>
                                                     </Box>
@@ -206,33 +221,44 @@ const Quotation = () => {
                                         </Grid>
                                     ))}
                                 </Grid>
-                                
-                                <Divider sx={{ mb: 4, borderColor: '#f1f5f9' }} />
 
-                                {loading && quotationList.length === 0 ? (
-                                    <Box display="flex" justifyContent="center" py={4}>
-                                        <CircularProgress size={32} />
-                                    </Box>
-                                ) : error ? (
-                                    <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-                                        {error}
-                                        <Button size="small" onClick={() => fetchQuotationList()} sx={{ ml: 2 }}>Retry</Button>
-                                    </Alert>
-                                ) : (
-                                    <QuotationList
-                                        handleSort={handleSort}
-                                        filters={{ ...filters, sortBy, sortDir }}
-                                        handleApplyFilters={handleApplyFilters}
-                                        activeFilters={activeFilters}
-                                        quotationList={quotationList}
-                                        handleDelete={handleDelete}
-                                        totalPages={totalPages}
-                                        currentPage={currentPage}
-                                        handlePageChange={handlePageChange}
-                                        refreshList={() => fetchQuotationList(currentPage, sortBy, sortDir, filters)}
-                                    />
-                                )}
-                            </Paper>
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        width: '100%',
+                                        borderRadius: 5,
+                                        border: `1px solid ${T.border}`,
+                                        bgcolor: 'white',
+                                        boxShadow: '0 20px 60px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    {loading && quotationList.length === 0 ? (
+                                        <Box display="flex" flexDirection="column" alignItems="center" py={10}>
+                                            <CircularProgress size={48} thickness={4} />
+                                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.textSec }}>Syncing Quotations...</Typography>
+                                        </Box>
+                                    ) : error ? (
+                                        <Alert severity="error" variant="filled" sx={{ mb: 2, borderRadius: 3, fontWeight: 700 }}>
+                                            {error}
+                                            <Button size="small" variant="outlined" color="inherit" onClick={() => fetchQuotationList()} sx={{ ml: 2, textTransform: 'none', borderRadius: 2 }}>Retry</Button>
+                                        </Alert>
+                                    ) : (
+                                        <QuotationList
+                                            handleSort={handleSort}
+                                            filters={{ ...filters, sortBy, sortDir }}
+                                            handleApplyFilters={handleApplyFilters}
+                                            activeFilters={activeFilters}
+                                            quotationList={quotationList}
+                                            handleDelete={handleDelete}
+                                            totalPages={totalPages}
+                                            currentPage={currentPage}
+                                            handlePageChange={handlePageChange}
+                                            refreshList={() => fetchQuotationList(currentPage, sortBy, sortDir, filters)}
+                                        />
+                                    )}
+                                </Paper>
+                            </Container>
                         </Box>
                     }
                 />
@@ -240,7 +266,7 @@ const Quotation = () => {
                 <Route path="/add" element={<AddUpdateQuotation onSave={handleSave} />} />
                 <Route path="/edit/:quotationId" element={<AddUpdateQuotation onSave={handleSave} />} />
             </Routes>
-        </div>
+        </Box>
     );
 };
 

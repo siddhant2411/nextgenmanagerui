@@ -133,11 +133,15 @@ const Sidebar = ({
                 {
                     text: "Sales",
                     icon: <SellOutlined />,
-                    children: [{ text: "Sales Orders", path: "/sales/sales-order" }],
+                    children: [
+                        { text: "Enquiries", path: "/enquiry" },
+                        { text: "Quotations", path: "/quotation" },
+                        { text: "Sales Orders", path: "/sales/sales-order" },
+                        { text: "Delivery Challans", path: "/sales/sales-order/delivery-notes" },
+                        { text: "Invoices", path: "/sales/sales-order/invoices" },
+                    ],
                 },
                 { text: "Company", icon: <Contact />, path: "/contact" },
-                { text: "Enquiry", icon: <RequestQuote />, path: "/enquiry" },
-                { text: "Quotation", icon: <FormatQuote />, path: "/quotation" },
             ]
             : []),
         ...(canAccessPurchase

@@ -1,13 +1,26 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Alert, Paper,Divider,CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip} from "@mui/material";
+import {Alert, Paper, Divider, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip, Container, Avatar, Grid} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
-import { ViewList, ViewKanban, AddCircleOutline, Refresh, FileDownload } from "@mui/icons-material";
+import { ViewList, ViewKanban, AddCircleOutline, Refresh, FileDownload, TrendingUp, Group, AssignmentTurnedIn, Timer } from "@mui/icons-material";
 import EnquiryList from "./EnquiryList";
 import AddUpdateEnquiry from "./AddUpdateEnquiry";
 import EnquiryDashboard from "./EnquiryDashboard";
 import EnquiryKanban from "./EnquiryKanban";
+
+/* ── Premium Design Tokens ── */
+const T = {
+    primary: '#2563eb',
+    success: '#059669',
+    error:   '#dc2626',
+    warning: '#d97706',
+    bg:      '#f8fafc',
+    card:    '#ffffff',
+    border:  '#e2e8f0',
+    text:    '#0f172a',
+    textSec: '#64748b',
+};
 
 const Enquiry = () => {
     const [loading, setLoading] = useState(false);
@@ -36,7 +49,6 @@ const Enquiry = () => {
         closedDateComp: '>',
     });
 
-    
     const itemsPerPage = 10;
     const navigate = useNavigate();
     const location = useLocation();
@@ -73,13 +85,6 @@ const Enquiry = () => {
         setFilters(newParams);
         fetchEnquiryList(1, sortBy, sortDir, newParams);
         fetchEnquirySummary();
-    };
-
-    const handleFilterChange = (key, value) => {
-        if (key === 'viewMode') {
-            setViewMode(value);
-            return;
-        }
     };
 
     const handleSort = (column) => {
@@ -127,7 +132,6 @@ const Enquiry = () => {
 
     const handleDelete = async (id) => {
         if (id === null) {
-            // Bulk operation refresh — just reload without confirmation
             fetchEnquiryList(currentPage, sortBy, sortDir, filters);
             fetchEnquirySummary();
             return;
@@ -176,7 +180,6 @@ const Enquiry = () => {
                     sortDir: dir,
                     ...filterData,
                 };
-                // Remove viewMode from API params
                 delete params.viewMode;
                 delete params.statusFilter;
                 const data = await apiService.get('/enquiry', params);
@@ -206,21 +209,15 @@ const Enquiry = () => {
         }
     }, [location, viewMode]);
 
-    useEffect(() => {
-        return () => {
-            if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-        };
-    }, []);
-
     return (
-        <div>
+        <Box sx={{ bgcolor: T.bg, minHeight: '100vh' }}>
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={5000}
                 onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%' }}>
+                <Alert onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} severity={snackbar.severity} sx={{ width: '100%', borderRadius: 3, fontWeight: 700 }}>
                     {snackbar.message}
                 </Alert>
             </Snackbar>
@@ -228,121 +225,135 @@ const Enquiry = () => {
                 <Route
                     path="/"
                     element={
-                        <Box sx={{ p: 3, bgcolor: '#f8fafc', minHeight: '100vh' }}>
-                            <Paper
-                                elevation={0}
-                                sx={{
-                                    p: { xs: 2, md: 3 },
-                                    width: '100%',
-                                    borderRadius: 2,
-                                    border: '1px solid #e2e8f0',
-                                    bgcolor: 'white'
-                                }}
-                            >
-                                {/* Page Header */}
-                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                                    <Box>
-                                        <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                                            Lead & Enquiry Management
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Track, manage and convert your sales pipeline
-                                        </Typography>
-                                    </Box>
-                                    <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Box>
+                            {/* ── Hero Header ── */}
+                            <Box sx={{ 
+                                bgcolor: '#0f172a', 
+                                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
+                                color: 'white', pt: 6, pb: 15
+                            }}>
+                                <Container maxWidth="xl">
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                        <Box>
+                                            <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em', mb: 1 }}>
+                                                Lead Pipeline
+                                            </Typography>
+                                            <Typography variant="h6" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500, maxWidth: 600 }}>
+                                                Track incoming enquiries, manage client relationships, and drive conversions.
+                                            </Typography>
+                                        </Box>
+                                        <Stack direction="row" spacing={2}>
+                                            <Button
+                                                variant="outlined" startIcon={<FileDownload />}
+                                                onClick={handleExport}
+                                                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                                            >
+                                                Export Leads
+                                            </Button>
+                                            <Button
+                                                variant="contained" disableElevation startIcon={<AddCircleOutline />}
+                                                onClick={() => navigate('add')}
+                                                sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 900, px: 4, py: 1.5, bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' }, boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)' }}
+                                            >
+                                                New Lead
+                                            </Button>
+                                        </Stack>
+                                    </Stack>
+                                </Container>
+                            </Box>
+
+                            <Container maxWidth="xl" sx={{ mt: -8 }}>
+                                {/* Stats Cards */}
+                                <Grid container spacing={3} sx={{ mb: 5 }}>
+                                    {[
+                                        { label: 'Active Leads', value: summary?.totalEnquiries ?? 0, color: T.primary, bg: '#eff6ff', icon: <TrendingUp /> },
+                                        { label: 'Followups Today', value: summary?.todaysFollowups ?? 0, color: T.warning, bg: '#fffbeb', icon: <Timer /> },
+                                        { label: 'Hot Leads', value: summary?.hotLeads ?? 0, color: T.error, bg: '#fef2f2', icon: <AssignmentTurnedIn /> },
+                                        { label: 'New Clients', value: summary?.newContactsCount ?? 0, color: T.success, bg: '#ecfdf5', icon: <Group /> },
+                                    ].map((stat, i) => (
+                                        <Grid item xs={12} sm={6} md={3} key={i}>
+                                            <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                                <Stack direction="row" spacing={2.5} alignItems="center">
+                                                    <Avatar sx={{ bgcolor: stat.bg, color: stat.color, width: 54, height: 54, borderRadius: 3 }}>
+                                                        {React.cloneElement(stat.icon, { fontSize: 'medium' })}
+                                                    </Avatar>
+                                                    <Box>
+                                                        <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{stat.label}</Typography>
+                                                        <Typography variant="h4" sx={{ fontWeight: 900, color: T.text, mt: 0.5 }}>{stat.value}</Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </Paper>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+
+                                <Paper
+                                    elevation={0}
+                                    sx={{
+                                        p: 4,
+                                        width: '100%',
+                                        borderRadius: 5,
+                                        border: `1px solid ${T.border}`,
+                                        bgcolor: 'white',
+                                        boxShadow: '0 20px 60px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    {/* View Toggle Bar */}
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+                                        <Typography variant="h6" sx={{ fontWeight: 900, color: T.text }}>Lead Pipeline Registry</Typography>
                                         <ToggleButtonGroup
-                                            value={viewMode}
-                                            exclusive
+                                            value={viewMode} exclusive
                                             onChange={(e, val) => val && setViewMode(val)}
                                             size="small"
                                             sx={{
-                                                bgcolor: '#f1f5f9', p: 0.5, borderRadius: 2,
+                                                bgcolor: T.bg, p: 0.5, borderRadius: 3,
                                                 '& .MuiToggleButton-root': {
-                                                    border: 'none', borderRadius: '8px !important',
-                                                    px: 2, py: 0.5, textTransform: 'none',
-                                                    fontWeight: 700, fontSize: '0.78rem',
-                                                    '&.Mui-selected': { bgcolor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' },
+                                                    border: 'none', borderRadius: '10px !important',
+                                                    px: 3, py: 0.8, textTransform: 'none',
+                                                    fontWeight: 800, fontSize: '0.85rem',
+                                                    color: T.textSec,
+                                                    '&.Mui-selected': { bgcolor: 'white', color: T.primary, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' },
                                                 }
                                             }}
                                         >
                                             <ToggleButton value="list">
-                                                <ViewList fontSize="small" sx={{ mr: 0.75 }} /> List
+                                                <ViewList fontSize="small" sx={{ mr: 1 }} /> List View
                                             </ToggleButton>
                                             <ToggleButton value="kanban">
-                                                <ViewKanban fontSize="small" sx={{ mr: 0.75 }} /> Board
+                                                <ViewKanban fontSize="small" sx={{ mr: 1 }} /> Board View
                                             </ToggleButton>
                                         </ToggleButtonGroup>
-                                        <Button
-                                            variant="outlined" disableElevation
-                                            startIcon={exportLoading ? <CircularProgress size={14} /> : <FileDownload />}
-                                            onClick={handleExport}
-                                            disabled={exportLoading}
-                                            sx={{
-                                                borderRadius: 2, textTransform: 'none',
-                                                fontWeight: 700, px: 2,
-                                                borderColor: '#e2e8f0', color: '#475569',
-                                                '&:hover': { borderColor: '#2563eb', color: '#2563eb', bgcolor: '#eff6ff' },
-                                            }}
-                                        >
-                                            {exportLoading ? 'Exporting...' : 'Export'}
-                                        </Button>
-                                        <Button
-                                            variant="contained" disableElevation
-                                            startIcon={<AddCircleOutline />}
-                                            onClick={() => navigate('add')}
-                                            sx={{
-                                                borderRadius: 2, textTransform: 'none',
-                                                fontWeight: 700, px: 2.5,
-                                                bgcolor: '#1e40af', '&:hover': { bgcolor: '#1e3a8a' },
-                                            }}
-                                        >
-                                            New Lead
-                                        </Button>
                                     </Stack>
-                                </Stack>
 
-                                <Divider sx={{ mb: 3, borderColor: '#f1f5f9' }} />
-
-                                {/* Dashboard Stats */}
-                                <EnquiryDashboard summary={summary} loading={isSummaryLoading} />
-
-                                {/* Loading indicator */}
-                                {loading && (
-                                    <Box display="flex" justifyContent="center" py={4}>
-                                        <CircularProgress size={32} />
-                                    </Box>
-                                )}
-
-                                {/* Error */}
-                                {error && !loading && (
-                                    <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
-                                        {error}
-                                        <Button size="small" onClick={() => fetchEnquiryList()} sx={{ ml: 2 }}>Retry</Button>
-                                    </Alert>
-                                )}
-
-                                {/* View */}
-                                {!loading && !error && (
-                                    viewMode === 'kanban' ? (
-                                        <EnquiryKanban
-                                            enquiries={enquiryList}
-                                            onStatusChange={handleStatusChange}
-                                        />
+                                    {loading && enquiryList.length === 0 ? (
+                                        <Box display="flex" flexDirection="column" alignItems="center" py={10}>
+                                            <CircularProgress size={48} thickness={4} />
+                                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.textSec }}>Loading leads...</Typography>
+                                        </Box>
+                                    ) : error ? (
+                                        <Alert severity="error" variant="filled" sx={{ mb: 2, borderRadius: 3, fontWeight: 700 }}>
+                                            {error}
+                                            <Button size="small" variant="outlined" color="inherit" onClick={() => fetchEnquiryList()} sx={{ ml: 2, textTransform: 'none', borderRadius: 2 }}>Retry</Button>
+                                        </Alert>
                                     ) : (
-                                        <EnquiryList
-                                            enquiryList={enquiryList}
-                                            filters={{ ...filters, sortBy, sortDir }}
-                                            handleSort={handleSort}
-                                            currentPage={currentPage}
-                                            totalPages={totalPages}
-                                            handlePageChange={handlePageChange}
-                                            handleApplyFilters={handleApplyFilters}
-                                            activeFilters={activeFilters}
-                                            handleDelete={handleDelete}
-                                        />
-                                    )
-                                )}
-                            </Paper>
+                                        viewMode === 'kanban' ? (
+                                            <EnquiryKanban enquiries={enquiryList} onStatusChange={handleStatusChange} />
+                                        ) : (
+                                            <EnquiryList
+                                                enquiryList={enquiryList}
+                                                filters={{ ...filters, sortBy, sortDir }}
+                                                handleSort={handleSort}
+                                                currentPage={currentPage}
+                                                totalPages={totalPages}
+                                                handlePageChange={handlePageChange}
+                                                handleApplyFilters={handleApplyFilters}
+                                                activeFilters={activeFilters}
+                                                handleDelete={handleDelete}
+                                            />
+                                        )
+                                    )}
+                                </Paper>
+                            </Container>
                         </Box>
                     }
                 />
@@ -350,7 +361,7 @@ const Enquiry = () => {
                 <Route path="/add" element={<AddUpdateEnquiry onSave={handleSave} />} />
                 <Route path="/edit/:enquiryId" element={<AddUpdateEnquiry onSave={handleSave} />} />
             </Routes>
-        </div>
+        </Box>
     );
 };
 

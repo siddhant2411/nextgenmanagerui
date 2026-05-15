@@ -6,6 +6,8 @@ import {
   Assignment as RequestIcon,
   LocalShipping as ProcurementIcon,
   ReceiptLong as GRNIcon,
+  MoveToInbox as PendingIcon,
+  QrCode2 as BatchSerialIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
 import InventoryDashboard from './InventoryDashboard';
@@ -13,16 +15,20 @@ import InventoryItemPage from './InventoryItemPage';
 import InventoryRequestList from './InventoryRequestList';
 import ProcurementOrdersTab from './ProcurementOrdersTab';
 import GRNList from './GRNList';
+import PendingReceiptsTab from './PendingReceiptsTab';
+import BatchSerialRegister from './BatchSerialRegister';
 import ReceiveStockDrawer from './ReceiveStockDrawer';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
 
 const tabs = [
-  { label: 'Dashboard',     icon: <DashboardIcon fontSize="small" />,   component: InventoryDashboard },
-  { label: 'Stock Register',icon: <StockIcon fontSize="small" />,       component: InventoryItemPage },
-  { label: 'Requests',      icon: <RequestIcon fontSize="small" />,     component: InventoryRequestList },
-  { label: 'Procurement',   icon: <ProcurementIcon fontSize="small" />, component: ProcurementOrdersTab },
-  { label: 'GRN',           icon: <GRNIcon fontSize="small" />,         component: GRNList },
+  { label: 'Dashboard',        icon: <DashboardIcon fontSize="small" />,   component: InventoryDashboard },
+  { label: 'Stock Register',   icon: <StockIcon fontSize="small" />,       component: InventoryItemPage },
+  { label: 'Batch & Serials',  icon: <BatchSerialIcon fontSize="small" />, component: BatchSerialRegister },
+  { label: 'Requests',         icon: <RequestIcon fontSize="small" />,     component: InventoryRequestList },
+  { label: 'Procurement',      icon: <ProcurementIcon fontSize="small" />, component: ProcurementOrdersTab },
+  { label: 'Pending Receipts', icon: <PendingIcon fontSize="small" />,     component: PendingReceiptsTab },
+  { label: 'GRN',              icon: <GRNIcon fontSize="small" />,         component: GRNList },
 ];
 
 const InventoryModule = () => {
@@ -34,7 +40,8 @@ const InventoryModule = () => {
   const { canAction } = useAuth();
   const canManageInventory = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
 
-  const ActiveComponent = tabs[tab].component;
+  const visibleTabs = tabs;
+  const ActiveComponent = visibleTabs[tab]?.component ?? visibleTabs[0].component;
   const openReceiveStock = (item = null) => {
     setSelectedItem(item);
     setReceiveFormData({});
@@ -96,7 +103,7 @@ const InventoryModule = () => {
             '& .MuiTabs-indicator': { backgroundColor: '#1565c0', height: 2.5 },
           }}
         >
-          {tabs.map((t, i) => (
+          {visibleTabs.map((t, i) => (
             <Tab key={i} label={t.label} icon={t.icon} iconPosition="start" />
           ))}
         </Tabs>
@@ -106,6 +113,7 @@ const InventoryModule = () => {
       <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
         <ActiveComponent
           refreshKey={refreshKey}
+          canReceive={canManageInventory}
           onReceiveStock={openReceiveStock}
           onTabChange={(key) => {
             const nextKey = key.toLowerCase();
