@@ -23,6 +23,7 @@ import ItemCodeSeriesPickerDialog from './ItemCodeSeriesPickerDialog';
 import { useAuth } from '../../auth/AuthContext';
 import {
   INVENTORY_ITEM_APPROVAL_ROLES,
+  INVENTORY_FINANCE_ROLES,
   INVENTORY_MANAGE_ROLES,
   PRODUCTION_ACCESS_ROLES,
   hasAnyRole,
@@ -93,7 +94,7 @@ export default function AddInventoryItem() {
 
   /* ── Role gates ── */
   const canWrite        = hasAnyRole(user?.roles, INVENTORY_MANAGE_ROLES);
-  const isFinanceAdmin  = hasAnyRole(user?.roles, INVENTORY_ITEM_APPROVAL_ROLES);
+  const isFinanceAdmin  = hasAnyRole(user?.roles, INVENTORY_FINANCE_ROLES);
   const canViewMfg      = hasAnyRole(user?.roles, [...INVENTORY_ITEM_APPROVAL_ROLES, ...PRODUCTION_ACCESS_ROLES]);
   const canExport       = isFinanceAdmin;
 
@@ -170,7 +171,7 @@ export default function AddInventoryItem() {
   const tabs = [
     { key: 'basic',     label: 'Basic Info',          show: true },
     { key: 'inventory', label: 'Inventory Settings',  show: true },
-    { key: 'finance',   label: 'Finance',             show: true },
+    { key: 'finance',   label: 'Finance',             show: isFinanceAdmin },
     { key: 'mfg',       label: 'Manufacturing',       show: true },
     { key: 'docs',      label: 'Documents',           show: true },
     { key: 'vendors',   label: 'Vendor Prices',       show: isEditMode },
