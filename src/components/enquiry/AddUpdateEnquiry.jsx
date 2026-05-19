@@ -1,13 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  Box, Button, Divider, Grid, TextField, Typography, Autocomplete, MenuItem, Tabs, Tab,TableContainer,TableHead, TableBody, Table, TableRow,TableCell, Paper, List, InputAdornment, Stack, Tooltip, Container, Avatar, IconButton, ToggleButton, ToggleButtonGroup, Chip, CircularProgress, Alert
+  Box, Button, Divider, Grid, TextField, Typography, Autocomplete, MenuItem, Tabs, Tab,
+  TableContainer, TableHead, TableBody, Table, TableRow, TableCell, Paper, List,
+  InputAdornment, Stack, Tooltip, Container, Avatar, IconButton, ToggleButton,
+  ToggleButtonGroup, Chip, CircularProgress, Alert, Dialog, DialogTitle, DialogContent,
+  DialogActions, LinearProgress
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import apiService from '../../services/apiService';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { useParams, useNavigate } from 'react-router-dom';
-import {Save, ArrowBack, Add, Delete, History, ShoppingCart, Info, SwapHoriz, LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description, DeleteOutline} from '@mui/icons-material';
+import {
+  Save, ArrowBack, Add, Delete, History, ShoppingCart, Info, SwapHoriz,
+  LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description,
+  DeleteOutline, Business, LinkOutlined, PersonAdd, CheckCircle
+} from '@mui/icons-material';
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -44,6 +52,11 @@ const AddUpdateEnquiry = ({ onSave }) => {
   const [userList, setUserList] = useState([]);
   const [productList, setProductList] = useState([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [linkDialog, setLinkDialog] = useState({ open: false, saving: false, error: null });
+  const [linkMode, setLinkMode] = useState('create'); // 'search' | 'create'
+  const [linkForm, setLinkForm] = useState({ companyName: '', contactType: 'CUSTOMER', phone: '', email: '', personName: '' });
+  const [linkSearchList, setLinkSearchList] = useState([]);
+  const [linkSearchContact, setLinkSearchContact] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -77,6 +90,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
       opportunityName: initialData.opportunityName || '',
       enqDate: initialData.enqDate || new Date().toISOString().split('T')[0],
       contact: initialData.contact || null,
+      manualCompanyName: initialData.manualCompanyName || '',
       contactPersonName: initialData.contactPersonName || '',
       contactPersonPhone: initialData.contactPersonPhone || '',
       contactPersonEmail: initialData.contactPersonEmail || '',
@@ -103,7 +117,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
     validationSchema: Yup.object({
       opportunityName: Yup.string().required('Opportunity Name is required'),
       enqDate: Yup.string().required('Enquiry Date is required'),
-      contact: Yup.object().nullable().required('Company is required'),
+      contact: Yup.object().nullable(),
       status: Yup.string().required('Status is required'),
       probability: Yup.number().min(0).max(100, 'Probability must be 0-100'),
     }),
@@ -151,18 +165,68 @@ const AddUpdateEnquiry = ({ onSave }) => {
     setActiveTab(2);
   };
 
+  const doConvert = async () => {
+    setIsConverting(true);
+    try {
+      const res = await apiService.post(`/enquiry/convert-to-quotation/${enquiryId}`);
+      navigate(`/quotation/edit/${res}`);
+    } catch (err) {
+      alert('Failed to convert: ' + err.message);
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
   const handleConvertToQuotation = async () => {
     if (!enquiryId) return;
-    if (window.confirm('Convert this enquiry to a formal Quotation?')) {
-      setIsConverting(true);
-      try {
-        const res = await apiService.post(`/enquiry/convert-to-quotation/${enquiryId}`);
-        navigate(`/quotation/edit/${res}`);
-      } catch (err) {
-        alert('Failed to convert: ' + err.message);
-      } finally {
-        setIsConverting(false);
+    // Gate: must have a linked contact before quoting
+    if (!formik.values.contact) {
+      setLinkForm({
+        companyName: formik.values.manualCompanyName || '',
+        contactType: 'CUSTOMER',
+        phone: formik.values.contactPersonPhone || '',
+        email: formik.values.contactPersonEmail || '',
+        personName: formik.values.contactPersonName || '',
+      });
+      setLinkMode('create');
+      setLinkSearchContact(null);
+      setLinkSearchList([]);
+      setLinkDialog({ open: true, saving: false, error: null });
+      return;
+    }
+    if (window.confirm('Convert this enquiry to a formal Quotation?')) doConvert();
+  };
+
+  const handleLinkAndConvert = async () => {
+    setLinkDialog(d => ({ ...d, saving: true, error: null }));
+    try {
+      let linkedContact;
+      if (linkMode === 'search') {
+        if (!linkSearchContact) { setLinkDialog(d => ({ ...d, saving: false, error: 'Please select a company from the search.' })); return; }
+        linkedContact = linkSearchContact;
+      } else {
+        if (!linkForm.companyName.trim()) { setLinkDialog(d => ({ ...d, saving: false, error: 'Company name is required.' })); return; }
+        const payload = {
+          companyName: linkForm.companyName.trim(),
+          contactType: linkForm.contactType,
+          phone: linkForm.phone || null,
+          email: linkForm.email || null,
+          personDetails: linkForm.personName ? [{ personName: linkForm.personName, phoneNumber: linkForm.phone || null, emailId: linkForm.email || null, isPrimary: true }] : [],
+        };
+        linkedContact = await apiService.post('/contact', payload);
       }
+      // Save enquiry with linked contact
+      await apiService.put(`/enquiry/${enquiryId}`, {
+        ...formik.values,
+        contact: linkedContact,
+        manualCompanyName: '',
+      });
+      formik.setFieldValue('contact', linkedContact);
+      formik.setFieldValue('manualCompanyName', '');
+      setLinkDialog({ open: false, saving: false, error: null });
+      doConvert();
+    } catch (err) {
+      setLinkDialog(d => ({ ...d, saving: false, error: err?.response?.data?.message || err?.response?.data?.error || err.message }));
     }
   };
 
@@ -263,26 +327,45 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                         </Grid>
                                         <Grid item xs={12} md={6}>
                                             <Autocomplete
+                                                freeSolo
                                                 options={companyList}
-                                                getOptionLabel={(opt) => opt?.companyName || ''}
-                                                value={formik.values.contact}
-                                                onInputChange={(e, val) => handleSearchContacts(val)}
+                                                getOptionLabel={(opt) => typeof opt === 'string' ? opt : (opt?.companyName || '')}
+                                                value={formik.values.contact || formik.values.manualCompanyName || null}
+                                                onInputChange={(e, val, reason) => {
+                                                    if (reason === 'input') {
+                                                        handleSearchContacts(val);
+                                                        // If typing freely, clear linked contact and store as manual
+                                                        formik.setFieldValue('contact', null);
+                                                        formik.setFieldValue('manualCompanyName', val);
+                                                    }
+                                                }}
                                                 onChange={(e, val) => {
-                                                    formik.setFieldValue('contact', val);
-                                                    if (val && val.personDetails && val.personDetails.length > 0) {
-                                                        const primary = val.personDetails.find(p => p.isPrimary) || val.personDetails[0];
-                                                        formik.setFieldValue('contactPersonName', primary.personName || '');
-                                                        formik.setFieldValue('contactPersonPhone', primary.phoneNumber || '');
-                                                        formik.setFieldValue('contactPersonEmail', primary.emailId || '');
+                                                    if (val && typeof val === 'object') {
+                                                        // Existing contact selected from dropdown
+                                                        formik.setFieldValue('contact', val);
+                                                        formik.setFieldValue('manualCompanyName', '');
+                                                        if (val.personDetails?.length > 0) {
+                                                            const primary = val.personDetails.find(p => p.isPrimary) || val.personDetails[0];
+                                                            formik.setFieldValue('contactPersonName', primary.personName || '');
+                                                            formik.setFieldValue('contactPersonPhone', primary.phoneNumber || '');
+                                                            formik.setFieldValue('contactPersonEmail', primary.emailId || '');
+                                                        }
+                                                    } else if (typeof val === 'string') {
+                                                        // Free-text company name typed and confirmed
+                                                        formik.setFieldValue('contact', null);
+                                                        formik.setFieldValue('manualCompanyName', val);
+                                                    } else {
+                                                        formik.setFieldValue('contact', null);
+                                                        formik.setFieldValue('manualCompanyName', '');
                                                     }
                                                 }}
                                                 renderInput={(params) => (
-                                                    <TextField 
-                                                        {...params} 
-                                                        label="Search Client / Company" 
-                                                        fullWidth 
-                                                        error={formik.touched.contact && Boolean(formik.errors.contact)}
-                                                        helperText={formik.touched.contact && formik.errors.contact}
+                                                    <TextField
+                                                        {...params}
+                                                        label="Client / Company"
+                                                        fullWidth
+                                                        placeholder="Search or type company name"
+                                                        helperText={formik.values.contact ? `Linked: ${formik.values.contact.companyName}` : (formik.values.manualCompanyName ? 'New / unlinked company' : 'Optional — link existing or type freely')}
                                                         sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
                                                     />
                                                 )}
@@ -541,6 +624,155 @@ const AddUpdateEnquiry = ({ onSave }) => {
             </Grid>
         </Container>
       </form>
+
+      {/* ── Link Contact Before Convert Dialog ── */}
+      <Dialog
+        open={linkDialog.open}
+        onClose={() => !linkDialog.saving && setLinkDialog(d => ({ ...d, open: false }))}
+        maxWidth="sm" fullWidth
+        PaperProps={{ sx: { borderRadius: 5, overflow: 'hidden' } }}
+      >
+        {/* Coloured header */}
+        <Box sx={{ bgcolor: '#0f172a', backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.2) 0%, transparent 60%)', px: 4, pt: 4, pb: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Avatar sx={{ bgcolor: 'rgba(37,99,235,0.2)', width: 48, height: 48, borderRadius: 3 }}>
+              <Business sx={{ color: '#60a5fa' }} />
+            </Avatar>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 900, color: 'white', letterSpacing: '-0.02em' }}>
+                Link a Company to Continue
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                A quotation must be tied to a company in your contacts.
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        {linkDialog.saving && <LinearProgress sx={{ height: 3 }} />}
+
+        <DialogContent sx={{ pt: 3, pb: 2 }}>
+          {linkDialog.error && (
+            <Alert severity="error" sx={{ mb: 2.5, borderRadius: 3, fontWeight: 700 }}>{linkDialog.error}</Alert>
+          )}
+
+          {/* Mode toggle */}
+          <ToggleButtonGroup
+            value={linkMode} exclusive size="small"
+            onChange={(e, val) => val && setLinkMode(val)}
+            fullWidth sx={{ mb: 3, bgcolor: T.bg, p: 0.5, borderRadius: 3 }}
+          >
+            {[
+              { value: 'create', label: 'Create New Company', icon: <PersonAdd sx={{ fontSize: 16 }} /> },
+              { value: 'search', label: 'Link Existing',      icon: <LinkOutlined sx={{ fontSize: 16 }} /> },
+            ].map(opt => (
+              <ToggleButton key={opt.value} value={opt.value} sx={{
+                border: 'none', borderRadius: '10px !important', py: 1, textTransform: 'none', fontWeight: 800, fontSize: '0.85rem',
+                '&.Mui-selected': { bgcolor: 'white', color: T.primary, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.08)' }
+              }}>
+                <Stack direction="row" spacing={1} alignItems="center">{opt.icon}<span>{opt.label}</span></Stack>
+              </ToggleButton>
+            ))}
+          </ToggleButtonGroup>
+
+          {linkMode === 'search' ? (
+            <Autocomplete
+              options={linkSearchList}
+              getOptionLabel={opt => opt?.companyName || ''}
+              value={linkSearchContact}
+              onInputChange={async (e, val) => { const r = await searchContacts(val); setLinkSearchList(r); }}
+              onChange={(e, val) => setLinkSearchContact(val)}
+              renderInput={params => (
+                <TextField {...params} label="Search company in contacts" fullWidth
+                  helperText="Type to search. Select to link."
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+              )}
+            />
+          ) : (
+            <Stack spacing={2.5}>
+              {/* Company name */}
+              <TextField
+                label="Company Name" required fullWidth
+                value={linkForm.companyName}
+                onChange={e => setLinkForm(f => ({ ...f, companyName: e.target.value }))}
+                InputProps={{ startAdornment: <InputAdornment position="start"><Business sx={{ fontSize: 18, color: T.textSec }} /></InputAdornment> }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+              />
+
+              {/* Contact type */}
+              <Box>
+                <Typography variant="caption" sx={{ fontWeight: 800, color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', mb: 1 }}>
+                  Company Type
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  {['CUSTOMER', 'VENDOR', 'BOTH'].map(type => (
+                    <Chip
+                      key={type}
+                      label={type.charAt(0) + type.slice(1).toLowerCase()}
+                      onClick={() => setLinkForm(f => ({ ...f, contactType: type }))}
+                      variant={linkForm.contactType === type ? 'filled' : 'outlined'}
+                      sx={{
+                        fontWeight: 800, borderRadius: 2, cursor: 'pointer',
+                        ...(linkForm.contactType === type
+                          ? { bgcolor: T.primary, color: 'white', borderColor: T.primary }
+                          : { color: T.textSec })
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+
+              <Divider><Chip label="Contact Person (pre-filled from lead)" size="small" sx={{ fontWeight: 700, color: T.textSec, fontSize: '0.7rem' }} /></Divider>
+
+              <TextField
+                label="Contact Person Name" fullWidth size="small"
+                value={linkForm.personName}
+                onChange={e => setLinkForm(f => ({ ...f, personName: e.target.value }))}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+              />
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Phone" fullWidth size="small"
+                    value={linkForm.phone}
+                    onChange={e => setLinkForm(f => ({ ...f, phone: e.target.value }))}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><Call sx={{ fontSize: 16, color: T.textSec }} /></InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    label="Email" fullWidth size="small"
+                    value={linkForm.email}
+                    onChange={e => setLinkForm(f => ({ ...f, email: e.target.value }))}
+                    InputProps={{ startAdornment: <InputAdornment position="start"><Email sx={{ fontSize: 16, color: T.textSec }} /></InputAdornment> }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
+                  />
+                </Grid>
+              </Grid>
+            </Stack>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, pb: 3, gap: 1.5 }}>
+          <Button
+            onClick={() => setLinkDialog(d => ({ ...d, open: false }))}
+            disabled={linkDialog.saving}
+            sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 700, color: T.textSec }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained" disableElevation
+            onClick={handleLinkAndConvert}
+            disabled={linkDialog.saving}
+            startIcon={linkDialog.saving ? <CircularProgress size={16} color="inherit" /> : <CheckCircle />}
+            sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 900, px: 3, bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' } }}
+          >
+            {linkDialog.saving ? 'Saving...' : (linkMode === 'search' ? 'Link & Convert to Quote' : 'Create & Convert to Quote')}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

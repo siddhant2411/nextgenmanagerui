@@ -1,9 +1,10 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Alert, Paper, Divider, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip, Container, Avatar, Grid} from "@mui/material";
+import {Alert, Paper, Divider, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip, Container, Avatar, Grid, Tooltip} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
-import { ViewList, ViewKanban, AddCircleOutline, Refresh, FileDownload, TrendingUp, Group, AssignmentTurnedIn, Timer } from "@mui/icons-material";
+import { ViewList, ViewKanban, AddCircleOutline, FileDownload, FileUpload, TrendingUp, Group, AssignmentTurnedIn, Timer, Download } from "@mui/icons-material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, LinearProgress } from "@mui/material";
 import EnquiryList from "./EnquiryList";
 import AddUpdateEnquiry from "./AddUpdateEnquiry";
 import EnquiryDashboard from "./EnquiryDashboard";
@@ -36,6 +37,9 @@ const Enquiry = () => {
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
     const [exportLoading, setExportLoading] = useState(false);
+    // import dialog: step='idle'|'uploading'|'done'
+    const [importDialog, setImportDialog] = useState({ open: false, step: 'idle', result: null, error: null });
+    const importFileRef = useRef(null);
     const [activeFilters, setActiveFilters] = useState([]);
     const [filters, setFilters] = useState({
         companyName: '',
@@ -130,6 +134,29 @@ const Enquiry = () => {
         }
     };
 
+    const handleDownloadTemplate = async () => {
+        try {
+            await apiService.download('/enquiry/import-template', {});
+        } catch (err) {
+            showSnackbar('Failed to download template: ' + err.message);
+        }
+    };
+
+    const handleImportFileSelected = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        setImportDialog(d => ({ ...d, step: 'uploading', result: null, error: null }));
+        try {
+            const res = await apiService.upload('/enquiry/bulk-import', file);
+            setImportDialog(d => ({ ...d, step: 'done', result: res.data }));
+            fetchEnquiryList(1, sortBy, sortDir, filters);
+            fetchEnquirySummary();
+        } catch (err) {
+            setImportDialog(d => ({ ...d, step: 'done', result: null, error: err?.response?.data?.error || err.message }));
+        }
+    };
+
     const handleDelete = async (id) => {
         if (id === null) {
             fetchEnquiryList(currentPage, sortBy, sortDir, filters);
@@ -221,6 +248,144 @@ const Enquiry = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+            {/* ── Import Leads Dialog ── */}
+            <Dialog
+                open={importDialog.open}
+                onClose={() => importDialog.step !== 'uploading' && setImportDialog(d => ({ ...d, open: false }))}
+                maxWidth="sm" fullWidth
+                PaperProps={{ sx: { borderRadius: 5, overflow: 'hidden' } }}
+            >
+                {/* Header */}
+                <Box sx={{ bgcolor: '#0f172a', backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.2) 0%, transparent 60%)', px: 4, pt: 4, pb: 3 }}>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <Avatar sx={{ bgcolor: 'rgba(37,99,235,0.2)', width: 48, height: 48, borderRadius: 3 }}>
+                            <FileUpload sx={{ color: '#60a5fa' }} />
+                        </Avatar>
+                        <Box>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: 'white', letterSpacing: '-0.02em' }}>
+                                {importDialog.step === 'done' ? 'Import Complete' : 'Import Leads'}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                                {importDialog.step === 'done' ? 'Your file has been processed.' : 'Upload an Excel or CSV file to bulk-create leads.'}
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </Box>
+                {importDialog.step === 'uploading' && <LinearProgress sx={{ height: 3 }} />}
+
+                <DialogContent sx={{ pt: 3, pb: 2 }}>
+                    {/* ── idle: instructions + template + upload button ── */}
+                    {importDialog.step === 'idle' && (
+                        <Stack spacing={3}>
+                            {/* Step 1 — download template */}
+                            <Box sx={{ p: 3, borderRadius: 4, border: `2px dashed ${T.border}`, bgcolor: T.bg }}>
+                                <Stack direction="row" spacing={2} alignItems="center">
+                                    <Avatar sx={{ bgcolor: '#eff6ff', color: T.primary, borderRadius: 2.5, width: 44, height: 44 }}>
+                                        <Download />
+                                    </Avatar>
+                                    <Box sx={{ flex: 1 }}>
+                                        <Typography sx={{ fontWeight: 800, color: T.text, fontSize: '0.95rem' }}>Step 1 — Download the Template</Typography>
+                                        <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 600 }}>
+                                            Fill it in with your leads. Only <strong>Opportunity Name</strong> is required.
+                                        </Typography>
+                                    </Box>
+                                    <Button
+                                        variant="contained" disableElevation startIcon={<Download />}
+                                        onClick={handleDownloadTemplate}
+                                        sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800, whiteSpace: 'nowrap', bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' } }}
+                                    >
+                                        Download Template
+                                    </Button>
+                                </Stack>
+                            </Box>
+
+                            {/* Step 2 — upload file */}
+                            <Box
+                                onClick={() => importFileRef.current?.click()}
+                                sx={{
+                                    p: 4, borderRadius: 4, border: `2px dashed ${T.border}`, bgcolor: T.bg,
+                                    textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
+                                    '&:hover': { borderColor: T.primary, bgcolor: '#eff6ff' }
+                                }}
+                            >
+                                <Avatar sx={{ bgcolor: '#ecfdf5', color: T.success, borderRadius: 2.5, width: 48, height: 48, mx: 'auto', mb: 1.5 }}>
+                                    <FileUpload />
+                                </Avatar>
+                                <Typography sx={{ fontWeight: 800, color: T.text }}>Step 2 — Upload your file</Typography>
+                                <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 600 }}>
+                                    Click to browse · Accepts .xlsx, .xls, .csv
+                                </Typography>
+                            </Box>
+                        </Stack>
+                    )}
+
+                    {/* ── uploading ── */}
+                    {importDialog.step === 'uploading' && (
+                        <Box sx={{ py: 4, textAlign: 'center' }}>
+                            <CircularProgress size={48} thickness={4} sx={{ color: T.primary }} />
+                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.textSec }}>Processing your file…</Typography>
+                        </Box>
+                    )}
+
+                    {/* ── done: results ── */}
+                    {importDialog.step === 'done' && (
+                        <Stack spacing={2.5}>
+                            {importDialog.error && (
+                                <Alert severity="error" sx={{ borderRadius: 3, fontWeight: 700 }}>{importDialog.error}</Alert>
+                            )}
+                            {importDialog.result && (
+                                <>
+                                    <Stack direction="row" spacing={2}>
+                                        <Box sx={{ flex: 1, p: 2.5, borderRadius: 4, bgcolor: '#ecfdf5', textAlign: 'center' }}>
+                                            <Typography variant="h3" sx={{ fontWeight: 900, color: T.success }}>{importDialog.result.created}</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 800, color: T.success }}>Created</Typography>
+                                        </Box>
+                                        <Box sx={{ flex: 1, p: 2.5, borderRadius: 4, bgcolor: importDialog.result.duplicates > 0 ? '#fffbeb' : T.bg, textAlign: 'center' }}>
+                                            <Typography variant="h3" sx={{ fontWeight: 900, color: importDialog.result.duplicates > 0 ? T.warning : T.textSec }}>{importDialog.result.duplicates}</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 800, color: importDialog.result.duplicates > 0 ? T.warning : T.textSec }}>Duplicates</Typography>
+                                        </Box>
+                                        <Box sx={{ flex: 1, p: 2.5, borderRadius: 4, bgcolor: importDialog.result.skipped > 0 ? '#fef2f2' : T.bg, textAlign: 'center' }}>
+                                            <Typography variant="h3" sx={{ fontWeight: 900, color: importDialog.result.skipped > 0 ? T.error : T.textSec }}>{importDialog.result.skipped}</Typography>
+                                            <Typography variant="body2" sx={{ fontWeight: 800, color: importDialog.result.skipped > 0 ? T.error : T.textSec }}>Errors</Typography>
+                                        </Box>
+                                    </Stack>
+                                    {importDialog.result.errors?.length > 0 && (
+                                        <Box>
+                                            <Typography variant="caption" sx={{ fontWeight: 800, color: T.error, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Row Errors</Typography>
+                                            <Box sx={{ mt: 1, maxHeight: 180, overflowY: 'auto', bgcolor: T.bg, borderRadius: 3, p: 2, border: `1px solid ${T.border}` }}>
+                                                {importDialog.result.errors.map((err, i) => (
+                                                    <Typography key={i} variant="caption" sx={{ display: 'block', color: T.error, fontFamily: 'monospace', lineHeight: 1.8 }}>{err}</Typography>
+                                                ))}
+                                            </Box>
+                                        </Box>
+                                    )}
+                                </>
+                            )}
+                            {/* Import another */}
+                            <Button
+                                variant="outlined" startIcon={<FileUpload />}
+                                onClick={() => { setImportDialog(d => ({ ...d, step: 'idle', result: null, error: null })); }}
+                                sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 700, alignSelf: 'flex-start' }}
+                            >
+                                Import Another File
+                            </Button>
+                        </Stack>
+                    )}
+                </DialogContent>
+
+                <DialogActions sx={{ px: 3, pb: 3 }}>
+                    <Button
+                        onClick={() => setImportDialog(d => ({ ...d, open: false }))}
+                        disabled={importDialog.step === 'uploading'}
+                        variant={importDialog.step === 'done' ? 'contained' : 'text'}
+                        disableElevation
+                        sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800, px: 3, ...(importDialog.step === 'done' ? { bgcolor: T.text, '&:hover': { bgcolor: '#1e293b' } } : { color: T.textSec }) }}
+                    >
+                        {importDialog.step === 'done' ? 'Done' : 'Cancel'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Routes>
                 <Route
                     path="/"
@@ -250,6 +415,14 @@ const Enquiry = () => {
                                             >
                                                 Export Leads
                                             </Button>
+                                            <Button
+                                                variant="outlined" startIcon={<FileUpload />}
+                                                onClick={() => setImportDialog({ open: true, step: 'idle', result: null, error: null })}
+                                                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                                            >
+                                                Import Leads
+                                            </Button>
+                                            <input ref={importFileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={handleImportFileSelected} />
                                             <Button
                                                 variant="contained" disableElevation startIcon={<AddCircleOutline />}
                                                 onClick={() => navigate('add')}
