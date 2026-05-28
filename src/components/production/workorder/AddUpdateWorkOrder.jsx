@@ -37,6 +37,7 @@ import {
   downloadMoveTickets,
 } from '../../../services/workOrderService';
 import { getBomPositisions } from '../../../services/bomService';
+import { resolveApiErrorMessage } from '../../../services/apiService';
 import { useAuth } from '../../../auth/AuthContext';
 import { ACTION_KEYS } from '../../../auth/roles';
 
@@ -222,7 +223,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
             if (setSnackbar) setSnackbar('Work order updated successfully.', 'success');
           })
           .catch((error) => {
-            setError(error.response?.data?.error || 'Failed to update work order. Please try again.', "error");
+            setError(resolveApiErrorMessage(error, 'Failed to update work order. Please try again.'), "error");
           });
       } else {
         createWorkOrder(cleanedValues)
@@ -232,7 +233,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
             if (newId) navigate(`../edit/${newId}`, { relative: 'path' });
           })
           .catch((error) => {
-            setError(error.response?.data?.error || 'Failed to create work order. Please try again.');
+            setError(resolveApiErrorMessage(error, 'Failed to create work order. Please try again.'));
           });
       }
     }
@@ -487,7 +488,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       setBasePlannedQuantityForMaterials(Number.isNaN(plannedQty) || plannedQty <= 0 ? 1 : plannedQty);
       setHasFetchedAddMaterials(true);
     } catch (error) {
-      setError(error?.response?.data?.error || 'Failed to load materials from BOM.');
+      setError(resolveApiErrorMessage(error, 'Failed to load materials from BOM.'));
     } finally {
       setIsMaterialsLoading(false);
     }
@@ -540,7 +541,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       setWorkOrderHistory(rows);
       setHasFetchedHistory(true);
     } catch (error) {
-      setError(error?.response?.data?.error || 'Failed to fetch work order history.');
+      setError(resolveApiErrorMessage(error, 'Failed to fetch work order history.'));
     } finally {
       setIsHistoryLoading(false);
     }
@@ -614,7 +615,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         }
       }, 300);
     } catch (error) {
-      setError(error?.response?.data?.error || 'Failed to issue work order. Please try again.');
+      setError(resolveApiErrorMessage(error, 'Failed to issue work order. Please try again.'));
     } finally {
       setIsReleaseLoading(false);
       setIsReleaseConfirmOpen(false);
@@ -675,7 +676,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           : action === 'close'
             ? 'Failed to close work order.'
             : 'Failed to cancel work order.';
-      setError(error?.response?.data?.error || defaultError);
+      setError(resolveApiErrorMessage(error, defaultError));
     } finally {
       setIsWorkOrderActionLoading(false);
       setWorkOrderActionDialog({ open: false, action: '' });
@@ -696,7 +697,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       await reloadWorkOrder();
       if (setSnackbar) setSnackbar('Work order short-closed successfully.', 'success');
     } catch (error) {
-      setError(error?.response?.data?.error || 'Failed to short-close work order.');
+      setError(resolveApiErrorMessage(error, 'Failed to short-close work order.'));
     } finally {
       setIsWorkOrderActionLoading(false);
       setShortCloseDialog({ open: false, remarks: '' });
@@ -819,7 +820,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       if (setSnackbar) setSnackbar('Operation started successfully.', 'success');
       return true;
     } catch (error) {
-      setError(error?.response?.data?.error || 'Failed to start operation.');
+      setError(resolveApiErrorMessage(error, 'Failed to start operation.'));
       return false;
     } finally {
       setOperationActionState({ loading: false, operationId: null, action: '' });
@@ -939,7 +940,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       await reloadWorkOrder();
       if (setSnackbar) setSnackbar('Work order scheduled successfully.', 'success');
     } catch (error) {
-      setError(error?.response?.data?.error || error?.response?.data?.message || 'Failed to schedule work order.');
+      setError(resolveApiErrorMessage(error, 'Failed to schedule work order.'));
     } finally {
       setIsScheduleLoading(false);
     }
@@ -957,7 +958,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       await reloadWorkOrder();
       if (setSnackbar) setSnackbar('Work order rescheduled successfully.', 'success');
     } catch (error) {
-      setError(error?.response?.data?.error || error?.response?.data?.message || 'Failed to reschedule work order.');
+      setError(resolveApiErrorMessage(error, 'Failed to reschedule work order.'));
     } finally {
       setIsScheduleLoading(false);
     }

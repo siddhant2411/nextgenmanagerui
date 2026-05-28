@@ -72,7 +72,7 @@ export default function AddUpdateDeliveryNote() {
         deliveryNoteNo: '',
     });
 
-
+    
     useEffect(() => {
         if (isView) {
             setLoading(true);

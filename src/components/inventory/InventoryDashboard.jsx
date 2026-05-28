@@ -36,7 +36,7 @@ const getMinStock = (item) => item?.minStock ?? item?.productInventorySettings?.
 const kpiStyles = {
   available: { 
     bg: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
-    color: '#0d47a1', 
+    color: '#1d4ed8', 
     icon: Inventory2,
     border: '#90caf9'
   },
@@ -72,19 +72,21 @@ const kpiStyles = {
   },
 };
 
-const KpiCard = ({ label, value, helper, type, loading }) => {
+const KpiCard = ({ label, value, helper, type, loading, onClick }) => {
   const style = kpiStyles[type];
   const Icon = style.icon;
-  
+
   return (
-    <Card 
-      elevation={0} 
-      sx={{ 
-        height: '100%', 
-        border: `1px solid ${style.border}`, 
-        borderRadius: 3, 
+    <Card
+      elevation={0}
+      onClick={onClick}
+      sx={{
+        height: '100%',
+        border: `1px solid ${style.border}`,
+        borderRadius: 3,
         background: style.bg,
         transition: 'transform 0.2s',
+        cursor: onClick ? 'pointer' : 'default',
         '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }
       }}
     >
@@ -116,7 +118,7 @@ const KpiCard = ({ label, value, helper, type, loading }) => {
   );
 };
 
-const InventoryDashboard = ({ onTabChange, onReceiveStock, refreshKey }) => {
+const InventoryDashboard = ({ onTabChange, onReceiveStock, refreshKey, onOpenLedger, onOpenLowStock }) => {
   const [summary, setSummary] = useState({});
   const [attentionItems, setAttentionItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -171,25 +173,34 @@ const InventoryDashboard = ({ onTabChange, onReceiveStock, refreshKey }) => {
             </Typography>
           </Box>
           <Stack direction="row" spacing={1.5}>
-            <Button 
-              variant="contained" 
-              startIcon={<MoveToInbox />} 
-              onClick={() => onReceiveStock?.()} 
-              sx={{ 
-                bgcolor: '#1565c0', 
-                borderRadius: 2, 
-                px: 3, 
-                py: 1.2, 
-                textTransform: 'none', 
-                fontWeight: 600,
-                boxShadow: '0 4px 14px 0 rgba(21,101,192,0.39)'
+            <Button
+              variant="contained"
+              disableElevation
+              startIcon={<MoveToInbox />}
+              onClick={() => onReceiveStock?.()}
+              sx={{
+                bgcolor: '#2563eb',
+                borderRadius: 2.5,
+                px: 3,
+                py: 1.2,
+                textTransform: 'none',
+                fontWeight: 800,
+                boxShadow: '0 4px 14px 0 rgba(37,99,235,0.4)',
+                '&:hover': { bgcolor: '#1d4ed8' },
               }}
             >
               Receive Stock
             </Button>
-            <Button 
-              variant="outlined" 
-              onClick={() => onTabChange?.('Stock Register')} 
+            <Button
+              variant="outlined"
+              onClick={() => onOpenLedger?.()}
+              sx={{ borderRadius: 2, px: 2, textTransform: 'none', fontWeight: 600, borderColor: '#e5e7eb', color: '#374151' }}
+            >
+              Stock Ledger
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => onTabChange?.('Stock Register')}
               sx={{ borderRadius: 2, px: 2, textTransform: 'none', fontWeight: 600, borderColor: '#e5e7eb', color: '#374151' }}
             >
               Full Register
@@ -205,7 +216,7 @@ const InventoryDashboard = ({ onTabChange, onReceiveStock, refreshKey }) => {
             <KpiCard label="Reserved" value={summary?.reserved ?? 0} helper="Committed to WOs / SOs" type="reserved" loading={loading} />
           </Grid>
           <Grid item xs={12} sm={6} md={2}>
-            <KpiCard label="Low Stock" value={stats.low} helper="Replenishment needed" type="warning" loading={loading} />
+            <KpiCard label="Low Stock" value={stats.low} helper="Click to view & create PR" type="warning" loading={loading} onClick={onOpenLowStock} />
           </Grid>
           <Grid item xs={12} sm={6} md={2}>
             <KpiCard label="Critical" value={stats.negative} helper="Negative inventory" type="danger" loading={loading} />

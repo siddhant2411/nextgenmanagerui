@@ -12,10 +12,10 @@ import {
     Add, ArrowBack, Save, ShoppingCart, Business, AccountBalance,
     LocalShipping, DeleteOutline, CheckCircle, Cancel, HourglassTop,
     Send, Refresh, Warning, History, Email, LocalShippingOutlined,
-    Receipt,
+    Receipt, Payments, AssignmentTurnedIn, RequestQuote, PictureAsPdf,
 } from '@mui/icons-material';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import apiService from '../../../services/apiService';
+import apiService, { resolveApiErrorMessage } from '../../../services/apiService';
 import { inventoryItemSearch, searchContacts, searchQuotations } from '../../../services/commonAPI';
 import convertAddressToString from '../../../commonTools/convertAddress';
 import {
@@ -24,9 +24,11 @@ import {
     sendSalesOrder, cancelSalesOrder, completeSalesOrder,
     recalculateSalesOrder, deleteSalesOrder, getNextSONumber,
     createTaxInvoice, getNextInvoiceNumber,
-    getTaxInvoicesBySalesOrder, listDeliveryNotes, getSalesOrderProfitability
+    getTaxInvoicesBySalesOrder, listDeliveryNotes, getSalesOrderProfitability,
+    getPaymentsForOrder, downloadSOPdf, downloadOrderAcknowledgement, downloadProformaInvoice,
 } from '../../../services/salesOrderService';
 import SendSalesOrderDialog from './SendSalesOrderDialog';
+import RecordPaymentDialog from './RecordPaymentDialog';
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -95,6 +97,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const [invAnchor, setInvAnchor] = useState(null);
     const [dnAnchor, setDnAnchor] = useState(null);
 
+    const [payments, setPayments]               = useState([]);
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+
     const formik = useFormik({
         enableReinitialize: true,
         initialValues: {
@@ -153,7 +158,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                 applyServerData(res);
                 if (!isEdit) navigate(`/sales/sales-order/edit/${res.id}`);
             } catch (e) {
-                setError(e?.response?.data?.message ?? 'Failed to save sales order.');
+                setError(resolveApiErrorMessage(e, 'Failed to save sales order.'));
             } finally {
                 setSaving(false);
             }
@@ -271,6 +276,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             
             // Fetch profitability (only works for authorized roles)
             getSalesOrderProfitability(orderId).then(setProfitability).catch(() => {});
+
+            // Fetch advance payments
+            getPaymentsForOrder(orderId).then(setPayments).catch(() => {});
         } else {
             getNextSONumber().then(n => formik.setFieldValue('orderNumber', n)).catch(() => {});
             
@@ -361,7 +369,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             const res = await fn();
             if (res) applyServerData(res);
         } catch (e) {
-            setError(e?.response?.data?.message ?? `${label} failed.`);
+            setError(resolveApiErrorMessage(e, `${label} failed.`));
         } finally {
             setActionLoading(false);
             setDialog(null);
@@ -392,7 +400,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             setInvoiceDialog(false);
             navigate(`/sales/sales-order/invoices/view/${res.id}`);
         } catch (e) {
-            setInvoiceError(e?.response?.data?.message ?? 'Failed to create invoice.');
+            setInvoiceError(resolveApiErrorMessage(e, 'Failed to create invoice.'));
         } finally {
             setInvoiceSaving(false);
         }
@@ -534,6 +542,13 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                     setInvoiceDialog(true);
                                                 }}>
                                                 Create Invoice
+                                            </Button>
+                                        )}
+                                        {isEdit && !isCancelled && (
+                                            <Button size="small" variant="outlined" startIcon={<Payments />}
+                                                sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none', color: '#059669', borderColor: '#059669' }}
+                                                onClick={() => setPaymentDialogOpen(true)}>
+                                                Record Payment
                                             </Button>
                                         )}
                                         <Box sx={{ flexGrow: 1 }} />
@@ -767,6 +782,86 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                 </Stack>
                             </Paper>
 
+                            {/* Advance Payments Card */}
+                            {isEdit && (
+                                <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                                        <Typography sx={{ fontWeight: 900, color: T.text, fontSize: '1.1rem' }}>Payments</Typography>
+                                        {!isCancelled && (
+                                            <Button size="small" variant="contained" disableElevation startIcon={<Add />}
+                                                onClick={() => setPaymentDialogOpen(true)}
+                                                sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800, fontSize: '0.7rem', bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+                                                Add
+                                            </Button>
+                                        )}
+                                    </Stack>
+                                    {(() => {
+                                        const totalPaid  = payments.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+                                        const balance    = Math.max(0, parseFloat(formik.values.totalPayableAmount || 0) - totalPaid);
+                                        return (
+                                            <Stack spacing={1}>
+                                                <Stack direction="row" justifyContent="space-between">
+                                                    <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>Order Value</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900 }}>₹{parseNum(formik.values.totalPayableAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                </Stack>
+                                                <Stack direction="row" justifyContent="space-between">
+                                                    <Typography variant="body2" sx={{ color: '#059669', fontWeight: 500 }}>Received</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#059669' }}>₹{totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                </Stack>
+                                                <Divider />
+                                                <Stack direction="row" justifyContent="space-between">
+                                                    <Typography sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#059669', fontSize: '0.85rem' }}>Balance Due</Typography>
+                                                    <Typography sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#059669' }}>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                </Stack>
+                                                {payments.length > 0 && (
+                                                    <Stack spacing={0.5} sx={{ mt: 1 }}>
+                                                        {payments.slice(0, 3).map(p => (
+                                                            <Stack key={p.id} direction="row" justifyContent="space-between" alignItems="center"
+                                                                sx={{ p: 1, borderRadius: 2, bgcolor: '#f8fafc', border: `1px solid ${T.border}` }}>
+                                                                <Box>
+                                                                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.text }}>{p.paymentDate}</Typography>
+                                                                    <Typography sx={{ fontSize: '0.65rem', color: T.textSec }}>{p.paymentMode}{p.referenceNumber ? ` · ${p.referenceNumber}` : ''}</Typography>
+                                                                </Box>
+                                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: '#059669' }}>₹{parseFloat(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                            </Stack>
+                                                        ))}
+                                                        {payments.length > 3 && (
+                                                            <Typography sx={{ fontSize: '0.7rem', color: T.textSec, textAlign: 'center', mt: 0.5 }}>
+                                                                +{payments.length - 3} more — click "Add" to view all
+                                                            </Typography>
+                                                        )}
+                                                    </Stack>
+                                                )}
+                                            </Stack>
+                                        );
+                                    })()}
+                                </Paper>
+                            )}
+
+                            {/* Export Documents Card */}
+                            {isEdit && (
+                                <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                    <Typography sx={{ fontWeight: 900, mb: 2, color: T.text, fontSize: '1.1rem' }}>Export Documents</Typography>
+                                    <Stack spacing={1.5}>
+                                        <Button fullWidth variant="outlined" startIcon={<AssignmentTurnedIn />}
+                                            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 800, color: '#0891b2', borderColor: '#bae6fd' }}
+                                            onClick={() => downloadOrderAcknowledgement(orderId, formik.values.orderNumber).catch(() => alert('Failed to download.'))}>
+                                            Order Acknowledgement
+                                        </Button>
+                                        <Button fullWidth variant="outlined" startIcon={<RequestQuote />}
+                                            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 800, color: '#7c3aed', borderColor: '#ddd6fe' }}
+                                            onClick={() => downloadProformaInvoice(orderId, formik.values.orderNumber).catch(() => alert('Failed to download.'))}>
+                                            Pro Forma Invoice
+                                        </Button>
+                                        <Button fullWidth variant="outlined" startIcon={<PictureAsPdf />}
+                                            sx={{ borderRadius: 3, textTransform: 'none', fontWeight: 800, color: '#dc2626', borderColor: '#fecaca' }}
+                                            onClick={() => downloadSOPdf(orderId, formik.values.orderNumber).catch(() => alert('Failed to download.'))}>
+                                            Tax Invoice
+                                        </Button>
+                                    </Stack>
+                                </Paper>
+                            )}
+
                             {/* Related Documents Card */}
                             {isEdit && (
                                 <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
@@ -865,6 +960,18 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             </Dialog>
 
             <SendSalesOrderDialog open={sendDialogOpen} onClose={() => setSendDialogOpen(false)} orderId={orderId} order={formik.values} onSent={(res) => { setSendDialogOpen(false); if (res) applyServerData(res); }} />
+
+            {isEdit && (
+                <RecordPaymentDialog
+                    open={paymentDialogOpen}
+                    onClose={() => setPaymentDialogOpen(false)}
+                    orderId={orderId}
+                    orderNumber={formik.values.orderNumber}
+                    totalPayable={formik.values.totalPayableAmount}
+                    payments={payments}
+                    onPaymentsChanged={() => getPaymentsForOrder(orderId).then(setPayments).catch(() => {})}
+                />
+            )}
 
             <Dialog open={invoiceDialog} onClose={() => !invoiceSaving && setInvoiceDialog(false)} PaperProps={{ sx: { borderRadius: 5, p: 2 } }}>
                 <DialogTitle sx={{ fontWeight: 900 }}>Create Tax Invoice {invoiceNextNum && `· ${invoiceNextNum}`}</DialogTitle>

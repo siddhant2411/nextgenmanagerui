@@ -70,6 +70,18 @@ export const updateInventory = (id, payload) =>
 export const addInventory = (payload) =>
     apiService.post(`/inventory/add?qty=${payload.quantity}`, payload);
 
+// ── Sprint 2-A: Physical Stock Count ─────────────────────────────────────────
+export const submitStockCount = (payload) =>
+    apiService.post('/inventory/stock-count', payload);
+
+// ── Sprint 2-B: Stock Valuation Report ───────────────────────────────────────
+export const getStockValuation = (params = {}) =>
+    apiService.get('/inventory/valuation-report', params);
+
+// ── Sprint 2-C: Low Stock (for reorder alerts drawer) ────────────────────────
+export const getLowStockItems = (params = {}) =>
+    apiService.get('/inventory_item/search', { ...params, lowStockOnly: true, size: 200 });
+
 // ── Work Order Material Requests ──────────────────────────────────────────────
 export const getPendingMaterialRequests = (params = {}) =>
     apiService.get('/material-requests/pending', params);

@@ -26,6 +26,24 @@ export const resolveApiErrorMessage = (
     fallback = "Unable to process this request right now."
 ) => {
     const payload = error?.response?.data;
+
+    // Prefer structured field-level errors when present (from MethodArgumentNotValidException)
+    if (payload?.fieldErrors && typeof payload.fieldErrors === "object") {
+        const entries = Object.entries(payload.fieldErrors);
+        if (entries.length > 0) {
+            return entries
+                .map(([field, messages]) => {
+                    const label = field
+                        .replace(/([A-Z])/g, " $1")
+                        .replace(/^./, (s) => s.toUpperCase())
+                        .trim();
+                    const msg = Array.isArray(messages) ? messages.join(", ") : messages;
+                    return `${label}: ${msg}`;
+                })
+                .join(" • ");
+        }
+    }
+
     const messageCandidate =
         payload?.message ||
         payload?.error ||

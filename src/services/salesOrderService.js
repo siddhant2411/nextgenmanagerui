@@ -59,10 +59,27 @@ export const completeSalesOrder = (id) =>
 export const recalculateSalesOrder = (id) =>
     apiService.post(`/sales-orders/${id}/recalculate`);
 
-// ── PDF ───────────────────────────────────────────────────────────────────────
+// ── PDF / Documents ───────────────────────────────────────────────────────────
 
 export const downloadSOPdf = (id, orderNumber) =>
-    apiService.download(`/sales-orders/${id}/pdf`, {}, `SO-${orderNumber || id}.pdf`);
+    apiService.download(`/sales-orders/${id}/pdf`, {}, `Invoice-${orderNumber || id}.pdf`);
+
+export const downloadOrderAcknowledgement = (id, orderNumber) =>
+    apiService.download(`/sales-orders/${id}/pdf/order-acknowledgement`, {}, `OA-${orderNumber || id}.pdf`);
+
+export const downloadProformaInvoice = (id, orderNumber) =>
+    apiService.download(`/sales-orders/${id}/pdf/proforma-invoice`, {}, `PF-${orderNumber || id}.pdf`);
+
+// ── Advance Payments ──────────────────────────────────────────────────────────
+
+export const getPaymentsForOrder = (orderId) =>
+    apiService.get(`/sales-orders/${orderId}/payments`);
+
+export const recordPayment = (orderId, payload) =>
+    apiService.post(`/sales-orders/${orderId}/payments`, payload);
+
+export const deletePayment = (orderId, paymentId) =>
+    apiService.delete(`/sales-orders/${orderId}/payments/${paymentId}`);
 
 // ── Delivery Notes ─────────────────────────────────────────────────────────────
 
@@ -131,6 +148,11 @@ const salesOrderService = {
     completeSalesOrder,
     recalculateSalesOrder,
     downloadSOPdf,
+    downloadOrderAcknowledgement,
+    downloadProformaInvoice,
+    getPaymentsForOrder,
+    recordPayment,
+    deletePayment,
     listDeliveryNotes,
     getDeliveryNote,
     createDeliveryNote,
