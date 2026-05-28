@@ -56,6 +56,7 @@ const Sidebar = ({
     const canAccessInventory = canModule(MODULE_KEYS.INVENTORY);
     const canAccessProduction = canModule(MODULE_KEYS.WORK_ORDER);
     const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
+    const canAccessContacts = canModule(MODULE_KEYS.CONTACT);
     const productChildren = [
         ...(canAccessItemCode ? [{ text: "Master", path: "/inventory-item" }] : []),
         ...(canAccessProduction ? [{ text: "Bill Of Material", path: "/bom" }] : []),
@@ -141,8 +142,10 @@ const Sidebar = ({
                         { text: "Invoices", path: "/sales/sales-order/invoices" },
                     ],
                 },
-                { text: "Company", icon: <Contact />, path: "/contact" },
             ]
+            : []),
+        ...(canAccessContacts
+            ? [{ text: "Company", icon: <Contact />, path: "/contact" }]
             : []),
         ...(canAccessPurchase
             ? [

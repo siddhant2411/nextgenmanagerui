@@ -32,6 +32,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import PublicOnlyRoute from "./auth/PublicOnlyRoute";
 import RoleProtectedRoute from "./auth/RoleProtectedRoute";
 import {
+    CONTACT_ACCESS_ROLES,
     INVENTORY_ACCESS_ROLES,
     ITEM_CODE_MAPPING_ACCESS_ROLES,
     PRODUCTION_ACCESS_ROLES,
@@ -150,8 +151,8 @@ function AppShell() {
                         path="/contact/*"
                         element={
                             <RoleProtectedRoute
-                                allowedRoles={SALES_ACCESS_ROLES}
-                                deniedMessage="You are not authorized for sales contacts."
+                                allowedRoles={CONTACT_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access contacts."
                             >
                                 <Contact />
                             </RoleProtectedRoute>
