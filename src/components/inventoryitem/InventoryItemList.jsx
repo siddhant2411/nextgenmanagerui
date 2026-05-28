@@ -4,7 +4,7 @@ import {
   TableContainer, TableHead, TablePagination, TableRow,
   Paper, Typography, Divider, ListItemText, Toolbar,
   Menu, MenuItem, Checkbox, CircularProgress,
-  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, ListItemIcon
+  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, ListItemIcon, Container, Grid
 } from '@mui/material';
 import {
   BuildCircle, Inventory2Rounded, WorkOff, Calculate,
@@ -41,6 +41,20 @@ const getDefaultVisibleCols = (isNarrowDesktop, isMobile) => {
     cols = cols.filter(f => !["basicMaterial", "dimension", "weight", "drawingNumber"].includes(f));
   }
   return cols;
+};
+
+/* ── Premium Design Tokens ── */
+const T = {
+    primary: '#2563eb',
+    success: '#059669',
+    error:   '#dc2626',
+    warning: '#d97706',
+    bg:      '#f8fafc',
+    card:    '#ffffff',
+    border:  '#e2e8f0',
+    text:    '#0f172a',
+    textSec: '#64748b',
+    header:  'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
 };
 
 /* ── Theme constants ── */
@@ -471,121 +485,82 @@ const InventoryItemList = ({
   };
 
   return (
-    <Box sx={{
-      minHeight: "100%",
-      p: { xs: 1.5, sm: 2, md: 3 },
-      width: "100%",
-      maxWidth: "100%",
-      minWidth: 0,
-      overflowX: "hidden",
-    }}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 1.5, sm: 2, md: 2.5 },
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          margin: "auto",
-          borderRadius: 2,
-          border: `1px solid ${BORDER_COLOR}`,
-        }}
-      >
-        {/* ── Page Header ── */}
-        <Toolbar
-          disableGutters
-          sx={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            px: 0.5,
-            pb: 1.5,
-            flexDirection: { xs: 'column', md: 'row' },
-            gap: 1,
-            minHeight: 'auto !important',
-          }}
-        >
-          <Box>
-            <Typography
-              variant="h5"
-              fontWeight={700}
-              sx={{ color: '#0f2744', fontSize: { xs: '1.25rem', md: '1.5rem' } }}
-            >
-              Product Master
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-              Manage your product catalog and inventory items
-            </Typography>
-          </Box>
+    <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 8 }}>
+        {/* ── Hero Header ── */}
+        <Box sx={{ 
+            bgcolor: '#0f172a', 
+            backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
+            color: 'white', pt: 6, pb: 12 
+        }}>
+            <Container maxWidth="xl">
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4, flexWrap: 'wrap', gap: 2 }}>
+                    <Box>
+                        <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 1 }}>Product Master</Typography>
+                        <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>Manage your product catalog and inventory items.</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <Button 
+                            variant="outlined" 
+                            startIcon={<DownloadIcon />}
+                            onClick={handleExportClick}
+                            sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}
+                        >
+                            Export
+                        </Button>
+                        <Menu
+                            anchorEl={exportAnchorEl}
+                            open={Boolean(exportAnchorEl)}
+                            onClose={handleExportClose}
+                            PaperProps={{ elevation: 3, sx: { borderRadius: 2, minWidth: 200 } }}
+                        >
+                            <MenuItem onClick={() => downloadExport('catalog')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Product Catalog (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => downloadExport('bulk')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Bulk Item Master (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => downloadExport('pdf')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Product Data Sheet (PDF)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <Divider />
+                            <MenuItem onClick={() => downloadExport('vendor-prices')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Vendor Price Comparison" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => downloadExport('gst-import')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="GST / E-Way / Tally Import" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => downloadExport('low-stock-indent')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Low Stock Purchase Indent" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <MenuItem onClick={() => downloadExport('job-work-items')}>
+                                <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText primary="Job Work Items" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                        </Menu>
+                        {canWriteInventoryItems && <BulkImportItems />}
+                        <Button
+                          onClick={handleAddNewItemClick}
+                          variant="contained" disableElevation
+                          disabled={!canWriteInventoryItems}
+                          startIcon={<AddCircleOutlineIcon />}
+                          sx={{ bgcolor: T.primary, borderRadius: 2.5, px: 3, py: 1, fontWeight: 800, textTransform: 'none', boxShadow: '0 4px 14px 0 rgba(37, 99, 235, 0.4)', '&:hover': { bgcolor: '#1d4ed8' } }}
+                        >
+                          {isMobile ? "Add" : "New Product"}
+                        </Button>
+                    </Box>
+                </Box>
+            </Container>
+        </Box>
 
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Button 
-                variant="outlined" 
-                startIcon={<DownloadIcon />}
-                onClick={handleExportClick}
-                sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, borderColor: BORDER_COLOR, color: '#475569', bgcolor: '#fff', '&:hover': { borderColor: '#1565c0', color: '#1565c0' } }}
-            >
-                Export
-            </Button>
-            <Menu
-                anchorEl={exportAnchorEl}
-                open={Boolean(exportAnchorEl)}
-                onClose={handleExportClose}
-                PaperProps={{ elevation: 3, sx: { borderRadius: 2, minWidth: 200 } }}
-            >
-                <MenuItem onClick={() => downloadExport('catalog')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Product Catalog (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <MenuItem onClick={() => downloadExport('bulk')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Bulk Item Master (Excel)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <MenuItem onClick={() => downloadExport('pdf')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Product Data Sheet (PDF)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <Divider />
-                <MenuItem onClick={() => downloadExport('vendor-prices')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Vendor Price Comparison" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <MenuItem onClick={() => downloadExport('gst-import')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GST / E-Way / Tally Import" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <MenuItem onClick={() => downloadExport('low-stock-indent')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Low Stock Purchase Indent" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-                <MenuItem onClick={() => downloadExport('job-work-items')}>
-                    <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="Job Work Items" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
-                </MenuItem>
-            </Menu>
-            {canWriteInventoryItems && <BulkImportItems />}
-            <Button
-              onClick={handleAddNewItemClick}
-              variant="contained"
-              disabled={!canWriteInventoryItems}
-              startIcon={<AddCircleOutlineIcon />}
-              sx={{
-                borderRadius: 1.5,
-                fontWeight: 600,
-                textTransform: 'none',
-                px: { xs: 1.5, sm: 2.5 },
-                boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
-                bgcolor: '#1565c0',
-                '&:hover': { bgcolor: '#0d47a1' },
-                fontSize: { xs: '0.8125rem', sm: '0.875rem' }
-              }}
-            >
-              {isMobile ? "Add" : "Add Product"}
-            </Button>
-          </Box>
-        </Toolbar>
-
-        <Divider sx={{ mb: 2 }} />
+        <Container maxWidth="xl" sx={{ mt: -6 }}>
+          <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 4px 20px 0 rgba(0,0,0,0.03)' }}>
+            <Box sx={{ p: 3 }}>
 
 
         {/* ── Filter Bar + Column Toggle ── */}
@@ -945,6 +920,7 @@ const InventoryItemList = ({
             }}
           />
         )}
+        </Box>
 
         <Dialog
           open={deleteDialog.open}
@@ -1031,7 +1007,8 @@ const InventoryItemList = ({
             )}
           </DialogContent>
         </Dialog>
-      </Paper>
+          </Paper>
+        </Container>
     </Box>
   );
 };

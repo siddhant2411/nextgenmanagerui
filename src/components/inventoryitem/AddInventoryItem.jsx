@@ -5,14 +5,15 @@ import {
   Checkbox, FormControlLabel, Tabs, Tab,
   Toolbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, CircularProgress, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions,
-  Autocomplete, InputAdornment, createFilterOptions, List, ListItem, ListItemIcon, ListItemText
+  Autocomplete, InputAdornment, createFilterOptions, List, ListItem, ListItemIcon, ListItemText, Container
 } from '@mui/material';
 import {
   PictureAsPdf, PictureAsPdf as PdfIcon, FileDownload, OpenInNew, Sync, InfoOutlined,
-  Lock as LockIcon, CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy
+  Lock as LockIcon, CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy,
+  ArrowBack, Save
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import apiService from '../../services/apiService';
+import apiService, { resolveApiErrorMessage } from '../../services/apiService';
 import { getActiveBomByItemid, getBomHistoryByInventoryItem, getWhereUsedByItemId, getBomCostBreakdown } from '../../services/bomService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -34,9 +35,23 @@ import {
   updateInventoryItemWithFiles,
 } from '../../services/inventoryService';
 
+/* ── Premium Design Tokens ── */
+const T = {
+    primary: '#2563eb',
+    success: '#059669',
+    error:   '#dc2626',
+    warning: '#d97706',
+    bg:      '#f8fafc',
+    card:    '#ffffff',
+    border:  '#e2e8f0',
+    text:    '#0f172a',
+    textSec: '#64748b',
+    accent:  '#eff6ff',
+};
+
 /* ── Theme ─────────────────────────────────────────────────────────────────── */
 const HEADER_BG = '#0f2744';
-const BORDER_COLOR = '#e5e7eb';
+const BORDER_COLOR = '#e2e8f0';
 
 /* ── Indian GST slabs ───────────────────────────────────────────────────────── */
 const GST_SLABS = [
@@ -107,6 +122,7 @@ export default function AddInventoryItem() {
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [savedItem, setSavedItem] = useState(null); // { itemCode, name } for success dialog
+  const [itemCodeError, setItemCodeError] = useState('');
 
   /* ── Item code series ── */
   const [isItemCodeAuto, setIsItemCodeAuto] = useState(false);
@@ -347,6 +363,23 @@ export default function AddInventoryItem() {
     }
   };
 
+  const checkCodeUniqueness = async (code) => {
+    if (!code || code.trim() === '' || isEditMode || isItemCodeAuto) {
+      setItemCodeError('');
+      return;
+    }
+    try {
+      const res = await apiService.get('/inventory_item/check-code', { itemCode: code.trim() });
+      if (res?.exists) {
+        setItemCodeError('An item with this item code already exists.');
+      } else {
+        setItemCodeError('');
+      }
+    } catch (err) {
+      console.error('Failed to check item code uniqueness', err);
+    }
+  };
+
   const handleAutocompleteChange = (parentKey, childKey, value) => {
     setIsDirty(true);
     if (parentKey) {
@@ -427,9 +460,7 @@ export default function AddInventoryItem() {
     // Keep itemCode empty so backend generates from series
     setItemData(prev => ({ ...prev, seriesId, itemCode: '' }));
     setIsDirty(true);
-
-    console.log(selectedSeries);
-    console.log(isItemCodeAuto)
+    setItemCodeError(''); // Clear uniqueness error
   };
 
   const toggleAutoCode = () => {
@@ -440,10 +471,18 @@ export default function AddInventoryItem() {
       setSelectedSeries(null);
       setItemData(prev => ({ ...prev, itemCode: '', seriesId: null }));
     }
+    setItemCodeError(''); // Clear uniqueness error
   };
 
   /* ── Submit / save ── */
-  const handleSubmit = (e) => { e?.preventDefault?.(); setShowSaveConfirm(true); };
+  const handleSubmit = (e) => {
+    e?.preventDefault?.();
+    if (itemCodeError) {
+      showSnackbar('Please resolve all validation errors before saving.', 'error');
+      return;
+    }
+    setShowSaveConfirm(true);
+  };
 
   const persistItem = async () => {
     const payload = {
@@ -485,8 +524,9 @@ export default function AddInventoryItem() {
         setSavedItem({ itemCode: response.itemCode, name: response.name });
         setIsDirty(false);
       }
-    } catch {
-      showSnackbar('Error saving item', 'error');
+    } catch (err) {
+      const errMsg = resolveApiErrorMessage(err, 'Error saving item');
+      showSnackbar(errMsg, 'error');
     }
   };
 
@@ -532,67 +572,86 @@ export default function AddInventoryItem() {
      RENDER
      ═════════════════════════════════════════════════════════════════════════ */
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ p: { xs: 1.5, sm: 2, md: 3 }, minHeight: '100%' }}>
-      <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 2.5 }, borderRadius: 2, border: `1px solid ${BORDER_COLOR}` }}>
+    <Box component="form" onSubmit={handleSubmit} sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+        {/* ── Hero Header ── */}
+        <Box sx={{ 
+            bgcolor: '#0f172a', 
+            backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
+            color: 'white', pt: 6, pb: 14 
+        }}>
+            <Container maxWidth="xl">
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Stack direction="row" spacing={3} alignItems="center">
+                        <IconButton onClick={() => navigate('/inventory-item')} sx={{ color: 'white', border: '1px solid rgba(255,255,255,0.1)', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                            <ArrowBack />
+                        </IconButton>
+                        <Box>
+                            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em' }}>
+                                {isEditMode ? itemData.name : 'New Product'}
+                            </Typography>
+                            {isEditMode && (
+                                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+                                    <Chip label={`Rev. ${itemData.revision}`} size="small" 
+                                        sx={{ fontWeight: 900, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', height: 24 }} />
+                                    <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                                        {itemData.itemCode}
+                                    </Typography>
+                                    {itemData.purchased && !itemData.manufactured && <Chip label="Purchased" size="small" sx={{ ml: 1, bgcolor: '#dbeafe', color: '#1e40af', fontSize: '0.65rem', height: 18 }} />}
+                                    {itemData.manufactured && !itemData.purchased && <Chip label="Manufactured" size="small" sx={{ ml: 1, bgcolor: '#dcfce7', color: '#166534', fontSize: '0.65rem', height: 18 }} />}
+                                    {itemData.purchased && itemData.manufactured && <Chip label="Purchased + Manufactured" size="small" sx={{ ml: 1, bgcolor: '#fef3c7', color: '#92400e', fontSize: '0.65rem', height: 18 }} />}
+                                </Stack>
+                            )}
+                        </Box>
+                    </Stack>
 
-        {/* ── Header ── */}
-        <Toolbar disableGutters sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 0.5, pb: 1, minHeight: 'auto !important', flexWrap: 'wrap', gap: 1 }}>
-          <Box>
-            <Typography variant="h5" fontWeight={700} sx={{ color: '#0f2744', fontSize: { xs: '1.2rem', md: '1.4rem' } }}>
-              {isEditMode ? itemData.name : 'New Product'}
-            </Typography>
-            {isEditMode && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                Rev. {itemData.revision} &middot; {itemData.itemCode}
-                {itemData.purchased && !itemData.manufactured && <Chip label="Purchased" size="small" sx={{ ml: 1, bgcolor: '#dbeafe', color: '#1e40af', fontSize: '0.65rem', height: 18 }} />}
-                {itemData.manufactured && !itemData.purchased && <Chip label="Manufactured" size="small" sx={{ ml: 1, bgcolor: '#dcfce7', color: '#166534', fontSize: '0.65rem', height: 18 }} />}
-                {itemData.purchased && itemData.manufactured && <Chip label="Purchased + Manufactured" size="small" sx={{ ml: 1, bgcolor: '#fef3c7', color: '#92400e', fontSize: '0.65rem', height: 18 }} />}
-              </Typography>
-            )}
-          </Box>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        {isEditMode && canWrite && (
+                            <Button variant="outlined" size="small" startIcon={<ContentCopy />}
+                                onClick={() => setShowDuplicateConfirm(true)}
+                                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}>
+                                Duplicate
+                            </Button>
+                        )}
+                        {canExport && (
+                            <>
+                                <Button variant="outlined" size="small" startIcon={<PictureAsPdf />} onClick={exportPDF}
+                                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}>PDF</Button>
+                                <Button variant="outlined" size="small" startIcon={<FileDownload />} onClick={exportExcel}
+                                    sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}>Excel</Button>
+                            </>
+                        )}
+                        {canWrite && (
+                            <Button variant="contained" type="submit" disableElevation startIcon={<Save />}
+                                sx={{ bgcolor: T.primary, borderRadius: 2.5, px: 4, py: 1.2, textTransform: 'none', fontWeight: 800, fontSize: '1rem', '&:hover': { bgcolor: '#1d4ed8' } }}>
+                                {isEditMode ? 'Update' : 'Save'}
+                            </Button>
+                        )}
+                    </Stack>
+                </Stack>
+            </Container>
+        </Box>
 
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-            {isEditMode && canWrite && (
-              <Button variant="outlined" size="small" startIcon={<ContentCopy />}
-                onClick={() => setShowDuplicateConfirm(true)}
-                sx={{ textTransform: 'none', fontWeight: 500, borderColor: BORDER_COLOR, color: '#374151' }}>
-                Duplicate
-              </Button>
-            )}
-            {canExport && (
-              <>
-                <Button variant="outlined" size="small" startIcon={<PictureAsPdf />} onClick={exportPDF}
-                  sx={{ textTransform: 'none', fontWeight: 500, borderColor: BORDER_COLOR, color: '#374151' }}>PDF</Button>
-                <Button variant="outlined" size="small" startIcon={<FileDownload />} onClick={exportExcel}
-                  sx={{ textTransform: 'none', fontWeight: 500, borderColor: BORDER_COLOR, color: '#374151' }}>Excel</Button>
-              </>
-            )}
-            {canWrite && (
-              <Button variant="contained" type="submit" size="small"
-                sx={{ textTransform: 'none', fontWeight: 600, px: 3, borderRadius: 1.5, bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' } }}>
-                {isEditMode ? 'Update' : 'Save'}
-              </Button>
-            )}
-          </Stack>
-        </Toolbar>
+        <Container maxWidth="xl" sx={{ mt: -8 }}>
+          <Paper elevation={0} sx={{ borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.06)' }}>
 
-        <Divider sx={{ mb: 2 }} />
+            {/* ── Tabs ── */}
+            <Tabs
+              value={selectedTab}
+              onChange={(_, v) => setSelectedTab(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{
+                px: 3, pt: 2, bgcolor: T.bg, borderBottom: `1px solid ${T.border}`,
+                '& .MuiTab-root': { fontWeight: 800, textTransform: 'none', fontSize: '0.95rem', minHeight: 60 },
+                '& .Mui-selected': { color: T.primary },
+              }}
+            >
+              {tabs.map(t => <Tab key={t.key} label={t.label} />)}
+            </Tabs>
 
-        {/* ── Tabs ── */}
-        <Tabs
-          value={selectedTab}
-          onChange={(_, v) => setSelectedTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            mb: 2,
-            '& .MuiTab-root': { textTransform: 'none', fontWeight: 500, fontSize: '0.875rem', minHeight: 40 },
-            '& .Mui-selected': { color: '#1565c0' },
-            '& .MuiTabs-indicator': { backgroundColor: '#1565c0', height: 2.5 },
-          }}
-        >
-          {tabs.map(t => <Tab key={t.key} label={t.label} />)}
-        </Tabs>
+            <Box sx={{ p: 5 }}>
+
+
 
         {/* ══════════════════════════════════════════════════════════════════
             TAB 0 — BASIC INFO
@@ -620,7 +679,9 @@ export default function AddInventoryItem() {
                     value={itemData.itemCode}
                     onChange={handleChange} fullWidth sx={fieldSx}
                     disabled={isEditMode}
-                    helperText="Leave blank for legacy auto-gen or select a series"
+                    error={!!itemCodeError}
+                    onBlur={(e) => checkCodeUniqueness(e.target.value)}
+                    helperText={itemCodeError || "Leave blank for legacy auto-gen or select a series"}
                   />
                 )}
                 {!isEditMode && (
@@ -1103,7 +1164,9 @@ export default function AddInventoryItem() {
           )
         )}
 
-      </Paper>
+            </Box>
+          </Paper>
+        </Container>
 
       {/* ── Series picker dialog ── */}
       <ItemCodeSeriesPickerDialog

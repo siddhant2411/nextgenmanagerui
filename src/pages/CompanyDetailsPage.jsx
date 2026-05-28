@@ -49,6 +49,10 @@ const EMPTY_FORM = {
     currency: "INR",
     financialYearStartMonth: 4,
     notes: "",
+    bankName: "",
+    bankAccountNumber: "",
+    bankIfscCode: "",
+    bankBranch: "",
 };
 
 const validate = (form) => {
@@ -96,6 +100,10 @@ export default function CompanyDetailsPage() {
                     currency: data.currency || "INR",
                     financialYearStartMonth: data.financialYearStartMonth || 4,
                     notes: data.notes || "",
+                    bankName: data.bankName || "",
+                    bankAccountNumber: data.bankAccountNumber || "",
+                    bankIfscCode: data.bankIfscCode || "",
+                    bankBranch: data.bankBranch || "",
                 };
                 setForm(filled);
                 setOriginalForm(filled);
@@ -154,6 +162,10 @@ export default function CompanyDetailsPage() {
                 currency: data.currency || "INR",
                 financialYearStartMonth: data.financialYearStartMonth || 4,
                 notes: data.notes || "",
+                bankName: data.bankName || "",
+                bankAccountNumber: data.bankAccountNumber || "",
+                bankIfscCode: data.bankIfscCode || "",
+                bankBranch: data.bankBranch || "",
             };
             setForm(filled);
             setOriginalForm(filled);
@@ -390,6 +402,54 @@ export default function CompanyDetailsPage() {
                                     label="Country"
                                     value={form.country}
                                     onChange={handleChange("country")}
+                                    fullWidth
+                                    size="small"
+                                    disabled={!canEdit}
+                                />
+                            </Grid>
+                        </Grid>
+
+                        {/* Bank Details */}
+                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
+                            Bank Details
+                        </Typography>
+                        <Grid container spacing={2} sx={{ mb: 4 }}>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Bank Name"
+                                    value={form.bankName}
+                                    onChange={handleChange("bankName")}
+                                    fullWidth
+                                    size="small"
+                                    disabled={!canEdit}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    label="Account Number"
+                                    value={form.bankAccountNumber}
+                                    onChange={handleChange("bankAccountNumber")}
+                                    fullWidth
+                                    size="small"
+                                    disabled={!canEdit}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    label="IFSC Code"
+                                    value={form.bankIfscCode}
+                                    onChange={handleChange("bankIfscCode")}
+                                    fullWidth
+                                    size="small"
+                                    inputProps={{ style: { textTransform: "uppercase" } }}
+                                    disabled={!canEdit}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={8}>
+                                <TextField
+                                    label="Branch"
+                                    value={form.bankBranch}
+                                    onChange={handleChange("bankBranch")}
                                     fullWidth
                                     size="small"
                                     disabled={!canEdit}

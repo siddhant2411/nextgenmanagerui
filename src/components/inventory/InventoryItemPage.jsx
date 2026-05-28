@@ -5,8 +5,7 @@ import {
     InputAdornment, TablePagination, Tooltip, Chip, CircularProgress,
     Stack, Fade
 } from '@mui/material';
-import { Search, MoveToInbox, Visibility, History as HistoryIcon, Assessment } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { Search, MoveToInbox, Visibility, QrCode2 as BatchIcon } from '@mui/icons-material';
 import { searchInventoryItems } from '../../services/inventoryService';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
@@ -17,7 +16,7 @@ const BORDER_COLOR = '#e5e7eb';
 const itemTypeMapping = {
     FINISHED_GOOD: { label: 'Finished Good', color: '#e8f5e9', textColor: '#2e7d32' },
     RAW_MATERIAL: { label: 'Raw Material', color: '#fff3e0', textColor: '#e65100' },
-    SEMI_FINISHED: { label: 'Semi-Finished', color: '#e3f2fd', textColor: '#1565c0' },
+    SEMI_FINISHED: { label: 'Semi-Finished', color: '#e3f2fd', textColor: '#2563eb' },
     SUB_CONTRACTED: { label: 'Sub-Contracted', color: '#f3e5f5', textColor: '#6a1b9a' },
     CONSUMABLE: { label: 'Consumable', color: '#e0f2f1', textColor: '#00796b' },
 };
@@ -26,9 +25,9 @@ const headerCellSx = {
     background: HEADER_BG,
     color: '#475569',
     fontWeight: 700,
-    fontSize: '0.75rem',
+    fontSize: '0.65rem',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: '0.05em',
     py: 1.5,
     borderBottom: `2px solid ${BORDER_COLOR}`,
 };
@@ -38,7 +37,7 @@ const getAvailableQty = (item) => item?.availableQuantity ?? getSettings(item)?.
 const getReservedQty = (item) => item?.reservedQuantity ?? getSettings(item)?.reservedQuantity ?? 0;
 const getMinStock = (item) => item?.minStock ?? getSettings(item)?.minStock ?? 0;
 
-const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
+const InventoryItemPage = ({ onReceiveStock, refreshKey, onOpenLedger, onOpenBatchSerial }) => {
     const [items, setItems] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
@@ -46,7 +45,6 @@ const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [totalItems, setTotalItems] = useState(0);
 
-    const navigate = useNavigate();
     const { canAction } = useAuth();
     const canManageInventory = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
     const debounceTimeout = useRef(null);
@@ -120,7 +118,7 @@ const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
                     elevation={0}
                     sx={{
                         p: 3,
-                        borderRadius: 3,
+                        borderRadius: 4,
                         border: `1px solid ${BORDER_COLOR}`,
                         bgcolor: '#fff'
                     }}
@@ -135,29 +133,19 @@ const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
                             </Typography>
                         </Box>
 
-                        <Stack direction="row" spacing={1.5} alignItems="center">
-                            <TextField
-                                value={search}
-                                onChange={handleSearchChange}
-                                placeholder="Search by code or name..."
-                                size="small"
-                                InputProps={{
-                                    startAdornment: <Search sx={{ color: '#64748b', fontSize: 18, mr: 0.5 }} />,
-                                }}
-                                sx={{
-                                    width: 280,
-                                    '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8fafc' }
-                                }}
-                            />
-                            <Button 
-                                variant="outlined" 
-                                startIcon={<Assessment />}
-                                onClick={() => navigate('/inventory-item/transactions')}
-                                sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, color: '#475569', borderColor: '#e2e8f0' }}
-                            >
-                                Logs
-                            </Button>
-                        </Stack>
+                        <TextField
+                            value={search}
+                            onChange={handleSearchChange}
+                            placeholder="Search by code or name..."
+                            size="small"
+                            InputProps={{
+                                startAdornment: <Search sx={{ color: '#64748b', fontSize: 18, mr: 0.5 }} />,
+                            }}
+                            sx={{
+                                width: 280,
+                                '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: '#f8fafc' }
+                            }}
+                        />
                     </Box>
 
                     <TableContainer sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 2 }}>
@@ -222,28 +210,41 @@ const InventoryItemPage = ({ onReceiveStock, refreshKey }) => {
                                             </TableCell>
                                             <TableCell align="center">
                                                 <Box display="flex" gap={1} justifyContent="center">
-                                                    <Tooltip title="View Stock Details">
-                                                        <IconButton 
-                                                            size="small" 
-                                                            onClick={() => navigate(`/inventory-item/view/${item.inventoryItemId}`)}
+                                                    <Tooltip title="View Stock Ledger">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => onOpenLedger?.(item)}
                                                             sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5 }}
                                                         >
                                                             <Visibility fontSize="inherit" />
                                                         </IconButton>
                                                     </Tooltip>
+                                                    {(getSettings(item).batchTracked || item.batchTracked ||
+                                                      getSettings(item).serialTracked || item.serialTracked) && (
+                                                        <Tooltip title="View Batches & Serials">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => onOpenBatchSerial?.(item)}
+                                                                sx={{ border: '1px solid #e0e7ff', borderRadius: 1.5, color: '#4f46e5' }}
+                                                            >
+                                                                <BatchIcon fontSize="inherit" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
                                                     <Button
                                                         size="small"
                                                         variant="contained"
+                                                        disableElevation
                                                         startIcon={<MoveToInbox fontSize="inherit" />}
                                                         disabled={!canManageInventory}
                                                         onClick={() => onReceiveStock?.(item)}
-                                                        sx={{ 
-                                                            textTransform: 'none', 
-                                                            fontWeight: 700, 
-                                                            fontSize: '0.75rem', 
-                                                            borderRadius: 1.5,
-                                                            bgcolor: '#1e293b',
-                                                            '&:hover': { bgcolor: '#0f172a' }
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontWeight: 800,
+                                                            fontSize: '0.65rem',
+                                                            borderRadius: 2,
+                                                            bgcolor: '#2563eb',
+                                                            '&:hover': { bgcolor: '#1d4ed8' }
                                                         }}
                                                     >
                                                         Receive

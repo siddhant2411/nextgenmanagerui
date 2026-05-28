@@ -25,6 +25,7 @@ import DocumentChecklist from '../common/DocumentChecklist';
 import SendPODialog from './SendPODialog';
 import { useAuth } from '../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../auth/roles';
+import { resolveApiErrorMessage } from '../../services/apiService';
 
 // ── Design tokens (Aligned with Inventory/BOM) ────────────────────────────────
 const BORDER = '#e2e8f0';
@@ -132,7 +133,7 @@ export default function AddUpdatePurchaseOrder() {
                 applyServerData(saved);
                 if (!isEdit) navigate(`../${saved.id}`, { replace: true });
             } catch (e) {
-                setError(e?.response?.data?.message ?? 'Save failed. Please check your inputs.');
+                setError(resolveApiErrorMessage(e, 'Save failed. Please check your inputs.'));
             } finally {
                 setSaving(false);
             }
@@ -259,7 +260,7 @@ export default function AddUpdatePurchaseOrder() {
             const res = await fn();
             applyServerData(res);
         } catch (e) {
-            setError(e?.response?.data?.message ?? successMsg + ' action failed.');
+            setError(resolveApiErrorMessage(e, successMsg + ' action failed.'));
         } finally {
             setActionLoading(false);
             setDialog(null);

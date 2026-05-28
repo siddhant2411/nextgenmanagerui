@@ -85,7 +85,7 @@ export default function LoginPage() {
                         </Typography>
                     </Box>
 
-                    {error ? <Alert severity="error">{error}</Alert> : null}
+                    {error ? <Alert severity="error" data-testid="login-error">{error}</Alert> : null}
                     {sessionExpiredMessage ? (
                         <Alert severity="warning">{sessionExpiredMessage}</Alert>
                     ) : null}
@@ -100,6 +100,7 @@ export default function LoginPage() {
                                 fullWidth
                                 size="small"
                                 autoFocus
+                                inputProps={{ "data-testid": "username" }}
                             />
 
                             <TextField
@@ -110,6 +111,7 @@ export default function LoginPage() {
                                 autoComplete="current-password"
                                 fullWidth
                                 size="small"
+                                inputProps={{ "data-testid": "password" }}
                             />
 
                             <Button
@@ -119,6 +121,7 @@ export default function LoginPage() {
                                 disabled={isLoggingIn}
                                 startIcon={isLoggingIn ? <CircularProgress size={16} color="inherit" /> : <LockOutlinedIcon />}
                                 sx={{ mt: 1, height: 44 }}
+                                data-testid="login-btn"
                             >
                                 {isLoggingIn ? "Signing in..." : "Sign In"}
                             </Button>
