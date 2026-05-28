@@ -417,7 +417,7 @@ export default function AddUpdatePurchaseOrder() {
 
                             <Box sx={{ flexGrow: 1 }} />
 
-                            {!isCompleted && (
+                            {!isCompleted && canApprove && (
                                 <Button variant="text" size="small" color="error" startIcon={<Cancel />}
                                     sx={{ textTransform: 'none', fontWeight: 600 }}
                                     onClick={() => setDialog({ type: 'cancel', title: 'Cancel Purchase Order', body: 'This will permanently cancel this order. Reason:', input: 'Cancellation Reason' })}>
@@ -425,7 +425,7 @@ export default function AddUpdatePurchaseOrder() {
                                 </Button>
                             )}
 
-                            {isDraft && (
+                            {isDraft && canApprove && (
                                 <Button variant="text" size="small" color="error" startIcon={<Delete />}
                                     sx={{ textTransform: 'none', fontWeight: 600 }}
                                     onClick={() => setDialog({ type: 'delete', title: 'Delete Draft', body: 'Permanently delete this draft purchase order? This action is irreversible.' })}>
