@@ -18,7 +18,7 @@ import "./LoginPage.css";
 
 const resolveErrorMessage = (error) => {
     if (error?.response?.status === 401) {
-        return resolveApiErrorMessage(error, "Invalid username or password.");
+        return resolveApiErrorMessage(error, "Invalid username / email or password.");
     }
     return resolveApiErrorMessage(error, "Unable to sign in right now. Please try again.");
 };
@@ -49,7 +49,7 @@ export default function LoginPage() {
         setError("");
 
         if (!username.trim() || !password) {
-            setError("Username and password are required.");
+            setError("Username / email and password are required.");
             return;
         }
 
@@ -93,7 +93,7 @@ export default function LoginPage() {
                     <Box component="form" onSubmit={handleSubmit}>
                         <Stack spacing={2}>
                             <TextField
-                                label="Username"
+                                label="Username / Email"
                                 value={username}
                                 onChange={(event) => setUsername(event.target.value)}
                                 autoComplete="username"
