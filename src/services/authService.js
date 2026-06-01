@@ -139,6 +139,14 @@ export const updateMyPassword = async (payload) => {
     return response.data;
 };
 
+/**
+ * @param {{ recoverySecret: string, username: string, newPassword: string }} payload
+ */
+export const recoveryResetPassword = async (payload) => {
+    const response = await apiClient.post("/auth/recovery/reset", payload);
+    return response.data;
+};
+
 export const listRoles = async () => {
     const response = await apiClient.get("/auth/roles");
     if (Array.isArray(response.data)) {
