@@ -22,7 +22,7 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { resolveApiErrorMessage } from "../services/apiService";
-import { recoveryResetPassword } from "../services/authService";
+import { recoveryResetPassword, recoveryRequestOtp, getRecoveryInfo } from "../services/authService";
 import "./LoginPage.css";
 
 const resolveErrorMessage = (error) => {
@@ -40,33 +40,59 @@ const resolveRecoveryErrorMessage = (error) => {
 };
 
 function ForgotPasswordDialog({ open, onClose }) {
-    const [username, setUsername] = useState("");
-    const [recoverySecret, setRecoverySecret] = useState("");
+    const [step, setStep] = useState(1); // 1 = enter login, 2 = enter OTP + new password
+    const [login, setLogin] = useState("");
+    const [otp, setOtp] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [showSecret, setShowSecret] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const [recoveryInfo, setRecoveryInfo] = useState({ hint: "" });
+
+    React.useEffect(() => {
+        if (open) {
+            getRecoveryInfo()
+                .then((info) => setRecoveryInfo(info))
+                .catch(() => {});
+        }
+    }, [open]);
 
     const handleClose = () => {
-        setUsername("");
-        setRecoverySecret("");
+        setStep(1);
+        setLogin("");
+        setOtp("");
         setNewPassword("");
         setConfirmPassword("");
-        setShowSecret(false);
         setShowPassword(false);
         setError("");
         setSuccess(false);
         onClose();
     };
 
-    const handleSubmit = async (e) => {
+    const handleSendCode = async (e) => {
         e.preventDefault();
         setError("");
+        if (!login.trim()) {
+            setError("Login is required.");
+            return;
+        }
+        setLoading(true);
+        try {
+            await recoveryRequestOtp({ login: login.trim() });
+            setStep(2);
+        } catch (err) {
+            setError(resolveRecoveryErrorMessage(err));
+        } finally {
+            setLoading(false);
+        }
+    };
 
-        if (!username.trim() || !recoverySecret || !newPassword || !confirmPassword) {
+    const handleReset = async (e) => {
+        e.preventDefault();
+        setError("");
+        if (!otp.trim() || !newPassword || !confirmPassword) {
             setError("All fields are required.");
             return;
         }
@@ -78,14 +104,9 @@ function ForgotPasswordDialog({ open, onClose }) {
             setError("New password must be at least 6 characters.");
             return;
         }
-
         setLoading(true);
         try {
-            await recoveryResetPassword({
-                recoverySecret,
-                username: username.trim(),
-                newPassword,
-            });
+            await recoveryResetPassword({ login: login.trim(), otp: otp.trim(), newPassword });
             setSuccess(true);
         } catch (err) {
             setError(resolveRecoveryErrorMessage(err));
@@ -102,43 +123,40 @@ function ForgotPasswordDialog({ open, onClose }) {
                     <Alert severity="success" sx={{ mt: 1 }}>
                         Password reset successfully. You can now sign in with your new password.
                     </Alert>
-                ) : (
-                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleSubmit}>
-                        <Typography variant="body2" color="text.secondary">
-                            Enter your username and the server recovery secret (from <code>application.properties</code>) to reset your password.
-                        </Typography>
-
+                ) : step === 1 ? (
+                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleSendCode}>
+                        {recoveryInfo.hint ? (
+                            <Typography variant="body2" color="text.secondary">
+                                {recoveryInfo.hint}
+                            </Typography>
+                        ) : null}
                         {error ? <Alert severity="error">{error}</Alert> : null}
-
                         <TextField
-                            label="Username"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
+                            label="Login"
+                            value={login}
+                            onChange={(e) => setLogin(e.target.value)}
                             fullWidth
                             size="small"
                             autoFocus
                             autoComplete="username"
+                            helperText="Email (super admin) or tenantCode_username"
                         />
-
+                    </Stack>
+                ) : (
+                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleReset}>
+                        <Typography variant="body2" color="text.secondary">
+                            A 6-digit verification code was sent to your registered email. It expires in 15 minutes.
+                        </Typography>
+                        {error ? <Alert severity="error">{error}</Alert> : null}
                         <TextField
-                            label="Recovery Secret"
-                            type={showSecret ? "text" : "password"}
-                            value={recoverySecret}
-                            onChange={(e) => setRecoverySecret(e.target.value)}
+                            label="Verification Code"
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
                             fullWidth
                             size="small"
-                            autoComplete="off"
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton size="small" onClick={() => setShowSecret((s) => !s)} edge="end">
-                                            {showSecret ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
+                            autoFocus
+                            inputProps={{ maxLength: 6, inputMode: "numeric" }}
                         />
-
                         <TextField
                             label="New Password"
                             type={showPassword ? "text" : "password"}
@@ -157,7 +175,6 @@ function ForgotPasswordDialog({ open, onClose }) {
                                 ),
                             }}
                         />
-
                         <TextField
                             label="Confirm New Password"
                             type="password"
@@ -167,6 +184,15 @@ function ForgotPasswordDialog({ open, onClose }) {
                             size="small"
                             autoComplete="new-password"
                         />
+                        <Typography variant="caption" color="text.secondary">
+                            Didn't receive a code?{" "}
+                            <span
+                                style={{ cursor: "pointer", textDecoration: "underline" }}
+                                onClick={() => { setStep(1); setError(""); setOtp(""); }}
+                            >
+                                Go back and try again
+                            </span>
+                        </Typography>
                     </Stack>
                 )}
             </DialogContent>
@@ -174,10 +200,20 @@ function ForgotPasswordDialog({ open, onClose }) {
                 <Button onClick={handleClose} disabled={loading}>
                     {success ? "Close" : "Cancel"}
                 </Button>
-                {!success && (
+                {!success && step === 1 && (
                     <Button
                         variant="contained"
-                        onClick={handleSubmit}
+                        onClick={handleSendCode}
+                        disabled={loading}
+                        startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+                    >
+                        {loading ? "Sending..." : "Send Code"}
+                    </Button>
+                )}
+                {!success && step === 2 && (
+                    <Button
+                        variant="contained"
+                        onClick={handleReset}
                         disabled={loading}
                         startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
                     >
