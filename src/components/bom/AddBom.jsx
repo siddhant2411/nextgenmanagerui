@@ -22,12 +22,18 @@ import {
     ListItem,
     ListItemText,
     Chip,
+    Container,
+    Stack,
+    Paper,
+    CircularProgress,
+    Tooltip,
+    IconButton,
 } from "@mui/material";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 import apiService, { resolveApiErrorMessage } from "../../services/apiService";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { DeleteOutline, FileDownload, BuildCircle, Warning as WarningIcon } from "@mui/icons-material";
+import { DeleteOutline, FileDownload, BuildCircle, Warning as WarningIcon, ArrowBack, Save } from "@mui/icons-material";
 import { getAttachmentBlob } from "../../services/inventoryService";
 import dayjs from "dayjs";
 import BomRouting from "./BomRouting";
@@ -1050,173 +1056,104 @@ const AddBom = () => {
     const currentStatusInfo = bomStatusOptions.find(s => s.key === formik.values.bomStatus);
 
     return (
-        <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-            <Grid container spacing={2}>
-                <Grid item xs={12}>
-                    <Box
-                        sx={{
-                            p: { xs: 1.5, sm: 2, md: 2.5 },
-                            backgroundColor: "#fff",
-                            borderRadius: 2,
-                            border: `1px solid ${BORDER_COLOR}`,
-                            minHeight: 500,
-                            display: "flex",
-                            flexDirection: "column",
-                        }}
-                    >
-                        {/* ── Header Row 1: Title + Actions ── */}
-                        <Box
-                            display="flex"
-                            justifyContent="space-between"
-                            alignItems="center"
-                            mb={1}
-                            flexDirection={{ xs: "column", sm: "row" }}
-                            gap={1}
-                        >
-                            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
-                                <Box>
-                                    <Box display="flex" alignItems="center" gap={1}>
-                                        <Typography
-                                            variant="h5"
-                                            fontWeight={700}
-                                            sx={{ color: "#0f2744", fontSize: { xs: "1.2rem", md: "1.4rem" } }}
-                                        >
-                                            {bomId ? formik.values.bomName || "Edit BOM" : "New BOM"}
-                                        </Typography>
-                                        {bomId && formik.values.revision && (
-                                            <Chip size="small" label={`Rev. ${formik.values.revision}`}
-                                                sx={{ fontWeight: 600, fontSize: '0.72rem', bgcolor: '#f0f4ff', color: '#1565c0' }} />
-                                        )}
-                                        {formik.values.ecoNumber && (
-                                            <Chip size="small" label={`ECO: ${formik.values.ecoNumber}`} variant="outlined"
-                                                sx={{ fontSize: '0.72rem', borderColor: BORDER_COLOR }} />
-                                        )}
-                                    </Box>
-                                </Box>
-                                {bomId &&
-                                    activeBomForItem?.id &&
-                                    String(activeBomForItem.id) !== String(bomId) && (
-                                        <Button
+        <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', pb: 10 }}>
+            {/* ── Hero Header ── */}
+            <Box sx={{
+                bgcolor: '#0f172a',
+                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 50%)',
+                color: 'white', pt: 6, pb: 15,
+            }}>
+                <Container maxWidth="xl">
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
+                        <Stack direction="row" spacing={3} alignItems="center">
+                            <Tooltip title="Back to BOMs">
+                                <IconButton onClick={() => navigate('/bom')} sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                    <ArrowBack />
+                                </IconButton>
+                            </Tooltip>
+                            <Box>
+                                <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 0.5 }}>
+                                    {bomId ? formik.values.bomName || 'Edit BOM' : 'New BOM'}
+                                </Typography>
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    {bomId && formik.values.bomStatus && (
+                                        <Chip
+                                            label={currentStatusInfo?.value || formik.values.bomStatus.replace(/_/g, ' ')}
                                             size="small"
-                                            variant="outlined"
-                                            onClick={() => navigate(`/bom/edit/${activeBomForItem.id}`)}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontSize: "0.75rem",
-                                                borderColor: BORDER_COLOR,
-                                                color: "#374151",
-                                            }}
-                                        >
+                                            sx={{ fontSize: '0.65rem', fontWeight: 900, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', height: 22, textTransform: 'uppercase' }}
+                                        />
+                                    )}
+                                    {bomId && formik.values.revision && (
+                                        <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                                            Rev. {formik.values.revision}
+                                        </Typography>
+                                    )}
+                                    {formik.values.ecoNumber && (
+                                        <Chip size="small" label={`ECO: ${formik.values.ecoNumber}`}
+                                            sx={{ fontSize: '0.65rem', fontWeight: 700, bgcolor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', height: 22 }} />
+                                    )}
+                                </Stack>
+                            </Box>
+                        </Stack>
+                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                            {bomId && (
+                                <>
+                                    <Button size="small" variant="outlined" startIcon={<FileDownload />} onClick={downloadExcel}
+                                        sx={{ textTransform: 'none', fontWeight: 600, borderColor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                        Excel
+                                    </Button>
+                                    <Button size="small" variant="outlined" startIcon={<FileDownload />} onClick={downloadJobSheet}
+                                        sx={{ textTransform: 'none', fontWeight: 600, borderColor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                        Job Sheet
+                                    </Button>
+                                    <Button size="small" variant="outlined" onClick={() => setDuplicateDialogOpen(true)}
+                                        sx={{ textTransform: 'none', fontWeight: 600, borderColor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                        Duplicate
+                                    </Button>
+                                    <Button size="small" variant="outlined" onClick={() => navigate('/production/work-order/add', { state: { bom: bomDetails?.bom || activeBomForItem } })}
+                                        sx={{ textTransform: 'none', fontWeight: 600, borderColor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                        Create Work Order
+                                    </Button>
+                                    {activeBomForItem?.id && String(activeBomForItem.id) !== String(bomId) && (
+                                        <Button size="small" variant="outlined" onClick={() => navigate(`/bom/edit/${activeBomForItem.id}`)}
+                                            sx={{ textTransform: 'none', fontWeight: 600, borderColor: 'rgba(255,255,255,0.2)', color: 'white', '&:hover': { borderColor: 'rgba(255,255,255,0.5)', bgcolor: 'rgba(255,255,255,0.05)' } }}>
                                             Go to Active BOM
                                         </Button>
                                     )}
-                            </Box>
+                                </>
+                            )}
+                            <Button variant="contained" disableElevation
+                                startIcon={formik.isSubmitting ? <CircularProgress size={16} color="inherit" /> : <Save />}
+                                onClick={handleSubmitClick}
+                                disabled={formik.isSubmitting}
+                                sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: '#2563eb', px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}>
+                                {formik.isSubmitting ? 'Saving...' : (bomId ? 'Update' : 'Create')}
+                            </Button>
+                        </Stack>
+                    </Stack>
+                </Container>
+            </Box>
 
-                            <Box display="flex" gap={1} flexWrap="wrap" alignItems="center">
-                                {bomId && (
-                                    <>
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<FileDownload />}
-                                            onClick={downloadExcel}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontWeight: 500,
-                                                borderColor: BORDER_COLOR,
-                                                color: "#374151",
-                                            }}
-                                        >
-                                            Excel
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            startIcon={<FileDownload />}
-                                            onClick={downloadJobSheet}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontWeight: 500,
-                                                borderColor: BORDER_COLOR,
-                                                color: "#374151",
-                                            }}
-                                        >
-                                            Job Sheet
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            onClick={() => setDuplicateDialogOpen(true)}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontWeight: 500,
-                                                borderColor: BORDER_COLOR,
-                                                color: "#374151",
-                                            }}
-                                        >
-                                            Duplicate
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            variant="outlined"
-                                            onClick={() => navigate('/production/work-order/add', { state: { bom: bomDetails?.bom || activeBomForItem } })}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontWeight: 500,
-                                                borderColor: BORDER_COLOR,
-                                                color: "#374151",
-                                            }}
-                                        >
-                                            Create Work Order
-                                        </Button>
-                                    </>
-                                )}
-                                <Button
-                                    type="button"
-                                    variant="contained"
-                                    size="small"
-                                    onClick={handleSubmitClick}
-                                    disabled={formik.isSubmitting}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 600,
-                                        px: 3,
-                                        borderRadius: 1.5,
-                                        bgcolor: "#1565c0",
-                                        boxShadow: "0 2px 8px rgba(21,101,192,0.25)",
-                                        "&:hover": { bgcolor: "#0d47a1" },
-                                    }}
-                                >
-                                    {bomId ? "Update" : "Create"}
-                                </Button>
-                            </Box>
-                        </Box>
-
-                        {/* ── Header Row 2: Status + Metadata (only for existing BOMs) ── */}
-                        {bomId && (
-                            <Box
-                                display="flex"
-                                alignItems="center"
-                                gap={2}
-                                flexWrap="wrap"
-                                mb={1.5}
-                                sx={{ px: 0.5 }}
-                            >
-                                {/* Status selector */}
-                                <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Container maxWidth="xl" sx={{ mt: -8 }}>
+                <Stack spacing={3}>
+                    {/* ── Status Workflow Ribbon (existing BOMs only) ── */}
+                    {bomId && (
+                        <Paper elevation={0} sx={{ p: 2, borderRadius: 4, border: '1px solid #e2e8f0', bgcolor: 'white', boxShadow: '0 4px 20px 0 rgba(0,0,0,0.03)' }}>
+                            <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+                                <FormControl size="small" sx={{ minWidth: 160 }}>
                                     <Select
                                         name="bomStatus"
                                         value={formik.values.bomStatus || ""}
                                         onChange={handleChangeStatus}
                                         disabled={!canChangeBomStatus || loading}
                                         sx={{
-                                            borderRadius: 1.5,
+                                            borderRadius: 2,
                                             fontSize: '0.8rem',
                                             fontWeight: 600,
                                             bgcolor: currentStatusInfo?.color || '#fafafa',
                                             color: currentStatusInfo?.textColor || '#374151',
                                             '& .MuiOutlinedInput-notchedOutline': { borderColor: BORDER_COLOR },
-                                            height: 32,
+                                            height: 36,
                                         }}
                                     >
                                         {bomStatusOptions.map((option) => (
@@ -1227,48 +1164,33 @@ const AddBom = () => {
                                     </Select>
                                 </FormControl>
 
-                                <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+                                <Divider orientation="vertical" flexItem />
 
-                                {/* Created */}
                                 <Box display="flex" alignItems="center" gap={0.5}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
-                                        Created:
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
-                                        {formatDate(formik.values.creationDate)}
-                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Created:</Typography>
+                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>{formatDate(formik.values.creationDate)}</Typography>
                                 </Box>
 
-                                {/* Updated */}
                                 <Box display="flex" alignItems="center" gap={0.5}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
-                                        Updated:
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
-                                        {formatDate(formik.values.updatedDate)}
-                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Updated:</Typography>
+                                    <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>{formatDate(formik.values.updatedDate)}</Typography>
                                 </Box>
 
-                                {/* Approved */}
                                 {formik.values.approvalDate && (
                                     <Box display="flex" alignItems="center" gap={0.5}>
-                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 500 }}>
-                                            Approved:
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>
-                                            {formatDate(formik.values.approvalDate)}
-                                        </Typography>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600 }}>Approved:</Typography>
+                                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500 }}>{formatDate(formik.values.approvalDate)}</Typography>
                                         {formik.values.approvedBy && (
-                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                                                by {formik.values.approvedBy}
-                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>by {formik.values.approvedBy}</Typography>
                                         )}
                                     </Box>
                                 )}
-                            </Box>
-                        )}
+                            </Stack>
+                        </Paper>
+                    )}
 
-                        <Divider sx={{ mb: 2 }} />
+                    {/* ── Main Form Card ── */}
+                    <Paper elevation={0} sx={{ borderRadius: 4, border: '1px solid #e2e8f0', bgcolor: 'white', overflow: 'hidden', boxShadow: '0 4px 20px 0 rgba(0,0,0,0.03)' }}>
 
                         {nextStatus && (
                             <BomStatusChangeDialog
@@ -1280,34 +1202,37 @@ const AddBom = () => {
                             />
                         )}
 
-                        <Tabs
-                            value={selectedTab}
-                            onChange={(_, tab) => setSelectedTab(tab)}
-                            sx={{
-                                mb: 2,
-                                "& .MuiTab-root": {
-                                    textTransform: "none",
-                                    fontWeight: 500,
-                                    fontSize: "0.875rem",
-                                    minHeight: 40,
-                                },
-                                "& .Mui-selected": { color: "#1565c0" },
-                                "& .MuiTabs-indicator": { backgroundColor: "#1565c0", height: 2.5 },
-                            }}
-                        >
-                            <Tab label="Basic Info" />
-                            <Tab label="Operations" />
-                            {bomId && <Tab label="Attachments" />}
-                            {bomId && <Tab label="QA Plan" />}
-                            {bomId && <Tab label="Cost Breakdown" />}
-                        </Tabs>
+                        <Box sx={{ px: 3, pt: 2.5 }}>
+                            <Tabs
+                                value={selectedTab}
+                                onChange={(_, tab) => setSelectedTab(tab)}
+                                sx={{
+                                    "& .MuiTab-root": {
+                                        textTransform: "none",
+                                        fontWeight: 500,
+                                        fontSize: "0.875rem",
+                                        minHeight: 40,
+                                    },
+                                    "& .Mui-selected": { color: "#1565c0" },
+                                    "& .MuiTabs-indicator": { backgroundColor: "#1565c0", height: 2.5 },
+                                }}
+                            >
+                                <Tab label="Basic Info" />
+                                <Tab label="Operations" />
+                                {bomId && <Tab label="Attachments" />}
+                                {bomId && <Tab label="QA Plan" />}
+                                {bomId && <Tab label="Cost Breakdown" />}
+                            </Tabs>
+                        </Box>
+                        <Divider />
 
+                        <Box sx={{ p: { xs: 2, md: 3 } }}>
                         <form
                             onSubmit={formik.handleSubmit}
                             style={{ flex: 1, display: "flex", flexDirection: "column" }}
                         >
                             {selectedTab === 0 && (
-                                <Box sx={{ flex: 1, overflow: "auto", maxHeight: "calc(100vh - 320px)" }}>
+                                <Box sx={{ flex: 1 }}>
                                     <Grid container spacing={2} mb={2}>
                                         <Grid item xs={12} sm={6} md={3}>
                                             <TextField
@@ -1737,26 +1662,27 @@ const AddBom = () => {
                                 </Box>
                             )}
                         </form>
+                        </Box>
 
-                        <Snackbar
-                            open={snackbar.open}
-                            autoHideDuration={3000}
-                            onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
-                            anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-                        >
-                            <Alert
-                                onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
-                                severity={snackbar.severity}
-                                variant="filled"
-                                sx={{ borderRadius: 1.5 }}
-                            >
-                                {snackbar.message}
-                            </Alert>
-                        </Snackbar>
-                    </Box>
-                </Grid>
+                    </Paper>
+                </Stack>
+            </Container>
 
-            </Grid>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
+                anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+            >
+                <Alert
+                    onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
+                    severity={snackbar.severity}
+                    variant="filled"
+                    sx={{ borderRadius: 1.5 }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
 
             <Dialog
                 open={duplicateDialogOpen}

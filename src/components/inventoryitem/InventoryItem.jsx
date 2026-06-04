@@ -51,7 +51,7 @@ const InventoryItem = () => {
   }, [error])
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
 
       <Routes>
         <Route

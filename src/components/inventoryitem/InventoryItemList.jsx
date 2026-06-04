@@ -4,12 +4,12 @@ import {
   TableContainer, TableHead, TablePagination, TableRow,
   Paper, Typography, Divider, ListItemText, Toolbar,
   Menu, MenuItem, Checkbox, CircularProgress,
-  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, ListItemIcon, Container, Grid
+  useMediaQuery, useTheme, Chip, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, ListItemIcon, Container, Grid, Stack
 } from '@mui/material';
 import {
   BuildCircle, Inventory2Rounded, WorkOff, Calculate,
   Tune as TuneIcon, ArrowUpward, ArrowDownward, Download as DownloadIcon,
-  Warning as WarningIcon
+  Warning as WarningIcon, CheckCircle, CurrencyRupee, Refresh,
 } from "@mui/icons-material";
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -493,12 +493,17 @@ const InventoryItemList = ({
             color: 'white', pt: 6, pb: 12 
         }}>
             <Container maxWidth="xl">
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 4, flexWrap: 'wrap', gap: 2 }}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" mb={6} flexWrap="wrap" gap={2}>
                     <Box>
                         <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 1 }}>Product Master</Typography>
                         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>Manage your product catalog and inventory items.</Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                        <Tooltip title="Refresh Stats">
+                            <IconButton onClick={fetchSummary} sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                <Refresh />
+                            </IconButton>
+                        </Tooltip>
                         <Button 
                             variant="outlined" 
                             startIcon={<DownloadIcon />}
@@ -553,8 +558,41 @@ const InventoryItemList = ({
                         >
                           {isMobile ? "Add" : "New Product"}
                         </Button>
-                    </Box>
-                </Box>
+                    </Stack>
+                </Stack>
+
+                <Grid container spacing={3}>
+                    {[
+                        { label: 'Total Products', value: summary?.totalItems ?? 0, icon: Inventory2Rounded, color: '#3b82f6', trend: 'All' },
+                        { label: 'Available Stock', value: (summary?.available ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 }), icon: CheckCircle, color: '#10b981', trend: 'In Hand' },
+                        { label: 'Booked', value: summary?.booked ?? 0, icon: BuildCircle, color: '#f59e0b', trend: 'Reserved' },
+                        { label: 'Total Value', value: `₹${((summary?.totalInventoryValue ?? 0) / 100000).toFixed(1)}L`, icon: CurrencyRupee, color: '#8b5cf6', trend: 'Valuation' },
+                    ].map((stat, i) => (
+                        <Grid item xs={12} sm={6} md={3} key={i}>
+                            <Paper elevation={0} sx={{
+                                p: 3, borderRadius: 4,
+                                bgcolor: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.1)',
+                                backdropFilter: 'blur(10px)',
+                            }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                    <Box sx={{ p: 1, borderRadius: 2, bgcolor: `${stat.color}20`, color: stat.color, display: 'flex' }}>
+                                        <stat.icon />
+                                    </Box>
+                                    <Typography sx={{ color: stat.color, fontSize: '0.7rem', fontWeight: 800, bgcolor: `${stat.color}10`, px: 1, borderRadius: 1 }}>
+                                        {stat.trend}
+                                    </Typography>
+                                </Stack>
+                                <Typography variant="h5" sx={{ fontWeight: 900, mt: 2, color: 'white' }}>
+                                    {isSummaryLoading ? <CircularProgress size={20} color="inherit" /> : stat.value}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>
+                                    {stat.label}
+                                </Typography>
+                            </Paper>
+                        </Grid>
+                    ))}
+                </Grid>
             </Container>
         </Box>
 

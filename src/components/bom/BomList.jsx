@@ -189,7 +189,7 @@ const headerCellSx = {
 };
 
 const BomList = ({
-    setLoading, loading, setError, handleAddNewBomClick
+    setLoading, loading, setError, handleAddNewBomClick, hideHeader = false
 }) => {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -279,7 +279,7 @@ const BomList = ({
     };
 
     const onDeleteItem = async (id) => {
-        try { await apiService.delete(`/bom/${id}`); } catch (err) { setError(err); }
+        try { await apiService.delete(`/bom/${id}`); } catch (err) { setError(err?.response?.data?.message || err?.message || "Failed to delete BOM"); }
     };
 
     const handleDeleteClick = (id) => {
@@ -431,7 +431,7 @@ const BomList = ({
     return (
         <Box sx={{
             minHeight: "100%",
-            p: { xs: 1.5, sm: 2, md: 3 },
+            p: hideHeader ? 0 : { xs: 1.5, sm: 2, md: 3 },
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
@@ -444,111 +444,114 @@ const BomList = ({
                     width: "100%",
                     maxWidth: "100%",
                     minWidth: 0,
-                    borderRadius: 2,
-                    border: `1px solid ${BORDER_COLOR}`,
+                    borderRadius: hideHeader ? 0 : 2,
+                    border: hideHeader ? 'none' : `1px solid ${BORDER_COLOR}`,
                     overflow: 'hidden'
                 }}
             >
                 {/* ── Page Header ── */}
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: { xs: "stretch", md: "center" },
-                        flexDirection: { xs: "column", md: "row" },
-                        gap: 1.5,
-                        p: { xs: 2, md: 2.5 },
-                        pb: 2,
-                    }}
-                >
-                    <Box>
-                        <Typography
-                            variant="h5"
-                            fontWeight={700}
-                            sx={{ color: '#0f2744', fontSize: { xs: '1.25rem', md: '1.5rem' } }}
+                {!hideHeader && (
+                    <>
+                        <Box
+                            sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: { xs: "stretch", md: "center" },
+                                flexDirection: { xs: "column", md: "row" },
+                                gap: 1.5,
+                                p: { xs: 2, md: 2.5 },
+                                pb: 2,
+                            }}
                         >
-                            Bill of Materials
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-                            Manage product structures and component lists
-                        </Typography>
-                    </Box>
-
-                    <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
-                        {selectedRows.length > 0 && (
-                            <>
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<FileDownloadIcon />}
-                                    onClick={(e) => setExportAnchorEl(e.currentTarget)}
-                                    sx={{
-                                        borderRadius: 1.5,
-                                        textTransform: 'none',
-                                        px: 2,
-                                        borderColor: '#1565c0',
-                                        color: '#1565c0',
-                                        '&:hover': { borderColor: '#0d47a1', bgcolor: 'rgba(21,101,192,0.04)' }
-                                    }}
+                            <Box>
+                                <Typography
+                                    variant="h5"
+                                    fontWeight={700}
+                                    sx={{ color: '#0f2744', fontSize: { xs: '1.25rem', md: '1.5rem' } }}
                                 >
-                                    Export ({selectedRows.length})
-                                </Button>
-                                <Menu
-                                    anchorEl={exportAnchorEl}
-                                    open={Boolean(exportAnchorEl)}
-                                    onClose={() => setExportAnchorEl(null)}
-                                    PaperProps={{ sx: { minWidth: 220, borderRadius: 2, mt: 0.5, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' } }}
-                                >
-                                    <MenuItem onClick={() => downloadExport('job-sheet')} sx={{ py: 1 }}>
-                                        <ListItemText
-                                            primary={<Typography variant="body2" fontWeight={600}>BOM Job Sheet (PDF)</Typography>}
-                                            secondary="Materials checklist + operator sign-off"
-                                        />
-                                    </MenuItem>
-                                    <MenuItem onClick={() => downloadExport('pdf')} sx={{ py: 1 }}>
-                                        <ListItemText
-                                            primary={<Typography variant="body2" fontWeight={600}>Manufacturing BOM Sheet (PDF)</Typography>}
-                                            secondary="For Shop Floor Execution"
-                                        />
-                                    </MenuItem>
-                                    <Divider />
-                                    <MenuItem onClick={() => downloadExport('flat')} sx={{ py: 1 }}>
-                                        <ListItemText
-                                            primary={<Typography variant="body2" fontWeight={600}>Flat BOM Details (Excel)</Typography>}
-                                            secondary="For Costing & Planning"
-                                        />
-                                    </MenuItem>
-                                    <MenuItem onClick={() => downloadExport('indented')} sx={{ py: 1 }}>
-                                        <ListItemText
-                                            primary={<Typography variant="body2" fontWeight={600}>Indented BOM (Excel)</Typography>}
-                                            secondary="Multi-level Hierarchy"
-                                        />
-                                    </MenuItem>
-                                </Menu>
-                            </>
-                        )}
-                        {canManageBom && (
-                            <Button
-                                onClick={handleAddNewBomClick}
-                                variant="contained"
-                                startIcon={<AddCircleOutlineIcon />}
-                                sx={{
-                                    borderRadius: 1.5,
-                                    fontWeight: 600,
-                                    textTransform: 'none',
-                                    px: { xs: 1.5, sm: 2.5 },
-                                    boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
-                                    bgcolor: '#1565c0',
-                                    '&:hover': { bgcolor: '#0d47a1' },
-                                    fontSize: { xs: '0.8125rem', sm: '0.875rem' }
-                                }}
-                            >
-                                {isMobile ? "Add" : "Add BOM"}
-                            </Button>
-                        )}
-                    </Box>
-                </Box>
+                                    Bill of Materials
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                                    Manage product structures and component lists
+                                </Typography>
+                            </Box>
 
-                <Divider sx={{ mb: 2 }} />
+                            <Box sx={{ display: "flex", gap: 1, alignItems: 'center' }}>
+                                {selectedRows.length > 0 && (
+                                    <>
+                                        <Button
+                                            variant="outlined"
+                                            startIcon={<FileDownloadIcon />}
+                                            onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                                            sx={{
+                                                borderRadius: 1.5,
+                                                textTransform: 'none',
+                                                px: 2,
+                                                borderColor: '#1565c0',
+                                                color: '#1565c0',
+                                                '&:hover': { borderColor: '#0d47a1', bgcolor: 'rgba(21,101,192,0.04)' }
+                                            }}
+                                        >
+                                            Export ({selectedRows.length})
+                                        </Button>
+                                        <Menu
+                                            anchorEl={exportAnchorEl}
+                                            open={Boolean(exportAnchorEl)}
+                                            onClose={() => setExportAnchorEl(null)}
+                                            PaperProps={{ sx: { minWidth: 220, borderRadius: 2, mt: 0.5, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' } }}
+                                        >
+                                            <MenuItem onClick={() => downloadExport('job-sheet')} sx={{ py: 1 }}>
+                                                <ListItemText
+                                                    primary={<Typography variant="body2" fontWeight={600}>BOM Job Sheet (PDF)</Typography>}
+                                                    secondary="Materials checklist + operator sign-off"
+                                                />
+                                            </MenuItem>
+                                            <MenuItem onClick={() => downloadExport('pdf')} sx={{ py: 1 }}>
+                                                <ListItemText
+                                                    primary={<Typography variant="body2" fontWeight={600}>Manufacturing BOM Sheet (PDF)</Typography>}
+                                                    secondary="For Shop Floor Execution"
+                                                />
+                                            </MenuItem>
+                                            <Divider />
+                                            <MenuItem onClick={() => downloadExport('flat')} sx={{ py: 1 }}>
+                                                <ListItemText
+                                                    primary={<Typography variant="body2" fontWeight={600}>Flat BOM Details (Excel)</Typography>}
+                                                    secondary="For Costing & Planning"
+                                                />
+                                            </MenuItem>
+                                            <MenuItem onClick={() => downloadExport('indented')} sx={{ py: 1 }}>
+                                                <ListItemText
+                                                    primary={<Typography variant="body2" fontWeight={600}>Indented BOM (Excel)</Typography>}
+                                                    secondary="Multi-level Hierarchy"
+                                                />
+                                            </MenuItem>
+                                        </Menu>
+                                    </>
+                                )}
+                                {canManageBom && (
+                                    <Button
+                                        onClick={handleAddNewBomClick}
+                                        variant="contained"
+                                        startIcon={<AddCircleOutlineIcon />}
+                                        sx={{
+                                            borderRadius: 1.5,
+                                            fontWeight: 600,
+                                            textTransform: 'none',
+                                            px: { xs: 1.5, sm: 2.5 },
+                                            boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
+                                            bgcolor: '#1565c0',
+                                            '&:hover': { bgcolor: '#0d47a1' },
+                                            fontSize: { xs: '0.8125rem', sm: '0.875rem' }
+                                        }}
+                                    >
+                                        {isMobile ? "Add" : "Add BOM"}
+                                    </Button>
+                                )}
+                            </Box>
+                        </Box>
+                        <Divider sx={{ mb: 2 }} />
+                    </>
+                )}
 
                 {/* ── Filter Bar + Column Toggle ── */}
                 <Box
@@ -562,7 +565,8 @@ const BomList = ({
                         gap: 1.5,
                         justifyContent: "space-between",
                         mb: 2,
-                        px: { xs: 2, md: 2.5 }
+                        px: { xs: 2, md: 2.5 },
+                        pt: hideHeader ? { xs: 2, md: 2.5 } : 0,
                     }}
                 >
                     <Box sx={{ flex: 1, width: "100%", minWidth: 0 }}>
@@ -576,6 +580,59 @@ const BomList = ({
                             sortDir={sortDir}
                         />
                     </Box>
+                    {hideHeader && selectedRows.length > 0 && (
+                        <>
+                            <Button
+                                variant="outlined"
+                                startIcon={<FileDownloadIcon />}
+                                onClick={(e) => setExportAnchorEl(e.currentTarget)}
+                                size="small"
+                                sx={{
+                                    height: 36,
+                                    borderRadius: 1.5,
+                                    textTransform: 'none',
+                                    borderColor: '#1565c0',
+                                    color: '#1565c0',
+                                    flexShrink: 0,
+                                    '&:hover': { borderColor: '#0d47a1', bgcolor: 'rgba(21,101,192,0.04)' }
+                                }}
+                            >
+                                Export ({selectedRows.length})
+                            </Button>
+                            <Menu
+                                anchorEl={exportAnchorEl}
+                                open={Boolean(exportAnchorEl)}
+                                onClose={() => setExportAnchorEl(null)}
+                                PaperProps={{ sx: { minWidth: 220, borderRadius: 2, mt: 0.5, boxShadow: '0 4px 20px rgba(0,0,0,0.1)' } }}
+                            >
+                                <MenuItem onClick={() => downloadExport('job-sheet')} sx={{ py: 1 }}>
+                                    <ListItemText
+                                        primary={<Typography variant="body2" fontWeight={600}>BOM Job Sheet (PDF)</Typography>}
+                                        secondary="Materials checklist + operator sign-off"
+                                    />
+                                </MenuItem>
+                                <MenuItem onClick={() => downloadExport('pdf')} sx={{ py: 1 }}>
+                                    <ListItemText
+                                        primary={<Typography variant="body2" fontWeight={600}>Manufacturing BOM Sheet (PDF)</Typography>}
+                                        secondary="For Shop Floor Execution"
+                                    />
+                                </MenuItem>
+                                <Divider />
+                                <MenuItem onClick={() => downloadExport('flat')} sx={{ py: 1 }}>
+                                    <ListItemText
+                                        primary={<Typography variant="body2" fontWeight={600}>Flat BOM Details (Excel)</Typography>}
+                                        secondary="For Costing & Planning"
+                                    />
+                                </MenuItem>
+                                <MenuItem onClick={() => downloadExport('indented')} sx={{ py: 1 }}>
+                                    <ListItemText
+                                        primary={<Typography variant="body2" fontWeight={600}>Indented BOM (Excel)</Typography>}
+                                        secondary="Multi-level Hierarchy"
+                                    />
+                                </MenuItem>
+                            </Menu>
+                        </>
+                    )}
                     <Button
                         startIcon={<TuneIcon />}
                         variant="outlined"
