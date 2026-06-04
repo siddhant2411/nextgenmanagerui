@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import apiService from "../../services/apiService";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import BomList from "./BomList";
+import BomHub from "./BomHub";
 import "./style/bom.css";
 import AddBom from "./AddBom";
 import { CircularProgress, Box, Typography, Snackbar, Alert } from "@mui/material";
@@ -69,14 +69,12 @@ const Bom = () => {
         }
     }, [error])
     return (
-        <Box sx={{ p: 3 }}>
+        <Box>
             <Routes>
                 <Route
                     path="/"
                     element={
-                        <BomList
-                            // onExportExcel={handleExportExcel}
-                            // onExportPDF={handleExportPDF}
+                        <BomHub
                             setLoading={setLoadingStable}
                             loading={loading}
                             setError={setErrorStable}
