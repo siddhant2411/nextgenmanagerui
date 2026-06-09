@@ -922,10 +922,10 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     : 0;
   const canIssueWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
   const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
-  const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY'].includes(workOrderStatus);
+  const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY', 'READY_FOR_PRODUCTION'].includes(workOrderStatus);
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
   const canCancelWorkOrderStatus = ['CREATED', 'SCHEDULED', 'RELEASED', 'IN_PROGRESS','MATERIAL_PENDING','READY_FOR_PRODUCTION','PARTIALLY_READY'].includes(workOrderStatus);
-  const canShortCloseWorkOrderStatus = ['RELEASED', 'IN_PROGRESS','PARTIALLY_READY'].includes(workOrderStatus);
+  const canShortCloseWorkOrderStatus = ['RELEASED', 'IN_PROGRESS','PARTIALLY_READY','READY_FOR_PRODUCTION'].includes(workOrderStatus);
   const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
   const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
@@ -1138,7 +1138,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                       </MenuItem>
                     </span>
                   </Tooltip>
-                  <Tooltip title={!canCompleteWorkOrderStatus ? `Must be RELEASED or IN_PROGRESS to complete (current: ${workOrderStatus})` : ''} placement="left">
+                  <Tooltip title={!canCompleteWorkOrderStatus ? `Must be IN_PROGRESS or READY_FOR_PRODUCTION to complete (current: ${workOrderStatus})` : ''} placement="left">
                     <span>
                       <MenuItem dense disabled={isWorkOrderActionLoading || !canCompleteWorkOrderStatus}
                         onClick={() => { setActionsMenuAnchor(null); openWorkOrderActionDialog('complete'); }}
