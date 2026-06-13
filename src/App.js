@@ -1,13 +1,16 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
 import { useState } from "react";
-import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useMediaQuery } from "@mui/material";
 import InventoryItem from "./components/inventoryitem/InventoryItem";
 import Home from "./pages/Home";
 import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
 import Sidebar from "./components/ui/sidebar/Sidebar";
+import AccountingSubSidebar from "./components/ui/moduleshell/AccountingSubSidebar";
+import AppLauncherPage from "./pages/AppLauncherPage";
+import AccountingPage from "./pages/AccountingPage";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
@@ -32,6 +35,7 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import PublicOnlyRoute from "./auth/PublicOnlyRoute";
 import RoleProtectedRoute from "./auth/RoleProtectedRoute";
 import {
+    ACCOUNTING_ACCESS_ROLES,
     CONTACT_ACCESS_ROLES,
     INVENTORY_ACCESS_ROLES,
     ITEM_CODE_MAPPING_ACCESS_ROLES,
@@ -55,6 +59,8 @@ function AppShell() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
         () => localStorage.getItem("ngm.sidebar.collapsed") === "true"
     );
+    const location = useLocation();
+    const isAccountingRoute = location.pathname.startsWith("/accounting");
 
     const handleToggleSidebar = () => {
         if (isSmallScreen) {
@@ -74,19 +80,28 @@ function AppShell() {
 
     return (
         <div style={{ display: "flex" }}>
-            <Sidebar
-                isSmallScreen={isSmallScreen}
-                mobileOpen={mobileSidebarOpen}
-                onMobileClose={handleCloseSidebar}
-                collapsed={isSidebarCollapsed}
-                onToggleCollapse={() => setIsSidebarCollapsed((prev) => {
-                    const next = !prev;
-                    localStorage.setItem("ngm.sidebar.collapsed", next);
-                    return next;
-                })}
-            />
+            {/* Contextual sub-sidebar: accounting vs legacy operations */}
+            {isAccountingRoute ? (
+                <AccountingSubSidebar
+                    isSmallScreen={isSmallScreen}
+                    mobileOpen={mobileSidebarOpen}
+                    onMobileClose={handleCloseSidebar}
+                />
+            ) : (
+                <Sidebar
+                    isSmallScreen={isSmallScreen}
+                    mobileOpen={mobileSidebarOpen}
+                    onMobileClose={handleCloseSidebar}
+                    collapsed={isSidebarCollapsed}
+                    onToggleCollapse={() => setIsSidebarCollapsed((prev) => {
+                        const next = !prev;
+                        localStorage.setItem("ngm.sidebar.collapsed", next);
+                        return next;
+                    })}
+                />
+            )}
 
-            <main style={{ flexGrow: 1 }}>
+            <main style={{ flexGrow: 1, minWidth: 0 }}>
                 <Toolbar showMenuButton onMenuClick={handleToggleSidebar} />
                 <AuthStatusSnackbar />
                 <Routes>
@@ -379,6 +394,19 @@ function AppShell() {
                             </RoleProtectedRoute>
                         }
                     />
+                    {/* Accounting module */}
+                    <Route
+                        path="/accounting/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={ACCOUNTING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Accounting module."
+                            >
+                                <AccountingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
@@ -404,6 +432,14 @@ function App() {
                                 <PublicOnlyRoute>
                                     <LoginPage />
                                 </PublicOnlyRoute>
+                            }
+                        />
+                        <Route
+                            path="/apps"
+                            element={
+                                <ProtectedRoute>
+                                    <AppLauncherPage />
+                                </ProtectedRoute>
                             }
                         />
                         <Route

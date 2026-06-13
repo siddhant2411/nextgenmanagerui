@@ -243,7 +243,7 @@ export default function LoginPage() {
     const [forgotOpen, setForgotOpen] = useState(false);
 
     const redirectPath = useMemo(
-        () => location.state?.from?.pathname || "/",
+        () => location.state?.from?.pathname || "/apps",
         [location.state]
     );
 
