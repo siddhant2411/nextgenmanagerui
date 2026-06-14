@@ -12,6 +12,7 @@ import ContraVoucherForm from "../components/accounting/voucher/ContraVoucherFor
 import TrialBalancePage from "../components/accounting/reports/TrialBalancePage";
 import DayBookPage from "../components/accounting/reports/DayBookPage";
 import LedgerStatementPage from "../components/accounting/reports/LedgerStatementPage";
+import AgeingReportPage from "../components/accounting/reports/AgeingReportPage";
 
 const AccountingPage = () => (
     <Routes>
@@ -42,6 +43,8 @@ const AccountingPage = () => (
         <Route path="reports/day-book"      element={<DayBookPage />} />
         <Route path="reports/ledger"        element={<LedgerStatementPage />} />
         <Route path="reports/trial-balance" element={<TrialBalancePage />} />
+        <Route path="reports/debtors-ageing"   element={<AgeingReportPage variant="DEBTORS" />} />
+        <Route path="reports/creditors-ageing" element={<AgeingReportPage variant="CREDITORS" />} />
 
         {/* Approvals */}
         <Route

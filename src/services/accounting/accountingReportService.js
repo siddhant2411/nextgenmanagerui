@@ -10,3 +10,16 @@ export const getDayBook = (from, to) =>
 
 export const getLedgerStatement = (accountId, from, to) =>
     apiService.get(`/accounting/reports/ledger/${accountId}`, { from, to });
+
+// ── Ageing (AR/AP) ──────────────────────────────────────────────────────────
+export const getDebtorsAgeing = (asOf) =>
+    apiService.get("/accounting/reports/debtors-ageing", asOf ? { asOf } : {});
+
+export const getCreditorsAgeing = (asOf) =>
+    apiService.get("/accounting/reports/creditors-ageing", asOf ? { asOf } : {});
+
+export const downloadDebtorsAgeingExcel = (asOf) =>
+    apiService.download("/accounting/reports/debtors-ageing/excel", asOf ? { asOf } : {}, `Debtors_Ageing_${asOf || ""}.xlsx`);
+
+export const downloadCreditorsAgeingExcel = (asOf) =>
+    apiService.download("/accounting/reports/creditors-ageing/excel", asOf ? { asOf } : {}, `Creditors_Ageing_${asOf || ""}.xlsx`);

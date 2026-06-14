@@ -8,9 +8,11 @@ import Home from "./pages/Home";
 import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
 import Sidebar from "./components/ui/sidebar/Sidebar";
-import AccountingSubSidebar from "./components/ui/moduleshell/AccountingSubSidebar";
+import ModuleSubSidebar from "./components/ui/moduleshell/ModuleSubSidebar";
 import AppLauncherPage from "./pages/AppLauncherPage";
 import AccountingPage from "./pages/AccountingPage";
+import PlanningPage from "./pages/PlanningPage";
+import PlanningDeskPage from "./components/planning/PlanningDeskPage";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
@@ -39,6 +41,7 @@ import {
     CONTACT_ACCESS_ROLES,
     INVENTORY_ACCESS_ROLES,
     ITEM_CODE_MAPPING_ACCESS_ROLES,
+    PLANNING_ACCESS_ROLES,
     PRODUCTION_ACCESS_ROLES,
     PURCHASE_ACCESS_ROLES,
     SALES_ACCESS_ROLES,
@@ -61,6 +64,9 @@ function AppShell() {
     );
     const location = useLocation();
     const isAccountingRoute = location.pathname.startsWith("/accounting");
+    const isPlanningRoute = location.pathname.startsWith("/planning");
+    const moduleShellRoute = isAccountingRoute || isPlanningRoute;
+    const activeModuleKey = isPlanningRoute ? "planning" : "accounting";
 
     const handleToggleSidebar = () => {
         if (isSmallScreen) {
@@ -80,9 +86,10 @@ function AppShell() {
 
     return (
         <div style={{ display: "flex" }}>
-            {/* Contextual sub-sidebar: accounting vs legacy operations */}
-            {isAccountingRoute ? (
-                <AccountingSubSidebar
+            {/* Contextual sub-sidebar: module-shell modules vs legacy operations */}
+            {moduleShellRoute ? (
+                <ModuleSubSidebar
+                    moduleKey={activeModuleKey}
                     isSmallScreen={isSmallScreen}
                     mobileOpen={mobileSidebarOpen}
                     onMobileClose={handleCloseSidebar}
@@ -214,6 +221,18 @@ function AppShell() {
                                 deniedMessage="You are not authorized for make or buy analysis."
                             >
                                 <MakeBuyAnalysisPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    {/* Planning Desk surfaced inside Manufacturing/Production (same desk as the Planning module) */}
+                    <Route
+                        path="/production/planning-desk"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PLANNING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Planning Desk."
+                            >
+                                <PlanningDeskPage />
                             </RoleProtectedRoute>
                         }
                     />
@@ -403,6 +422,19 @@ function AppShell() {
                                 deniedMessage="You are not authorized to access the Accounting module."
                             >
                                 <AccountingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+
+                    {/* Planning module */}
+                    <Route
+                        path="/planning/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PLANNING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Planning module."
+                            >
+                                <PlanningPage />
                             </RoleProtectedRoute>
                         }
                     />

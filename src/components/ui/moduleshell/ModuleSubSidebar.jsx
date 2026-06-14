@@ -25,9 +25,14 @@ import { MODULES } from "../../../config/modules";
 
 const SIDEBAR_WIDTH = 240;
 const COLLAPSED_WIDTH = 72;
-const accounting = MODULES.find((m) => m.key === "accounting");
 
-const AccountingSubSidebar = ({
+/**
+ * Contextual sub-sidebar for any module-shell module that defines a `nav` tree
+ * in config/modules.js (e.g. accounting, planning). Driven entirely by the module
+ * definition, so adding a module needs only a registry entry — no new component.
+ */
+const ModuleSubSidebar = ({
+    moduleKey = "accounting",
     isSmallScreen = false,
     mobileOpen = false,
     onMobileClose = () => {},
@@ -35,21 +40,26 @@ const AccountingSubSidebar = ({
     const location = useLocation();
     const navigate = useNavigate();
 
+    const moduleDef = MODULES.find((m) => m.key === moduleKey) || {};
+    const nav = moduleDef.nav || [];
+    const accentColor = moduleDef.color || "#10b981";
+    const collapseStorageKey = `ngm.${moduleKey}.sidebar.collapsed`;
+
     const [collapsed, setCollapsed] = useState(
-        () => localStorage.getItem("ngm.accounting.sidebar.collapsed") === "true"
+        () => localStorage.getItem(collapseStorageKey) === "true"
     );
 
     const [openSections, setOpenSections] = useState(() => {
         const initial = {};
-        accounting.nav.forEach((section) => {
+        nav.forEach((section) => {
             initial[section.text] =
                 !section.comingSoon &&
                 (section.children?.some((c) =>
                     location.pathname.startsWith(c.path)
                 ) ?? false);
         });
-        if (!Object.values(initial).some(Boolean)) {
-            initial["Masters"] = true;
+        if (!Object.values(initial).some(Boolean) && nav.length > 0) {
+            initial[nav[0].text] = true;
         }
         return initial;
     });
@@ -59,7 +69,7 @@ const AccountingSubSidebar = ({
     const toggleCollapsed = () => {
         setCollapsed((prev) => {
             const next = !prev;
-            localStorage.setItem("ngm.accounting.sidebar.collapsed", String(next));
+            localStorage.setItem(collapseStorageKey, String(next));
             return next;
         });
     };
@@ -78,9 +88,8 @@ const AccountingSubSidebar = ({
     const handleSectionClick = (section, isSoon) => {
         if (isSoon) return;
         if (collapsed && !isSmallScreen) {
-            // Expand sidebar and open this section
             setCollapsed(false);
-            localStorage.setItem("ngm.accounting.sidebar.collapsed", "false");
+            localStorage.setItem(collapseStorageKey, "false");
             setOpenSections((prev) => ({ ...prev, [section.text]: true }));
         } else {
             toggleSection(section.text);
@@ -106,6 +115,8 @@ const AccountingSubSidebar = ({
         },
     };
 
+    const ModuleIcon = moduleDef.Icon;
+
     const content = (
         <>
             {/* Header */}
@@ -126,14 +137,14 @@ const AccountingSubSidebar = ({
                             width: 30,
                             height: 30,
                             borderRadius: 1.5,
-                            backgroundColor: `${accounting.color}22`,
+                            backgroundColor: `${accentColor}22`,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             flexShrink: 0,
                         }}
                     >
-                        <accounting.Icon sx={{ fontSize: 16, color: accounting.color }} />
+                        {ModuleIcon && <ModuleIcon sx={{ fontSize: 16, color: accentColor }} />}
                     </Box>
                     {showText && (
                         <Typography
@@ -145,7 +156,7 @@ const AccountingSubSidebar = ({
                                 whiteSpace: "nowrap",
                             }}
                         >
-                            Accounting
+                            {moduleDef.label}
                         </Typography>
                     )}
                 </Box>
@@ -167,7 +178,7 @@ const AccountingSubSidebar = ({
 
             {/* Nav sections */}
             <List sx={{ pt: 1, pb: 2, flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-                {accounting.nav.map((section) => {
+                {nav.map((section) => {
                     const isSoon = Boolean(section.comingSoon);
                     const isOpen = Boolean(openSections[section.text]);
                     const isChildActive =
@@ -210,7 +221,7 @@ const AccountingSubSidebar = ({
                                     justifyContent: "center",
                                 }}
                             >
-                                <SectionIcon sx={{ fontSize: 17 }} />
+                                {SectionIcon && <SectionIcon sx={{ fontSize: 17 }} />}
                             </ListItemIcon>
                             {showText && (
                                 <>
@@ -281,12 +292,12 @@ const AccountingSubSidebar = ({
                                                         position: "relative",
                                                         color: active ? "#fff" : "#64748b",
                                                         backgroundColor: active
-                                                            ? "rgba(16, 185, 129, 0.12)"
+                                                            ? `${accentColor}1f`
                                                             : "transparent",
                                                         transition: "all 0.15s ease",
                                                         "&:hover": {
                                                             backgroundColor: active
-                                                                ? "rgba(16, 185, 129, 0.15)"
+                                                                ? `${accentColor}26`
                                                                 : "rgba(255,255,255,0.04)",
                                                             color: "#e2e8f0",
                                                         },
@@ -298,7 +309,7 @@ const AccountingSubSidebar = ({
                                                                 top: "15%",
                                                                 height: "70%",
                                                                 width: 3,
-                                                                backgroundColor: accounting.color,
+                                                                backgroundColor: accentColor,
                                                                 borderRadius: "0 3px 3px 0",
                                                             },
                                                         }),
@@ -391,4 +402,4 @@ const AccountingSubSidebar = ({
     );
 };
 
-export default AccountingSubSidebar;
+export default ModuleSubSidebar;

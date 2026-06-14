@@ -56,6 +56,7 @@ const Sidebar = ({
     const canAccessPurchase = canModule(MODULE_KEYS.PURCHASE);
     const canAccessInventory = canModule(MODULE_KEYS.INVENTORY);
     const canAccessProduction = canModule(MODULE_KEYS.WORK_ORDER);
+    const canAccessPlanning = canModule(MODULE_KEYS.PLANNING);
     const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
     const canAccessContacts = canModule(MODULE_KEYS.CONTACT);
     const productChildren = [
@@ -116,6 +117,7 @@ const Sidebar = ({
                         { text: "Work Orders", path: "/production/work-order" },
                         { text: "Job Work Challan", path: "/production/job-work-challan" },
                         { text: "Make or Buy", path: "/production/make-or-buy" },
+                        ...(canAccessPlanning ? [{ text: "Planning Desk", path: "/production/planning-desk" }] : []),
                         { text: "Machine Assets", path: "/production/machine-assets" },
                         { text: "OEE Dashboard", path: "/production/oee-dashboard" },
                     ],

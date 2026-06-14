@@ -6,11 +6,12 @@ import {
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     TextField, Typography,
 } from '@mui/material';
-import { ArrowBack, CheckCircle, Send, Cancel, Payment, LocalShipping, Save, Description } from '@mui/icons-material';
+import { ArrowBack, CheckCircle, Send, Cancel, Payment, LocalShipping, Save, Description, Undo } from '@mui/icons-material';
 import {
     getTaxInvoice, createTaxInvoice, markInvoiceSent, markInvoicePaid,
     cancelTaxInvoice, getSalesOrder, getNextInvoiceNumber, downloadTaxInvoicePdf,
 } from '../../../services/salesOrderService';
+import RaiseCreditNoteDialog from './RaiseCreditNoteDialog';
 
 const fmtDate = (d) => {
     if (!d) return '—';
@@ -63,6 +64,7 @@ export default function AddUpdateInvoice() {
     const [so, setSo]                 = useState(null);
     const [nextNumber, setNextNumber] = useState('');
     const [paidInput, setPaidInput]   = useState('');
+    const [creditOpen, setCreditOpen] = useState(false);
 
     const [form, setForm] = useState({
         invoiceDate: today(),
@@ -422,11 +424,35 @@ export default function AddUpdateInvoice() {
                                         </Stack>
                                     </Paper>
                                 )}
+
+                                {/* Returns — a credit note can be raised after the invoice is issued (incl. paid) */}
+                                {invoice.status !== 'CANCELLED' && (
+                                    <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                                        <Typography sx={{ fontWeight: 900, mb: 1, color: T.text, fontSize: '1.1rem' }}>Returns</Typography>
+                                        <Typography variant="body2" sx={{ color: T.textSec, mb: 3, fontWeight: 500 }}>
+                                            Issue a credit note for returned or short-supplied goods. Posts a reversing entry to the books.
+                                        </Typography>
+                                        <Button fullWidth variant="outlined" startIcon={<Undo />}
+                                            onClick={() => setCreditOpen(true)}
+                                            sx={{ fontWeight: 800, borderRadius: 3, py: 1.5, fontSize: '0.9rem', color: T.warning, borderColor: T.warning, '&:hover': { bgcolor: `${T.warning}08`, borderColor: T.warning } }}>
+                                            Raise Credit Note
+                                        </Button>
+                                    </Paper>
+                                )}
                             </Stack>
                         </Grid>
                     </Grid>
                 )}
             </Container>
+
+            {invoice && (
+                <RaiseCreditNoteDialog
+                    open={creditOpen}
+                    onClose={() => setCreditOpen(false)}
+                    invoice={invoice}
+                    onCreated={(cn) => setSuccess(`Credit note ${cn?.creditNoteNumber ?? ''} issued and posted to the books.`)}
+                />
+            )}
         </Box>
     );
 }

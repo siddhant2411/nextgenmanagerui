@@ -10,6 +10,8 @@ import {
     GavelOutlined,
     PercentOutlined,
     AccountBalanceWalletOutlined,
+    InsightsOutlined,
+    PlaylistAddCheckOutlined,
 } from "@mui/icons-material";
 import { MODULE_KEYS } from "../auth/roles";
 
@@ -62,6 +64,8 @@ export const MODULES = [
                     { text: "Day Book", path: "/accounting/reports/day-book" },
                     { text: "Ledger", path: "/accounting/reports/ledger" },
                     { text: "Trial Balance", path: "/accounting/reports/trial-balance" },
+                    { text: "Debtors Ageing", path: "/accounting/reports/debtors-ageing" },
+                    { text: "Creditors Ageing", path: "/accounting/reports/creditors-ageing" },
                 ],
             },
             {
@@ -98,6 +102,25 @@ export const MODULES = [
                 children: [
                     { text: "Bank Accounts", path: "/accounting/bank/accounts" },
                     { text: "Reconciliation", path: "/accounting/bank/reconciliation" },
+                ],
+            },
+        ],
+    },
+    {
+        key: "planning",
+        label: "Planning",
+        description: "Procurement Planning Desk — Make or Buy decisions",
+        Icon: InsightsOutlined,
+        landingRoute: "/planning",
+        moduleKey: MODULE_KEYS.PLANNING,
+        status: "active",
+        color: "#0ea5e9",
+        nav: [
+            {
+                text: "Procurement",
+                Icon: PlaylistAddCheckOutlined,
+                children: [
+                    { text: "Planning Desk", path: "/planning/desk" },
                 ],
             },
         ],
