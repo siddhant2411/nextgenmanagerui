@@ -12,6 +12,7 @@ import {
     partialApproveMaterialRequest,
     rejectMaterialRequest,
 } from '../../services/inventoryService';
+import { resolveApiErrorMessage } from '../../services/apiService';
 
 const HEADER_BG = '#f8fafc';
 const BORDER_COLOR = '#e5e7eb';
@@ -78,7 +79,7 @@ export default function MaterialRequestDashboard() {
             await approveMaterialRequest(requestId);
             fetchRequests();
         } catch (e) {
-            setError(e?.message || 'Approval failed.');
+            setError(resolveApiErrorMessage(e, 'Approval failed.'));
         } finally {
             setActionLoading(false);
         }
@@ -93,7 +94,7 @@ export default function MaterialRequestDashboard() {
             setPartialDialog({ open: false, request: null, qty: '' });
             fetchRequests();
         } catch (e) {
-            setError(e?.message || 'Partial approval failed.');
+            setError(resolveApiErrorMessage(e, 'Partial approval failed.'));
         } finally {
             setActionLoading(false);
         }
@@ -108,7 +109,7 @@ export default function MaterialRequestDashboard() {
             setRejectDialog({ open: false, request: null, reason: '', customReason: '' });
             fetchRequests();
         } catch (e) {
-            setError(e?.message || 'Rejection failed.');
+            setError(resolveApiErrorMessage(e, 'Rejection failed.'));
         } finally {
             setActionLoading(false);
         }

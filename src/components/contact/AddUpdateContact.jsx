@@ -7,6 +7,7 @@ import {
     Box,
     Button,
     Checkbox,
+    Chip,
     CircularProgress,
     FormControlLabel,
     Grid,
@@ -14,13 +15,15 @@ import {
     MenuItem,
     Select,
     Snackbar,
+    Stack,
     Switch,
     TextField,
     Tooltip,
     Typography,
 } from '@mui/material';
-import { AddCircleOutline, Close, SaveOutlined } from '@mui/icons-material';
+import { AccountBalanceOutlined, AddCircleOutline, Close, SaveOutlined } from '@mui/icons-material';
 import apiService, { resolveApiErrorMessage } from '../../services/apiService';
+import { getContactLedgers, ensureContactLedger } from '../../services/accounting/accountingCoaService';
 
 /* ── Design tokens ── */
 const T = {
@@ -89,6 +92,98 @@ const SubCard = ({ children, onRemove, canRemove }) => (
         {children}
     </Box>
 );
+
+/* ── Ledger section ── */
+const LEDGER_TYPE_META = {
+    CUSTOMER: { label: 'Receivable (Dr)',  color: '#059669', bg: '#ecfdf5' },
+    VENDOR:   { label: 'Payable (Cr)',     color: '#2563eb', bg: '#eff6ff' },
+};
+
+const LedgerAccountsSection = ({ contactId, contactType }) => {
+    const [ledgers,  setLedgers]  = useState([]);
+    const [loading,  setLoading]  = useState(true);
+    const [ensuring, setEnsuring] = useState(false);
+    const [error,    setError]    = useState('');
+
+    const load = () => {
+        setLoading(true);
+        getContactLedgers(contactId)
+            .then(setLedgers)
+            .catch(() => setError('Could not load ledger accounts.'))
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => { load(); }, [contactId]);
+
+    const handleEnsure = async () => {
+        setEnsuring(true);
+        setError('');
+        try {
+            await ensureContactLedger(contactId);
+            load();
+        } catch (e) {
+            setError(e?.response?.data?.message || 'Failed to ensure ledger. Is the Chart of Accounts set up?');
+        } finally {
+            setEnsuring(false);
+        }
+    };
+
+    const hasMissing = (() => {
+        const types = contactType === 'BOTH' ? ['CUSTOMER', 'VENDOR'] :
+                      contactType === 'CUSTOMER' ? ['CUSTOMER'] : ['VENDOR'];
+        return types.some(t => !ledgers.find(l => l.subLedgerType === t));
+    })();
+
+    return (
+        <SectionCard
+            title="Ledger Accounts"
+            action={
+                hasMissing && (
+                    <Button size="small" startIcon={ensuring ? <CircularProgress size={12} /> : <AccountBalanceOutlined sx={{ fontSize: 14 }} />}
+                        onClick={handleEnsure} disabled={ensuring}
+                        sx={{ textTransform: 'none', fontSize: '0.75rem', fontWeight: 600, color: '#10b981', p: '3px 10px', minWidth: 0 }}>
+                        {ensuring ? 'Creating…' : 'Ensure Ledger'}
+                    </Button>
+                )
+            }
+        >
+            {loading ? (
+                <Typography sx={{ fontSize: '0.8125rem', color: T.textMuted }}>Loading…</Typography>
+            ) : ledgers.length === 0 ? (
+                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                    <Typography sx={{ fontSize: '0.8125rem', color: T.textSecondary }}>
+                        No ledger account linked yet. Click "Ensure Ledger" to create one.
+                    </Typography>
+                </Stack>
+            ) : (
+                <Stack spacing={1}>
+                    {ledgers.map(l => {
+                        const meta = LEDGER_TYPE_META[l.subLedgerType] || { label: l.subLedgerType, color: '#64748b', bg: '#f8fafc' };
+                        return (
+                            <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: '10px 14px',
+                                border: '1px solid #e2e8f0', borderRadius: '6px', bgcolor: '#fff' }}>
+                                <AccountBalanceOutlined sx={{ fontSize: 18, color: meta.color }} />
+                                <Box sx={{ flex: 1 }}>
+                                    <Stack direction="row" alignItems="center" gap={1}>
+                                        <Typography sx={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>
+                                            {l.code}
+                                        </Typography>
+                                        <Chip label={meta.label} size="small"
+                                            sx={{ height: 18, fontSize: '0.625rem', fontWeight: 700,
+                                                bgcolor: meta.bg, color: meta.color, border: 'none' }} />
+                                    </Stack>
+                                    <Typography sx={{ fontSize: '0.8125rem', color: T.textBody, mt: 0.25 }}>{l.name}</Typography>
+                                </Box>
+                                <Typography sx={{ fontSize: '0.75rem', color: T.textMuted }}>{l.groupName}</Typography>
+                            </Box>
+                        );
+                    })}
+                </Stack>
+            )}
+            {error && <Alert severity="error" sx={{ mt: 1.5, borderRadius: 1, fontSize: '0.8125rem' }}>{error}</Alert>}
+        </SectionCard>
+    );
+};
 
 /* ── Constants ── */
 const CONTACT_TYPES  = [{ value: 'VENDOR', label: 'Vendor' }, { value: 'CUSTOMER', label: 'Customer' }, { value: 'BOTH', label: 'Both' }];
@@ -485,6 +580,13 @@ const AddUpdateContact = ({ onSave }) => {
                         </SectionCard>
 
                     </form>
+
+                    {isEditMode && (
+                        <LedgerAccountsSection
+                            contactId={parseInt(contactId)}
+                            contactType={values.contactType}
+                        />
+                    )}
                 </Box>
             </Box>
         </Box>

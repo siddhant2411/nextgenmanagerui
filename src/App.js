@@ -1,13 +1,18 @@
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
 import { useState } from "react";
-import { BrowserRouter as Router, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useMediaQuery } from "@mui/material";
 import InventoryItem from "./components/inventoryitem/InventoryItem";
 import Home from "./pages/Home";
 import BomPage from "./pages/BomPage";
 import InventoryPage from "./pages/InventoryPage";
 import Sidebar from "./components/ui/sidebar/Sidebar";
+import ModuleSubSidebar from "./components/ui/moduleshell/ModuleSubSidebar";
+import AppLauncherPage from "./pages/AppLauncherPage";
+import AccountingPage from "./pages/AccountingPage";
+import PlanningPage from "./pages/PlanningPage";
+import PlanningDeskPage from "./components/planning/PlanningDeskPage";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import QuotationPage from "./pages/QuotationPage";
@@ -32,9 +37,11 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 import PublicOnlyRoute from "./auth/PublicOnlyRoute";
 import RoleProtectedRoute from "./auth/RoleProtectedRoute";
 import {
+    ACCOUNTING_ACCESS_ROLES,
     CONTACT_ACCESS_ROLES,
     INVENTORY_ACCESS_ROLES,
     ITEM_CODE_MAPPING_ACCESS_ROLES,
+    PLANNING_ACCESS_ROLES,
     PRODUCTION_ACCESS_ROLES,
     PURCHASE_ACCESS_ROLES,
     SALES_ACCESS_ROLES,
@@ -55,6 +62,11 @@ function AppShell() {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
         () => localStorage.getItem("ngm.sidebar.collapsed") === "true"
     );
+    const location = useLocation();
+    const isAccountingRoute = location.pathname.startsWith("/accounting");
+    const isPlanningRoute = location.pathname.startsWith("/planning");
+    const moduleShellRoute = isAccountingRoute || isPlanningRoute;
+    const activeModuleKey = isPlanningRoute ? "planning" : "accounting";
 
     const handleToggleSidebar = () => {
         if (isSmallScreen) {
@@ -74,19 +86,29 @@ function AppShell() {
 
     return (
         <div style={{ display: "flex" }}>
-            <Sidebar
-                isSmallScreen={isSmallScreen}
-                mobileOpen={mobileSidebarOpen}
-                onMobileClose={handleCloseSidebar}
-                collapsed={isSidebarCollapsed}
-                onToggleCollapse={() => setIsSidebarCollapsed((prev) => {
-                    const next = !prev;
-                    localStorage.setItem("ngm.sidebar.collapsed", next);
-                    return next;
-                })}
-            />
+            {/* Contextual sub-sidebar: module-shell modules vs legacy operations */}
+            {moduleShellRoute ? (
+                <ModuleSubSidebar
+                    moduleKey={activeModuleKey}
+                    isSmallScreen={isSmallScreen}
+                    mobileOpen={mobileSidebarOpen}
+                    onMobileClose={handleCloseSidebar}
+                />
+            ) : (
+                <Sidebar
+                    isSmallScreen={isSmallScreen}
+                    mobileOpen={mobileSidebarOpen}
+                    onMobileClose={handleCloseSidebar}
+                    collapsed={isSidebarCollapsed}
+                    onToggleCollapse={() => setIsSidebarCollapsed((prev) => {
+                        const next = !prev;
+                        localStorage.setItem("ngm.sidebar.collapsed", next);
+                        return next;
+                    })}
+                />
+            )}
 
-            <main style={{ flexGrow: 1 }}>
+            <main style={{ flexGrow: 1, minWidth: 0 }}>
                 <Toolbar showMenuButton onMenuClick={handleToggleSidebar} />
                 <AuthStatusSnackbar />
                 <Routes>
@@ -199,6 +221,18 @@ function AppShell() {
                                 deniedMessage="You are not authorized for make or buy analysis."
                             >
                                 <MakeBuyAnalysisPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    {/* Planning Desk surfaced inside Manufacturing/Production (same desk as the Planning module) */}
+                    <Route
+                        path="/production/planning-desk"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PLANNING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Planning Desk."
+                            >
+                                <PlanningDeskPage />
                             </RoleProtectedRoute>
                         }
                     />
@@ -379,6 +413,32 @@ function AppShell() {
                             </RoleProtectedRoute>
                         }
                     />
+                    {/* Accounting module */}
+                    <Route
+                        path="/accounting/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={ACCOUNTING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Accounting module."
+                            >
+                                <AccountingPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+
+                    {/* Planning module */}
+                    <Route
+                        path="/planning/*"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={PLANNING_ACCESS_ROLES}
+                                deniedMessage="You are not authorized to access the Planning module."
+                            >
+                                <PlanningPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </main>
@@ -404,6 +464,14 @@ function App() {
                                 <PublicOnlyRoute>
                                     <LoginPage />
                                 </PublicOnlyRoute>
+                            }
+                        />
+                        <Route
+                            path="/apps"
+                            element={
+                                <ProtectedRoute>
+                                    <AppLauncherPage />
+                                </ProtectedRoute>
                             }
                         />
                         <Route

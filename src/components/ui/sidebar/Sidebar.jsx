@@ -28,6 +28,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ShoppingCart,
+    AppsOutlined,
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -55,6 +56,7 @@ const Sidebar = ({
     const canAccessPurchase = canModule(MODULE_KEYS.PURCHASE);
     const canAccessInventory = canModule(MODULE_KEYS.INVENTORY);
     const canAccessProduction = canModule(MODULE_KEYS.WORK_ORDER);
+    const canAccessPlanning = canModule(MODULE_KEYS.PLANNING);
     const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
     const canAccessContacts = canModule(MODULE_KEYS.CONTACT);
     const productChildren = [
@@ -63,6 +65,8 @@ const Sidebar = ({
     ];
 
     const drawerWidth = collapsed && !isSmallScreen ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
+
+    const showText = !collapsed || isSmallScreen;
 
     const drawerSx = {
         width: drawerWidth,
@@ -73,6 +77,8 @@ const Sidebar = ({
             background: "#0f172a",
             color: "#f8fafc",
             overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
             transition: "width 240ms cubic-bezier(0.4, 0, 0.2, 1)",
             borderRight: "1px solid rgba(255, 255, 255, 0.05)",
         },
@@ -111,6 +117,7 @@ const Sidebar = ({
                         { text: "Work Orders", path: "/production/work-order" },
                         { text: "Job Work Challan", path: "/production/job-work-challan" },
                         { text: "Make or Buy", path: "/production/make-or-buy" },
+                        ...(canAccessPlanning ? [{ text: "Planning Desk", path: "/production/planning-desk" }] : []),
                         { text: "Machine Assets", path: "/production/machine-assets" },
                         { text: "OEE Dashboard", path: "/production/oee-dashboard" },
                     ],
@@ -217,13 +224,13 @@ const Sidebar = ({
                 </Box>
 
                 {!isSmallScreen && (
-                    <IconButton size="small" onClick={onToggleCollapse} sx={{ color: "#fff" }}>
+                    <IconButton size="small" onClick={onToggleCollapse} sx={{ color: "#94a3b8", "&:hover": { color: "#fff" } }}>
                         {collapsed ? <ChevronRight fontSize="small" /> : <ChevronLeft fontSize="small" />}
                     </IconButton>
                 )}
             </Box>
 
-            <List>
+            <List sx={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
                 {menuItems.map((item, index) => {
                     const pathMatches = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
                     const isChildActive = item.children && item.children.some((child) => pathMatches(child.path));
@@ -319,6 +326,35 @@ const Sidebar = ({
                     );
                 })}
             </List>
+
+            {/* Footer — All Modules */}
+            <Box sx={{ flexShrink: 0, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                <Tooltip title="All Modules" placement="right" disableHoverListener={showText}>
+                    <ListItemButton
+                        onClick={() => navigate("/apps")}
+                        sx={{
+                            m: "4px 8px",
+                            borderRadius: 1.5,
+                            px: showText ? 2 : 1,
+                            py: 1,
+                            color: "#475569",
+                            justifyContent: showText ? "flex-start" : "center",
+                            "&:hover": { backgroundColor: "rgba(255,255,255,0.06)", color: "#94a3b8" },
+                        }}
+                    >
+                        <ListItemIcon sx={{ color: "inherit", minWidth: showText ? 36 : 24 }}>
+                            <AppsOutlined sx={{ fontSize: 20 }} />
+                        </ListItemIcon>
+                        {showText && (
+                            <ListItemText
+                                primary="All Modules"
+                                sx={{ my: 0 }}
+                                slotProps={{ primary: { fontSize: "0.875rem", fontWeight: 500, color: "inherit", letterSpacing: 0.2 } }}
+                            />
+                        )}
+                    </ListItemButton>
+                </Tooltip>
+            </Box>
         </>
     );
 

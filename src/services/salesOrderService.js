@@ -129,6 +129,20 @@ export const downloadTaxInvoicePdf = (id, invoiceNumber) =>
     apiService.download(`/tax-invoices/${id}/pdf`, {}, `Invoice-${invoiceNumber || id}.pdf`);
 
 
+// ── Sales Credit Notes (Sales Returns) ──────────────────────────────────────
+export const createSalesCreditNote = (payload) =>
+    apiService.post('/sales-credit-notes', payload);
+
+export const confirmSalesCreditNote = (id) =>
+    apiService.put(`/sales-credit-notes/${id}/confirm`);
+
+export const getNextCreditNoteNumber = () =>
+    apiService.get('/sales-credit-notes/next-number');
+
+export const getCreditNotesByInvoice = (taxInvoiceId) =>
+    apiService.get('/sales-credit-notes/by-invoice', { taxInvoiceId });
+
+
 const salesOrderService = {
     listSalesOrders,
     getSalesOrder,

@@ -546,6 +546,26 @@ export default function AddUpdatePurchaseOrder() {
                                 </Typography>
                             </Paper>
 
+                            {isEdit && (
+                                <Paper elevation={0} sx={{ p: 2, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
+                                    <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
+                                        Related Documents
+                                    </Typography>
+                                    <Stack spacing={1}>
+                                        <Button fullWidth variant="outlined" size="small" disableElevation
+                                            onClick={() => navigate(`/purchase/${id}/invoices`)}
+                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: BORDER, color: '#0f2744', justifyContent: 'flex-start', fontSize: '0.82rem' }}>
+                                            Vendor Invoices
+                                        </Button>
+                                        <Button fullWidth variant="outlined" size="small" disableElevation
+                                            onClick={() => navigate('/purchase/debit-notes')}
+                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: BORDER, color: '#0f2744', justifyContent: 'flex-start', fontSize: '0.82rem' }}>
+                                            Debit Notes
+                                        </Button>
+                                    </Stack>
+                                </Paper>
+                            )}
+
                             {(formik.values.quotationNumber || formik.values.quotationDate) && (
                                 <Paper elevation={0} sx={{ p: 2, border: `1px solid #bfdbfe`, borderRadius: 2, bgcolor: '#eff6ff' }}>
                                     <Typography sx={{ fontSize: '0.7rem', color: '#1d4ed8', fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>

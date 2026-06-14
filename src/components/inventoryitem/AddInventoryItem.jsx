@@ -164,6 +164,7 @@ export default function AddInventoryItem() {
     },
     productInventorySettings: {
       leadTime: '', reorderLevel: '', minStock: '', maxStock: '',
+      replenishmentStrategy: 'MAKE_TO_STOCK',
       purchased: false, manufactured: false, batchTracked: false, serialTracked: false
     },
     productFinanceSettings: { standardCost: '', sellingPrice: '', taxCategory: '', gstRate: '' },
@@ -851,6 +852,22 @@ export default function AddInventoryItem() {
                   Purchased items can be added to BOMs for sub-contracting but will not be available in Work Orders for in-house manufacturing.
                 </Alert>
               )}
+            </Grid>
+
+            <SectionHeading>Replenishment</SectionHeading>
+            <Grid item xs={12} sm={6}>
+              <TextField select size="small" label="Replenishment Strategy"
+                name="productInventorySettings.replenishmentStrategy"
+                value={itemData.productInventorySettings?.replenishmentStrategy || 'MAKE_TO_STOCK'}
+                onChange={handleChange} fullWidth sx={fieldSx}>
+                <MenuItem value="MAKE_TO_STOCK">Make to Stock</MenuItem>
+                <MenuItem value="MAKE_TO_ORDER">Make to Order</MenuItem>
+              </TextField>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ ml: 0.5, mt: 0.5 }}>
+                Make to Stock: kept on hand, replenished by reorder rules. Make to Order: a sales-order
+                shortfall raises a procurement need (auto-routed to a Work Order or Purchase Requisition,
+                or sent to the Planning Desk when the make/buy choice is ambiguous).
+              </Typography>
             </Grid>
 
             <SectionHeading>Stock Levels</SectionHeading>
