@@ -12,7 +12,7 @@ import apiService from '../../services/apiService';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Save, ArrowBack, Add, Delete, History, ShoppingCart, Info, SwapHoriz,
+  Save, ArrowBack, Add, Delete, History, Info, SwapHoriz, OpenInNew, Receipt,
   LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description,
   DeleteOutline, Business, LinkOutlined, PersonAdd, CheckCircle
 } from '@mui/icons-material';
@@ -60,11 +60,24 @@ const AddUpdateEnquiry = ({ onSave }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [linkedQuotations, setLinkedQuotations] = useState([]);
   const debounceTimeout = useRef(null);
 
   useEffect(() => {
-    if (enquiryId) fetchEnquiryDetails(enquiryId);
+    if (enquiryId) {
+      fetchEnquiryDetails(enquiryId);
+      fetchLinkedQuotations(enquiryId);
+    }
   }, [enquiryId]);
+
+  const fetchLinkedQuotations = async (id) => {
+    try {
+      const res = await apiService.get(`/enquiry/${id}/quotations`);
+      setLinkedQuotations(Array.isArray(res) ? res : []);
+    } catch {
+      setLinkedQuotations([]);
+    }
+  };
 
   const fetchEnquiryDetails = async (id) => {
     setLoading(true);
@@ -113,6 +126,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
       state: initialData.state || '',
       assignedTo: initialData.assignedTo || null,
       leadQuality: initialData.leadQuality || 'UNKNOWN',
+      description: initialData.description || '',
     },
     validationSchema: Yup.object({
       opportunityName: Yup.string().required('Opportunity Name is required'),
@@ -148,7 +162,6 @@ const AddUpdateEnquiry = ({ onSave }) => {
       ...formik.values.enquiredProducts,
       { inventoryItem: null, productNameRequired: '', qty: 1, specialInstruction: '', pricePerUnit: 0 }
     ]);
-    setActiveTab(1);
   };
   
   const removeProduct = (index) => {
@@ -162,7 +175,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
       { conversation: '', conversationType: 'NOTE', creationDate: new Date() },
       ...formik.values.enquiryConversationRecords
     ]);
-    setActiveTab(2);
+    setActiveTab(1);
   };
 
   const doConvert = async () => {
@@ -294,24 +307,23 @@ const AddUpdateEnquiry = ({ onSave }) => {
                 <Grid item xs={12} lg={8.5}>
                     <Stack spacing={4}>
                         <Paper elevation={0} sx={{ borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.06)' }}>
-                            <Tabs 
-                                value={activeTab} 
-                                onChange={(e, v) => setActiveTab(v)} 
-                                sx={{ 
+                            <Tabs
+                                value={activeTab}
+                                onChange={(e, v) => setActiveTab(v)}
+                                sx={{
                                     px: 3, pt: 2, bgcolor: T.bg, borderBottom: `1px solid ${T.border}`,
                                     '& .MuiTab-root': { fontWeight: 800, textTransform: 'none', fontSize: '0.95rem', minHeight: 60 },
                                     '& .Mui-selected': { color: T.primary }
                                 }}
                             >
                                 <Tab icon={<Info sx={{ fontSize: 18 }} />} iconPosition="start" label="Overview" />
-                                <Tab icon={<ShoppingCart sx={{ fontSize: 18 }} />} iconPosition="start" label="Products" />
                                 <Tab icon={<History sx={{ fontSize: 18 }} />} iconPosition="start" label="Activity Log" />
                             </Tabs>
 
                             <Box sx={{ p: 5 }}>
                                 {activeTab === 0 && (
                                     <Grid container spacing={4}>
-                                        <Grid item xs={12}>
+                                        <Grid item xs={12} md={8}>
                                             <TextField
                                                 label="Opportunity / Project Name"
                                                 name="opportunityName"
@@ -325,6 +337,20 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: T.bg } }}
                                             />
                                         </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <TextField
+                                                label="Enquiry Date"
+                                                type="date"
+                                                name="enqDate"
+                                                fullWidth
+                                                InputLabelProps={{ shrink: true }}
+                                                value={formik.values.enqDate}
+                                                onChange={formik.handleChange}
+                                                error={formik.touched.enqDate && Boolean(formik.errors.enqDate)}
+                                                helperText={formik.touched.enqDate && formik.errors.enqDate}
+                                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: T.bg } }}
+                                            />
+                                        </Grid>
                                         <Grid item xs={12} md={6}>
                                             <Autocomplete
                                                 freeSolo
@@ -334,14 +360,12 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                 onInputChange={(e, val, reason) => {
                                                     if (reason === 'input') {
                                                         handleSearchContacts(val);
-                                                        // If typing freely, clear linked contact and store as manual
                                                         formik.setFieldValue('contact', null);
                                                         formik.setFieldValue('manualCompanyName', val);
                                                     }
                                                 }}
                                                 onChange={(e, val) => {
                                                     if (val && typeof val === 'object') {
-                                                        // Existing contact selected from dropdown
                                                         formik.setFieldValue('contact', val);
                                                         formik.setFieldValue('manualCompanyName', '');
                                                         if (val.personDetails?.length > 0) {
@@ -351,7 +375,6 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                             formik.setFieldValue('contactPersonEmail', primary.emailId || '');
                                                         }
                                                     } else if (typeof val === 'string') {
-                                                        // Free-text company name typed and confirmed
                                                         formik.setFieldValue('contact', null);
                                                         formik.setFieldValue('manualCompanyName', val);
                                                     } else {
@@ -374,7 +397,21 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                         <Grid item xs={12} md={6}>
                                             <TextField label="Ref / PO Number" name="referenceNumber" fullWidth value={formik.values.referenceNumber} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                         </Grid>
-                                        
+
+                                        <Grid item xs={12}>
+                                            <TextField
+                                                label="Description / More Details"
+                                                name="description"
+                                                fullWidth
+                                                multiline
+                                                minRows={3}
+                                                placeholder="Add any additional details, requirements, or context for this lead..."
+                                                value={formik.values.description || ''}
+                                                onChange={formik.handleChange}
+                                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: T.bg } }}
+                                            />
+                                        </Grid>
+
                                         <Grid item xs={12}>
                                             <Divider><Chip label="Contact Details" size="small" sx={{ fontWeight: 800, color: T.textSec }} /></Divider>
                                         </Grid>
@@ -393,6 +430,73 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                         </Grid>
                                         <Grid item xs={12} md={6}>
                                             <TextField label="State" name="state" fullWidth size="small" value={formik.values.state} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                                        </Grid>
+
+                                        <Grid item xs={12}>
+                                            <Divider><Chip label="Product Interest" size="small" sx={{ fontWeight: 800, color: T.textSec }} /></Divider>
+                                        </Grid>
+
+                                        <Grid item xs={12}>
+                                            <Box display="flex" justifyContent="flex-end" mb={1.5}>
+                                                <Button startIcon={<Add />} variant="outlined" size="small" onClick={addProduct} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 800 }}>
+                                                    Add Item
+                                                </Button>
+                                            </Box>
+                                            <TableContainer sx={{ border: `1px solid ${T.border}`, borderRadius: 3 }}>
+                                                <Table size="small">
+                                                    <TableHead sx={{ bgcolor: T.bg }}>
+                                                        <TableRow>
+                                                            <TableCell sx={{ fontWeight: 900, color: T.textSec, py: 1.5 }}>Product</TableCell>
+                                                            <TableCell align="center" sx={{ fontWeight: 900, color: T.textSec, py: 1.5, width: 90 }}>Qty</TableCell>
+                                                            <TableCell sx={{ fontWeight: 900, color: T.textSec, py: 1.5 }}>Notes</TableCell>
+                                                            <TableCell sx={{ py: 1.5, width: 40 }}></TableCell>
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {formik.values.enquiredProducts.map((item, index) => (
+                                                            <TableRow key={index} sx={{ '&:hover': { bgcolor: `${T.primary}04` } }}>
+                                                                <TableCell sx={{ py: 1.5, minWidth: 220 }}>
+                                                                    <Autocomplete
+                                                                        freeSolo
+                                                                        options={productList}
+                                                                        getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt?.name || ''}
+                                                                        value={formik.values.enquiredProducts[index].inventoryItem || formik.values.enquiredProducts[index].productNameRequired || null}
+                                                                        onInputChange={(e, val, reason) => {
+                                                                            if (reason === 'input') {
+                                                                                formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, val);
+                                                                                handleSearchProducts(val);
+                                                                            }
+                                                                        }}
+                                                                        onChange={(e, val) => {
+                                                                            if (typeof val === 'object') formik.setFieldValue(`enquiredProducts[${index}].inventoryItem`, val);
+                                                                            else formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, val);
+                                                                        }}
+                                                                        renderInput={(params) => <TextField {...params} variant="standard" placeholder="Search product..." sx={{ '& input': { fontWeight: 700 } }} />}
+                                                                    />
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <TextField name={`enquiredProducts[${index}].qty`} type="number" size="small" value={item.qty} onChange={formik.handleChange} sx={{ width: 72, '& input': { textAlign: 'center', fontWeight: 800 } }} />
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <TextField name={`enquiredProducts[${index}].specialInstruction`} variant="standard" fullWidth placeholder="Notes..." value={item.specialInstruction} onChange={formik.handleChange} sx={{ '& input': { fontSize: '0.85rem' } }} />
+                                                                </TableCell>
+                                                                <TableCell align="center">
+                                                                    <IconButton color="error" size="small" onClick={() => removeProduct(index)} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                                                                        <DeleteOutline fontSize="small" />
+                                                                    </IconButton>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {formik.values.enquiredProducts.length === 0 && (
+                                                            <TableRow>
+                                                                <TableCell colSpan={4} align="center" sx={{ py: 4, color: T.textSec, fontWeight: 600, fontSize: '0.875rem' }}>
+                                                                    No products added. Click "Add Item" to start.
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
                                         </Grid>
 
                                         <Grid item xs={12}>
@@ -428,70 +532,6 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                 )}
 
                                 {activeTab === 1 && (
-                                    <Box>
-                                        <Box display="flex" justifyContent="space-between" mb={3} alignItems="center">
-                                            <Typography variant="h6" sx={{ fontWeight: 900 }}>Product Interest</Typography>
-                                            <Button startIcon={<Add />} variant="contained" disableElevation onClick={addProduct} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 800, bgcolor: T.text }}>
-                                                Add Item
-                                            </Button>
-                                        </Box>
-                                        <TableContainer sx={{ border: `1px solid ${T.border}`, borderRadius: 4 }}>
-                                            <Table>
-                                                <TableHead sx={{ bgcolor: T.bg }}>
-                                                    <TableRow>
-                                                        <TableCell sx={{ fontWeight: 900, color: T.textSec, py: 1.5 }}>Product Details</TableCell>
-                                                        <TableCell align="center" sx={{ fontWeight: 900, color: T.textSec, py: 1.5 }}>Qty</TableCell>
-                                                        <TableCell sx={{ fontWeight: 900, color: T.textSec, py: 1.5 }}>Instructions</TableCell>
-                                                        <TableCell align="center" sx={{ py: 1.5 }}></TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {formik.values.enquiredProducts.map((item, index) => (
-                                                        <TableRow key={index} sx={{ '&:hover': { bgcolor: `${T.primary}04` } }}>
-                                                            <TableCell sx={{ py: 2.5, minWidth: 250 }}>
-                                                                <Autocomplete
-                                                                    freeSolo
-                                                                    options={productList}
-                                                                    getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt?.name || ''}
-                                                                    value={formik.values.enquiredProducts[index].inventoryItem || formik.values.enquiredProducts[index].productNameRequired || null}
-                                                                    onInputChange={(e, val, reason) => {
-                                                                        if (reason === 'input') {
-                                                                            formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, val);
-                                                                            handleSearchProducts(val);
-                                                                        }
-                                                                    }}
-                                                                    onChange={(e, val) => {
-                                                                        if (typeof val === 'object') formik.setFieldValue(`enquiredProducts[${index}].inventoryItem`, val);
-                                                                        else formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, val);
-                                                                    }}
-                                                                    renderInput={(params) => <TextField {...params} variant="standard" placeholder="Search product..." sx={{ '& input': { fontWeight: 800 } }} />}
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <TextField name={`enquiredProducts[${index}].qty`} type="number" size="small" value={item.qty} onChange={formik.handleChange} sx={{ width: 80, '& input': { textAlign: 'center', fontWeight: 800, bgcolor: T.bg, borderRadius: 1.5 } }} />
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <TextField name={`enquiredProducts[${index}].specialInstruction`} variant="standard" fullWidth placeholder="Notes..." value={item.specialInstruction} onChange={formik.handleChange} sx={{ '& input': { fontSize: '0.85rem' } }} />
-                                                            </TableCell>
-                                                            <TableCell align="center">
-                                                                <IconButton color="error" onClick={() => removeProduct(index)} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
-                                                                    <DeleteOutline fontSize="small" />
-                                                                </IconButton>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
-                                        {formik.values.enquiredProducts.length === 0 && (
-                                            <Box p={6} textAlign="center" sx={{ bgcolor: T.bg, mt: 2, borderRadius: 4, border: `1px dashed ${T.border}` }}>
-                                                <Typography color="textSecondary" sx={{ fontWeight: 600 }}>No specific products noted for this lead.</Typography>
-                                            </Box>
-                                        )}
-                                    </Box>
-                                )}
-
-                                {activeTab === 2 && (
                                     <Box>
                                         <Box display="flex" justifyContent="space-between" mb={3} alignItems="center">
                                             <Typography variant="h6" sx={{ fontWeight: 900 }}>Activity Records</Typography>
@@ -606,7 +646,6 @@ const AddUpdateEnquiry = ({ onSave }) => {
                         <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.06)' }}>
                             <Typography sx={{ fontWeight: 900, mb: 3, color: T.text }}>Timeline</Typography>
                             <Stack spacing={3}>
-                                <TextField label="Enquiry Date" type="date" name="enqDate" fullWidth InputLabelProps={{ shrink: true }} value={formik.values.enqDate} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                 <TextField label="Target Close" type="date" name="targetCloseDate" fullWidth InputLabelProps={{ shrink: true }} value={formik.values.targetCloseDate} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                 <TextField label="Next Follow-up" type="date" name="nextFollowupDate" fullWidth InputLabelProps={{ shrink: true }} value={formik.values.nextFollowupDate} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: `${T.warning}08` } }} />
                                 
@@ -619,6 +658,72 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                 />
                             </Stack>
                         </Paper>
+                        {/* Linked Quotations */}
+                        {enquiryId && (
+                            <Paper elevation={0} sx={{ p: 4, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 20px 60px rgba(0,0,0,0.06)' }}>
+                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 3 }}>
+                                    <Receipt sx={{ color: T.primary, fontSize: 20 }} />
+                                    <Typography sx={{ fontWeight: 900, color: T.text }}>Linked Quotations</Typography>
+                                    {linkedQuotations.length > 0 && (
+                                        <Chip label={linkedQuotations.length} size="small" sx={{ fontWeight: 800, bgcolor: T.accent, color: T.primary, height: 20 }} />
+                                    )}
+                                </Stack>
+                                {linkedQuotations.length === 0 ? (
+                                    <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 600, textAlign: 'center', py: 2 }}>
+                                        No quotations generated yet.
+                                    </Typography>
+                                ) : (
+                                    <Stack spacing={1.5}>
+                                        {linkedQuotations.map((q) => {
+                                            const statusColor = {
+                                                DRAFT: '#64748b', SENT: '#2563eb', ACCEPTED: '#059669',
+                                                REJECTED: '#dc2626', REVISED: '#d97706'
+                                            }[q.status] || '#64748b';
+                                            return (
+                                                <Box
+                                                    key={q.id}
+                                                    onClick={() => navigate(`/quotation/edit/${q.id}`)}
+                                                    sx={{
+                                                        p: 2, borderRadius: 3, border: `1px solid ${T.border}`,
+                                                        bgcolor: T.bg, cursor: 'pointer',
+                                                        transition: 'all 0.15s',
+                                                        '&:hover': { borderColor: T.primary, bgcolor: T.accent }
+                                                    }}
+                                                >
+                                                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                                        <Box>
+                                                            <Typography sx={{ fontWeight: 800, fontSize: '0.875rem', color: T.primary }}>
+                                                                {q.qtnNo || `#${q.id}`}
+                                                            </Typography>
+                                                            <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 600 }}>
+                                                                {q.qtnDate || '—'}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Stack direction="row" spacing={1} alignItems="center">
+                                                            <Chip
+                                                                label={q.status}
+                                                                size="small"
+                                                                sx={{
+                                                                    height: 18, fontWeight: 800, fontSize: '0.6rem',
+                                                                    bgcolor: `${statusColor}15`, color: statusColor,
+                                                                    border: `1px solid ${statusColor}30`, borderRadius: 1
+                                                                }}
+                                                            />
+                                                            <OpenInNew sx={{ fontSize: 14, color: T.textSec }} />
+                                                        </Stack>
+                                                    </Stack>
+                                                    {q.totalAmount != null && (
+                                                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669', mt: 0.5 }}>
+                                                            ₹{Number(q.totalAmount).toLocaleString('en-IN')}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            );
+                                        })}
+                                    </Stack>
+                                )}
+                            </Paper>
+                        )}
                     </Stack>
                 </Grid>
             </Grid>

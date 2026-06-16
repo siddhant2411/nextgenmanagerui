@@ -208,7 +208,8 @@ const EnquiryList = ({
                   sx={{ color: '#94a3b8', '&.Mui-checked': { color: '#2563eb' }, '&.MuiCheckbox-indeterminate': { color: '#2563eb' } }}
                 />
               </TableCell>
-              <SortHeader column="enqNo" label="Lead Details" />
+              <SortHeader column="enqNo" label="Enquiry No" />
+              <SortHeader column="enqDate" label="Enquiry Date" />
               <SortHeader column="priority" label="Priority" align="center" />
               <SortHeader column="companyName" label="Account & Location" />
               <SortHeader column="assignedToName" label="Owner" />
@@ -227,7 +228,7 @@ const EnquiryList = ({
           <TableBody>
             {enquiryList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center" sx={{ py: 8 }}>
+                <TableCell colSpan={10} align="center" sx={{ py: 8 }}>
                   <Typography color="text.secondary" variant="body2">No enquiries found.</Typography>
                 </TableCell>
               </TableRow>
@@ -270,8 +271,11 @@ const EnquiryList = ({
                       <Typography variant="body2" sx={{ fontWeight: 600, color: '#0f172a', fontSize: '0.75rem', mt: 0.25 }}>
                         {enquiry.opportunityName || 'Untitled Lead'}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.65rem' }}>
-                        Date: {enquiry.enqDate}
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {enquiry.enqDate || '—'}
                       </Typography>
                     </TableCell>
 

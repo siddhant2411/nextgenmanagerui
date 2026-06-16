@@ -439,10 +439,10 @@ const Enquiry = () => {
                                 {/* Stats Cards */}
                                 <Grid container spacing={3} sx={{ mb: 5 }}>
                                     {[
-                                        { label: 'Active Leads', value: summary?.totalEnquiries ?? 0, color: T.primary, bg: '#eff6ff', icon: <TrendingUp /> },
-                                        { label: 'Followups Today', value: summary?.todaysFollowups ?? 0, color: T.warning, bg: '#fffbeb', icon: <Timer /> },
-                                        { label: 'Hot Leads', value: summary?.hotLeads ?? 0, color: T.error, bg: '#fef2f2', icon: <AssignmentTurnedIn /> },
-                                        { label: 'New Clients', value: summary?.newContactsCount ?? 0, color: T.success, bg: '#ecfdf5', icon: <Group /> },
+                                        { label: 'Total Leads', value: summary?.totalLeads ?? 0, color: T.primary, bg: '#eff6ff', icon: <TrendingUp /> },
+                                        { label: 'In Follow-up', value: summary?.followUp ?? 0, color: T.warning, bg: '#fffbeb', icon: <Timer /> },
+                                        { label: 'Overdue Follow-up', value: summary?.overdueFollowups ?? 0, color: T.error, bg: '#fef2f2', icon: <AssignmentTurnedIn /> },
+                                        { label: 'Won', value: summary?.won ?? 0, color: T.success, bg: '#ecfdf5', icon: <Group /> },
                                     ].map((stat, i) => (
                                         <Grid item xs={12} sm={6} md={3} key={i}>
                                             <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
