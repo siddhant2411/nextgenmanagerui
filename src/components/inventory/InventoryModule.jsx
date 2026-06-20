@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import {
     Box, Button, Fab, Tab, Tabs, Typography,
+    Dialog, DialogTitle, DialogContent, DialogActions,
+    TextField, Alert, CircularProgress,
 } from '@mui/material';
+import { sendToPlanning } from '../../services/inventoryService';
 import {
     Add           as AddIcon,
     Dashboard     as DashboardIcon,
@@ -55,10 +58,48 @@ const InventoryModule = () => {
     const { canAction } = useAuth();
     const canManage = canAction(ACTION_KEYS.INVENTORY_APPROVAL_WRITE);
 
-    const openReceive   = (item = null) => { setSelectedItem(item); setReceiveOpen(true); };
+    const [planningItem,    setPlanningItem]    = useState(null);
+    const [planningQty,     setPlanningQty]     = useState('');
+    const [planningLoading, setPlanningLoading] = useState(false);
+    const [planningResult,  setPlanningResult]  = useState(null);
+    const [planningError,   setPlanningError]   = useState(null);
+
+    const openReceive     = (item = null) => { setSelectedItem(item); setReceiveOpen(true); };
     const openLedger      = (item = null) => { setSelectedLedgerItem(item); setLedgerOpen(true); };
-    const openBatchSerial = (item)       => { setSelectedBatchItem(item); setBatchSerialOpen(true); };
-    const handleRefresh = () => setRefreshKey((k) => k + 1);
+    const openBatchSerial = (item)        => { setSelectedBatchItem(item); setBatchSerialOpen(true); };
+    const handleRefresh   = () => setRefreshKey((k) => k + 1);
+
+    const openRequestQty = (item) => {
+        const settings = item?.productInventorySettings || {};
+        const maxStock  = item?.maxStock  ?? settings?.maxStock  ?? 0;
+        const available = item?.availableQuantity ?? settings?.availableQuantity ?? 0;
+        const suggested = Math.max(0, maxStock - available);
+        setPlanningItem(item);
+        setPlanningQty(suggested > 0 ? suggested.toFixed(2) : '');
+        setPlanningResult(null);
+        setPlanningError(null);
+    };
+
+    const closeRequestQty = () => {
+        setPlanningItem(null);
+        setPlanningResult(null);
+        setPlanningError(null);
+    };
+
+    const confirmRequestQty = async () => {
+        const qty = parseFloat(planningQty);
+        if (!qty || qty <= 0) { setPlanningError('Please enter a valid quantity.'); return; }
+        setPlanningLoading(true);
+        setPlanningError(null);
+        try {
+            const result = await sendToPlanning(planningItem.inventoryItemId, qty, 'STORE');
+            setPlanningResult(result);
+        } catch (err) {
+            setPlanningError(err?.response?.data?.error || 'Failed to send to planning.');
+        } finally {
+            setPlanningLoading(false);
+        }
+    };
 
     /**
      * Navigate to a top-level tab, optionally landing on a specific inner tab.
@@ -101,6 +142,7 @@ const InventoryModule = () => {
                         refreshKey={refreshKey}
                         canReceive={canManage}
                         onReceiveStock={openReceive}
+                        onRequestQty={openRequestQty}
                         onOpenLedger={openLedger}
                         onOpenBatchSerial={openBatchSerial}
                     />
@@ -266,6 +308,79 @@ const InventoryModule = () => {
                 open={lowStockOpen}
                 onClose={() => setLowStockOpen(false)}
             />
+
+            {/* ── Request Qty / Send to Planning dialog ── */}
+            <Dialog open={!!planningItem} onClose={closeRequestQty} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ fontWeight: 700, fontSize: '1rem' }}>Request Replenishment</DialogTitle>
+                <DialogContent sx={{ pt: '12px !important' }}>
+                    {planningItem && (
+                        <>
+                            <Typography variant="body2" fontWeight={600} mb={0.5}>
+                                {planningItem.name}{' '}
+                                <span style={{ color: '#64748b', fontWeight: 400 }}>({planningItem.itemCode})</span>
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+                                Available:{' '}
+                                <strong>
+                                    {(planningItem?.availableQuantity ?? planningItem?.productInventorySettings?.availableQuantity ?? 0).toFixed(2)}
+                                </strong>
+                                &nbsp;|&nbsp; Reorder level:{' '}
+                                <strong>
+                                    {(planningItem?.reorderLevel ?? planningItem?.productInventorySettings?.reorderLevel ?? 0).toFixed(2)}
+                                </strong>
+                                &nbsp;|&nbsp; Max stock:{' '}
+                                <strong>
+                                    {(planningItem?.maxStock ?? planningItem?.productInventorySettings?.maxStock ?? 0).toFixed(2)}
+                                </strong>
+                            </Typography>
+                        </>
+                    )}
+                    {planningResult ? (
+                        <Alert severity={planningResult.decision === 'UNDECIDED' ? 'info' : 'success'}>
+                            {planningResult.decision === 'WORK_ORDER'    && `Work Order #${planningResult.orderId} created.`}
+                            {planningResult.decision === 'PURCHASE_ORDER' && `Purchase Requisition #${planningResult.orderId} created.`}
+                            {planningResult.decision === 'UNDECIDED'     && 'Added to the Planning Desk — a planner will decide make/buy.'}
+                        </Alert>
+                    ) : (
+                        <TextField
+                            label="Replenishment Quantity"
+                            type="number"
+                            value={planningQty}
+                            onChange={(e) => setPlanningQty(e.target.value)}
+                            fullWidth
+                            size="small"
+                            inputProps={{ min: 0.01, step: 0.01 }}
+                            helperText={(() => {
+                                if (!planningItem) return '';
+                                const max = planningItem?.maxStock ?? planningItem?.productInventorySettings?.maxStock ?? 0;
+                                const avail = planningItem?.availableQuantity ?? planningItem?.productInventorySettings?.availableQuantity ?? 0;
+                                return max > 0
+                                    ? `Suggested: max (${max}) − available (${avail.toFixed(2)}) = ${Math.max(0, max - avail).toFixed(2)}`
+                                    : '';
+                            })()}
+                        />
+                    )}
+                    {planningError && <Alert severity="error" sx={{ mt: 1 }}>{planningError}</Alert>}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button variant="text" size="small" onClick={closeRequestQty} sx={{ textTransform: 'none' }}>
+                        {planningResult ? 'Close' : 'Cancel'}
+                    </Button>
+                    {!planningResult && (
+                        <Button
+                            variant="contained"
+                            size="small"
+                            disableElevation
+                            onClick={confirmRequestQty}
+                            disabled={planningLoading}
+                            sx={{ textTransform: 'none', bgcolor: '#2563eb', '&:hover': { bgcolor: '#1d4ed8' } }}
+                        >
+                            {planningLoading && <CircularProgress size={13} sx={{ color: '#fff', mr: 1 }} />}
+                            Send to Planning
+                        </Button>
+                    )}
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

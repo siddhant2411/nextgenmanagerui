@@ -13,6 +13,12 @@ import TrialBalancePage from "../components/accounting/reports/TrialBalancePage"
 import DayBookPage from "../components/accounting/reports/DayBookPage";
 import LedgerStatementPage from "../components/accounting/reports/LedgerStatementPage";
 import AgeingReportPage from "../components/accounting/reports/AgeingReportPage";
+import StockGlReconciliationPage from "../components/accounting/reports/StockGlReconciliationPage";
+import Gstr1Page from "../components/accounting/gst/Gstr1Page";
+import Gstr3bPage from "../components/accounting/gst/Gstr3bPage";
+import HsnSummaryPage from "../components/accounting/gst/HsnSummaryPage";
+import GstRegisterPage from "../components/accounting/gst/GstRegisterPage";
+import GstFilingsPage from "../components/accounting/gst/GstFilingsPage";
 
 const AccountingPage = () => (
     <Routes>
@@ -45,6 +51,15 @@ const AccountingPage = () => (
         <Route path="reports/trial-balance" element={<TrialBalancePage />} />
         <Route path="reports/debtors-ageing"   element={<AgeingReportPage variant="DEBTORS" />} />
         <Route path="reports/creditors-ageing" element={<AgeingReportPage variant="CREDITORS" />} />
+        <Route path="reports/stock-gl"         element={<StockGlReconciliationPage />} />
+
+        {/* GST */}
+        <Route path="gst/gstr1"            element={<Gstr1Page />} />
+        <Route path="gst/gstr3b"           element={<Gstr3bPage />} />
+        <Route path="gst/hsn"              element={<HsnSummaryPage />} />
+        <Route path="gst/register/outward" element={<GstRegisterPage variant="OUTWARD" />} />
+        <Route path="gst/register/inward"  element={<GstRegisterPage variant="INWARD" />} />
+        <Route path="gst/filings"          element={<GstFilingsPage />} />
 
         {/* Approvals */}
         <Route

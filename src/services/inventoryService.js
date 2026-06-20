@@ -78,6 +78,9 @@ export const submitStockCount = (payload) =>
 export const getStockValuation = (params = {}) =>
     apiService.get('/inventory/valuation-report', params);
 
+export const sendToPlanning = (itemId, qty, requestedBy) =>
+    apiService.post(`/inventory/items/${itemId}/send-to-planning`, { qty, requestedBy });
+
 // ── Sprint 2-C: Low Stock (for reorder alerts drawer) ────────────────────────
 export const getLowStockItems = (params = {}) =>
     apiService.get('/inventory_item/search', { ...params, lowStockOnly: true, size: 200 });

@@ -5,7 +5,7 @@ import {
     InputAdornment, TablePagination, Tooltip, Chip, CircularProgress,
     Stack, Fade
 } from '@mui/material';
-import { Search, MoveToInbox, Visibility, QrCode2 as BatchIcon } from '@mui/icons-material';
+import { Search, MoveToInbox, Visibility, QrCode2 as BatchIcon, Send as SendIcon } from '@mui/icons-material';
 import { searchInventoryItems } from '../../services/inventoryService';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
@@ -37,7 +37,10 @@ const getAvailableQty = (item) => item?.availableQuantity ?? getSettings(item)?.
 const getReservedQty = (item) => item?.reservedQuantity ?? getSettings(item)?.reservedQuantity ?? 0;
 const getMinStock = (item) => item?.minStock ?? getSettings(item)?.minStock ?? 0;
 
-const InventoryItemPage = ({ onReceiveStock, refreshKey, onOpenLedger, onOpenBatchSerial }) => {
+const getReorderLevel = (item) => item?.reorderLevel ?? getSettings(item)?.reorderLevel ?? 0;
+const getMaxStock     = (item) => item?.maxStock     ?? getSettings(item)?.maxStock     ?? 0;
+
+const InventoryItemPage = ({ onReceiveStock, onRequestQty, refreshKey, onOpenLedger, onOpenBatchSerial }) => {
     const [items, setItems] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
@@ -248,6 +251,26 @@ const InventoryItemPage = ({ onReceiveStock, refreshKey, onOpenLedger, onOpenBat
                                                         }}
                                                     >
                                                         Receive
+                                                    </Button>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        disableElevation
+                                                        startIcon={<SendIcon fontSize="inherit" />}
+                                                        onClick={() => onRequestQty?.(item)}
+                                                        sx={{
+                                                            textTransform: 'none',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.65rem',
+                                                            borderRadius: 2,
+                                                            borderColor: getReorderLevel(item) > 0 && getAvailableQty(item) <= getReorderLevel(item)
+                                                                ? '#f59e0b' : '#94a3b8',
+                                                            color: getReorderLevel(item) > 0 && getAvailableQty(item) <= getReorderLevel(item)
+                                                                ? '#b45309' : '#475569',
+                                                            '&:hover': { borderColor: '#2563eb', color: '#2563eb', bgcolor: '#eff6ff' },
+                                                        }}
+                                                    >
+                                                        Request Qty
                                                     </Button>
                                                 </Box>
                                             </TableCell>

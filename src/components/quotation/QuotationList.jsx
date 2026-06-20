@@ -103,6 +103,7 @@ const QuotationList = ({
       >
         <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={align === 'center' ? 'center' : 'flex-start'}>
           <span>{label}</span>
+          {isActive && <Typography variant="caption" sx={{ fontSize: 10 }}>{filters?.sortDir === 'asc' ? '↑' : '↓'}</Typography>}
         </Stack>
       </TableCell>
     );
@@ -128,7 +129,8 @@ const QuotationList = ({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <SortHeader column="qtnNo" label="Quotation Details" />
+              <SortHeader column="qtnNo" label="Quotation No" />
+              <SortHeader column="qtnDate" label="Date" />
               <SortHeader column="companyName" label="Client Details" />
               <SortHeader column="enqNo" label="Ref. Enquiry" />
               <SortHeader column="totalAmount" label="Financials" />
@@ -145,7 +147,7 @@ const QuotationList = ({
           <TableBody>
             {quotationList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                   <Typography color="text.secondary" variant="body2">No quotations found.</Typography>
                 </TableCell>
               </TableRow>
@@ -170,15 +172,16 @@ const QuotationList = ({
                         <Avatar sx={{ width: 32, height: 32, bgcolor: '#eff6ff', color: '#2563eb' }}>
                           <Description sx={{ fontSize: 16 }} />
                         </Avatar>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
-                            {row.qtnNo}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b' }}>
-                            Date: {row.qtnDate}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                          {row.qtnNo}
+                        </Typography>
                       </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {row.qtnDate || '—'}
+                      </Typography>
                     </TableCell>
 
                     <TableCell>

@@ -101,7 +101,8 @@ const SalesOrderList = ({
         <Table size="small">
           <TableHead>
             <TableRow>
-              <SortHeader column="orderNumber" label="Order Details" />
+              <SortHeader column="orderNumber" label="Order No" />
+              <SortHeader column="orderDate" label="Date" />
               <SortHeader column="customerName" label="Customer" />
               <SortHeader column="poNumber" label="Ref. PO" />
               <SortHeader column="netAmount" label="Financials" />
@@ -114,13 +115,13 @@ const SalesOrderList = ({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                   <CircularProgress size={32} />
                 </TableCell>
               </TableRow>
             ) : !quotationList?.length ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
                   <Typography color="text.secondary" variant="body2">No sales orders found.</Typography>
                 </TableCell>
               </TableRow>
@@ -139,14 +140,19 @@ const SalesOrderList = ({
                         <Avatar sx={{ width: 32, height: 32, bgcolor: `${cfg.color}15`, color: cfg.color }}>
                           <Description sx={{ fontSize: 16 }} />
                         </Avatar>
-                        <Box>
-                          <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>{row.orderNumber}</Typography>
-                          <Typography variant="caption" sx={{ color: '#64748b' }}>
-                            {row.orderDate}
-                            {row.deliveryDate && ` · Due ${row.deliveryDate}`}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>{row.orderNumber}</Typography>
                       </Stack>
+                    </TableCell>
+
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontSize: '0.8125rem', color: '#334155', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {row.orderDate || '—'}
+                      </Typography>
+                      {row.deliveryDate && (
+                        <Typography variant="caption" sx={{ color: '#64748b', display: 'block' }}>
+                          Due: {row.deliveryDate}
+                        </Typography>
+                      )}
                     </TableCell>
 
                     <TableCell>
