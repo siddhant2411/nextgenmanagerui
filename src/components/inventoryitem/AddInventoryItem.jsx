@@ -123,6 +123,7 @@ export default function AddInventoryItem() {
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [savedItem, setSavedItem] = useState(null); // { itemCode, name } for success dialog
   const [itemCodeError, setItemCodeError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   /* ── Item code series ── */
   const [isItemCodeAuto, setIsItemCodeAuto] = useState(false);
@@ -362,6 +363,7 @@ export default function AddInventoryItem() {
     } else {
       setItemData(prev => ({ ...prev, [name]: v }));
     }
+    if (name === 'name' && nameError) setNameError('');
   };
 
   const checkCodeUniqueness = async (code) => {
@@ -478,6 +480,11 @@ export default function AddInventoryItem() {
   /* ── Submit / save ── */
   const handleSubmit = (e) => {
     e?.preventDefault?.();
+    if (!itemData.name || !itemData.name.trim()) {
+      setNameError('Item name is required.');
+      showSnackbar('Please resolve all validation errors before saving.', 'error');
+      return;
+    }
     if (itemCodeError) {
       showSnackbar('Please resolve all validation errors before saving.', 'error');
       return;
@@ -701,7 +708,11 @@ export default function AddInventoryItem() {
 
             <Grid item xs={12} sm={6} md={5}>
               <TextField size="small" label="Item Name *" name="name" value={itemData.name}
-                onChange={handleChange} fullWidth required sx={fieldSx} />
+                onChange={handleChange} fullWidth required sx={fieldSx}
+                error={!!nameError}
+                onBlur={(e) => { if (!e.target.value || !e.target.value.trim()) setNameError('Item name is required.'); }}
+                helperText={nameError}
+              />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField size="small" label="HSN Code" name="hsnCode" value={itemData.hsnCode}

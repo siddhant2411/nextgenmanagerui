@@ -55,6 +55,8 @@ export const MODULES = [
                     { text: "Receipt", path: "/accounting/vouchers/receipt" },
                     { text: "Payment", path: "/accounting/vouchers/payment" },
                     { text: "Contra", path: "/accounting/vouchers/contra" },
+                    { text: "Payroll", path: "/accounting/vouchers/payroll" },
+                    { text: "Depreciation", path: "/accounting/vouchers/depreciation" },
                 ],
             },
             {
@@ -92,9 +94,9 @@ export const MODULES = [
             {
                 text: "TDS",
                 Icon: PercentOutlined,
-                comingSoon: true,
                 children: [
-                    { text: "TDS Entries", path: "/accounting/tds/entries" },
+                    { text: "TDS Sections", path: "/accounting/tds/sections" },
+                    { text: "TDS Register", path: "/accounting/tds/register" },
                     { text: "Challans", path: "/accounting/tds/challans" },
                 ],
             },

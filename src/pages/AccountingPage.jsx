@@ -19,6 +19,11 @@ import Gstr3bPage from "../components/accounting/gst/Gstr3bPage";
 import HsnSummaryPage from "../components/accounting/gst/HsnSummaryPage";
 import GstRegisterPage from "../components/accounting/gst/GstRegisterPage";
 import GstFilingsPage from "../components/accounting/gst/GstFilingsPage";
+import TdsSectionsPage from "../components/accounting/tds/TdsSectionsPage";
+import TdsRegisterPage from "../components/accounting/tds/TdsRegisterPage";
+import TdsChallansPage from "../components/accounting/tds/TdsChallansPage";
+import PayrollVoucherForm from "../components/accounting/voucher/PayrollVoucherForm";
+import DepreciationVoucherForm from "../components/accounting/voucher/DepreciationVoucherForm";
 
 const AccountingPage = () => (
     <Routes>
@@ -44,6 +49,8 @@ const AccountingPage = () => (
         <Route path="vouchers/receipt" element={<ReceiptVoucherForm />} />
         <Route path="vouchers/payment" element={<PaymentVoucherForm />} />
         <Route path="vouchers/contra" element={<ContraVoucherForm />} />
+        <Route path="vouchers/payroll" element={<PayrollVoucherForm />} />
+        <Route path="vouchers/depreciation" element={<DepreciationVoucherForm />} />
 
         {/* Reports */}
         <Route path="reports/day-book"      element={<DayBookPage />} />
@@ -60,6 +67,11 @@ const AccountingPage = () => (
         <Route path="gst/register/outward" element={<GstRegisterPage variant="OUTWARD" />} />
         <Route path="gst/register/inward"  element={<GstRegisterPage variant="INWARD" />} />
         <Route path="gst/filings"          element={<GstFilingsPage />} />
+
+        {/* TDS */}
+        <Route path="tds/sections"  element={<TdsSectionsPage />} />
+        <Route path="tds/register"  element={<TdsRegisterPage />} />
+        <Route path="tds/challans"  element={<TdsChallansPage />} />
 
         {/* Approvals */}
         <Route

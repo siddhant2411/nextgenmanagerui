@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Add, DeleteOutline, Payments } from '@mui/icons-material';
 import { getPaymentsForInvoice, getPaymentSummary, recordVendorPayment, deleteVendorPayment } from '../../services/vendorPaymentService';
+import { listTdsSections } from '../../services/accounting/tdsService';
 
 const T = {
     primary: '#2563eb', success: '#059669', error: '#dc2626',
@@ -24,10 +25,12 @@ const PAYMENT_MODES = [
 
 const EMPTY_FORM = {
     paymentDate: new Date().toISOString().split('T')[0],
-    amount: '', paymentMode: 'NEFT', referenceNumber: '', notes: '',
+    amount: '', paymentMode: 'NEFT', referenceNumber: '', notes: '', tdsSectionCode: '',
 };
 
 const fmt = (n) => n != null ? Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00';
+
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export default function RecordPaymentDialog({ open, invoice, onClose, onChanged }) {
     const [payments, setPayments] = useState([]);
@@ -37,17 +40,20 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
     const [deleting, setDeleting] = useState(null);
     const [error, setError] = useState(null);
     const [form, setForm] = useState(EMPTY_FORM);
+    const [tdsSections, setTdsSections] = useState([]);
 
     const load = useCallback(async () => {
         if (!invoice) return;
         setLoading(true);
         try {
-            const [pmts, summary] = await Promise.all([
+            const [pmts, summary, sections] = await Promise.all([
                 getPaymentsForInvoice(invoice.id),
                 getPaymentSummary(invoice.id),
+                listTdsSections(true).catch(() => []),
             ]);
             setPayments(pmts ?? []);
             setTotalPaid(Number(summary?.totalPaid ?? 0));
+            setTdsSections(sections ?? []);
         } catch {
         } finally {
             setLoading(false);
@@ -61,6 +67,15 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
 
     const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
+    // Derived TDS: section → rate → withheld amount → net payable to vendor.
+    const amountNum = parseFloat(form.amount) || 0;
+    const tds = (() => {
+        const section = tdsSections.find(s => s.section === form.tdsSectionCode);
+        if (!section || amountNum <= 0) return { section: null, amount: 0, net: amountNum };
+        const amt = round2(amountNum * Number(section.rate) / 100);
+        return { section, amount: amt, net: round2(amountNum - amt) };
+    })();
+
     const handleSubmit = async () => {
         if (!form.amount || parseFloat(form.amount) <= 0) { setError('Please enter a valid amount.'); return; }
         setSaving(true); setError(null);
@@ -71,6 +86,9 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                 paymentMode:     form.paymentMode,
                 referenceNumber: form.referenceNumber || null,
                 notes:           form.notes || null,
+                tdsSectionCode:  tds.section ? tds.section.section : null,
+                tdsRate:         tds.section ? tds.section.rate : null,
+                tdsAmount:       tds.amount || 0,
             });
             setForm(EMPTY_FORM);
             await load();
@@ -150,6 +168,26 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                         <TextField fullWidth label="Reference / Cheque No." name="referenceNumber"
                             value={form.referenceNumber} onChange={handleChange}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }} />
+                    </Stack>
+                    <Stack direction="row" spacing={2} alignItems="center">
+                        <FormControl fullWidth>
+                            <InputLabel>TDS Section (optional)</InputLabel>
+                            <Select name="tdsSectionCode" value={form.tdsSectionCode} onChange={handleChange}
+                                label="TDS Section (optional)" sx={{ borderRadius: 2.5 }}>
+                                <MenuItem value=""><em>No TDS</em></MenuItem>
+                                {tdsSections.map(s => (
+                                    <MenuItem key={s.id} value={s.section}>{s.section} — {s.rate}%</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        {tds.section ? (
+                            <Stack flex={1} sx={{ p: 1.25, borderRadius: 2.5, bgcolor: T.bg, border: `1px solid ${T.border}` }}>
+                                <Typography sx={{ fontSize: '0.62rem', color: T.textSec, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+                                    TDS ₹{fmt(tds.amount)} · Net to vendor
+                                </Typography>
+                                <Typography sx={{ fontWeight: 900, fontSize: '0.95rem', color: T.text }}>₹{fmt(tds.net)}</Typography>
+                            </Stack>
+                        ) : <Box flex={1} />}
                     </Stack>
                     <TextField fullWidth label="Notes" name="notes" value={form.notes} onChange={handleChange}
                         multiline rows={2} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }} />
