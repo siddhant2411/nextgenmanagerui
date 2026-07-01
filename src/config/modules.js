@@ -55,6 +55,8 @@ export const MODULES = [
                     { text: "Receipt", path: "/accounting/vouchers/receipt" },
                     { text: "Payment", path: "/accounting/vouchers/payment" },
                     { text: "Contra", path: "/accounting/vouchers/contra" },
+                    { text: "Payroll", path: "/accounting/vouchers/payroll" },
+                    { text: "Depreciation", path: "/accounting/vouchers/depreciation" },
                 ],
             },
             {
@@ -66,6 +68,7 @@ export const MODULES = [
                     { text: "Trial Balance", path: "/accounting/reports/trial-balance" },
                     { text: "Debtors Ageing", path: "/accounting/reports/debtors-ageing" },
                     { text: "Creditors Ageing", path: "/accounting/reports/creditors-ageing" },
+                    { text: "Stock vs GL", path: "/accounting/reports/stock-gl" },
                 ],
             },
             {
@@ -79,19 +82,21 @@ export const MODULES = [
             {
                 text: "GST",
                 Icon: GavelOutlined,
-                comingSoon: true,
                 children: [
                     { text: "GSTR-1", path: "/accounting/gst/gstr1" },
                     { text: "GSTR-3B", path: "/accounting/gst/gstr3b" },
                     { text: "HSN Summary", path: "/accounting/gst/hsn" },
+                    { text: "Outward Register", path: "/accounting/gst/register/outward" },
+                    { text: "Inward Register", path: "/accounting/gst/register/inward" },
+                    { text: "Filings", path: "/accounting/gst/filings" },
                 ],
             },
             {
                 text: "TDS",
                 Icon: PercentOutlined,
-                comingSoon: true,
                 children: [
-                    { text: "TDS Entries", path: "/accounting/tds/entries" },
+                    { text: "TDS Sections", path: "/accounting/tds/sections" },
+                    { text: "TDS Register", path: "/accounting/tds/register" },
                     { text: "Challans", path: "/accounting/tds/challans" },
                 ],
             },

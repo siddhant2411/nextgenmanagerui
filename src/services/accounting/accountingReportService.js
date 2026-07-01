@@ -23,3 +23,18 @@ export const downloadDebtorsAgeingExcel = (asOf) =>
 
 export const downloadCreditorsAgeingExcel = (asOf) =>
     apiService.download("/accounting/reports/creditors-ageing/excel", asOf ? { asOf } : {}, `Creditors_Ageing_${asOf || ""}.xlsx`);
+
+// ── Stock vs GL reconciliation (perpetual inventory) ─────────────────────────
+// from: optional cutover/go-live date to exclude pre-migration history
+const stockGlParams = (asOf, from) => {
+    const params = {};
+    if (asOf) params.asOf = asOf;
+    if (from) params.from = from;
+    return params;
+};
+
+export const getStockGlReconciliation = (asOf, from) =>
+    apiService.get("/accounting/reports/stock-gl-reconciliation", stockGlParams(asOf, from));
+
+export const downloadStockGlReconciliationExcel = (asOf, from) =>
+    apiService.download("/accounting/reports/stock-gl-reconciliation/excel", stockGlParams(asOf, from), `Stock_GL_Reconciliation_${asOf || ""}.xlsx`);

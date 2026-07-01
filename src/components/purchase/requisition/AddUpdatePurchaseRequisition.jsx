@@ -17,6 +17,7 @@ import {
     cancelPurchaseRequisition, deletePurchaseRequisition, convertRequisitionToPo,
     getNextPRNumber,
 } from '../../../services/purchaseRequisitionService';
+import { filterInventoryItems } from '../../../services/inventoryService';
 import { searchWorkCenters } from '../../../services/machineAssetsService';
 import { useAuth } from '../../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../../auth/roles';
@@ -29,10 +30,10 @@ const SECONDARY = '#64748b';
 const PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
 
 const APPROVAL_STYLE = {
-    DRAFT:            { bg: '#f1f5f9', color: '#475569' },
+    DRAFT: { bg: '#f1f5f9', color: '#475569' },
     PENDING_APPROVAL: { bg: '#fff7ed', color: '#c2410c' },
-    APPROVED:         { bg: '#f0fdf4', color: '#16a34a' },
-    REJECTED:         { bg: '#fef2f2', color: '#dc2626' },
+    APPROVED: { bg: '#f0fdf4', color: '#16a34a' },
+    REJECTED: { bg: '#fef2f2', color: '#dc2626' },
 };
 
 const EMPTY_HEADER = {
@@ -184,14 +185,23 @@ export default function AddUpdatePurchaseRequisition() {
     const isApproved = pr?.approvalStatus === 'APPROVED';
     const isPending = pr?.approvalStatus === 'PENDING_APPROVAL';
 
+    const itemSearchTimer = React.useRef(null);
+    const searchItems = (query) => {
+        clearTimeout(itemSearchTimer.current);
+        itemSearchTimer.current = setTimeout(() => {
+            const payload = { page: 0, size: 20, sortBy: "name", sortDir: "Asc", filters: query ? [{ field: 'name', operator: 'contains', value: query }] : [] };
+            filterInventoryItems(payload).then(r => setItems(r?.content ?? r ?? [])).catch(() => { });
+        }, 300);
+    };
+
     // Load reference data
     useEffect(() => {
-        apiService.get('/inventory_item/all', { size: 500 })
-            .then(r => setItems(r?.content ?? r ?? [])).catch(() => {});
-        apiService.get('/contact', { type: 'VENDOR', size: 200 })
-            .then(r => setVendors(r?.content ?? r ?? [])).catch(() => {});
-        searchWorkCenters({ size: 200 })
-            .then(r => setWorkCenters(r?.content ?? r ?? [])).catch(() => {});
+        filterInventoryItems({ page: 0, size: 10, sortBy: "name", sortDir: "Asc", filters: [] })
+            .then(r => setItems(r?.content ?? r ?? [])).catch(() => { });
+        apiService.get('/contact', { type: 'VENDOR', size: 20 })
+            .then(r => setVendors(r?.content ?? r ?? [])).catch(() => { });
+        searchWorkCenters({ size: 20 })
+            .then(r => setWorkCenters(r?.content ?? r ?? [])).catch(() => { });
     }, []);
 
     // Load PR (if edit) or next number (if new)
@@ -241,7 +251,7 @@ export default function AddUpdatePurchaseRequisition() {
 
     const totalEstimated = useMemo(() =>
         lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.estimatedUnitPrice) || 0), 0)
-    , [lines]);
+        , [lines]);
 
     // ── Line ops ──────────────────────────────────────────────────────────────
     const addLine = () => setLines(s => [...s, { ...EMPTY_LINE }]);
@@ -318,10 +328,10 @@ export default function AddUpdatePurchaseRequisition() {
     };
 
     const onSubmitApproval = () => runAction('Submit', () => submitPurchaseRequisition(id));
-    const onApprove       = () => runAction('Approve', () => approvePurchaseRequisition(id));
-    const onReject  = (reason) => runAction('Reject',  () => rejectPurchaseRequisition(id, reason));
-    const onCancel  = (reason) => runAction('Cancel',  () => cancelPurchaseRequisition(id, reason));
-    const onDelete        = () => runAction('Delete',  async () => {
+    const onApprove = () => runAction('Approve', () => approvePurchaseRequisition(id));
+    const onReject = (reason) => runAction('Reject', () => rejectPurchaseRequisition(id, reason));
+    const onCancel = (reason) => runAction('Cancel', () => cancelPurchaseRequisition(id, reason));
+    const onDelete = () => runAction('Delete', async () => {
         await deletePurchaseRequisition(id);
         navigate('..');
     });
@@ -539,7 +549,9 @@ export default function AddUpdatePurchaseRequisition() {
                                                     getOptionLabel={(o) => o.name ? `${o.itemCode ?? ''} ${o.name}` : ''}
                                                     value={items.find(it => it.inventoryItemId === l.itemId) ?? null}
                                                     onChange={(_, v) => onItemPick(idx, v)}
-                                                    renderInput={(params) => <TextField {...params} variant="standard" placeholder="Pick item..." />} />
+                                                    onInputChange={(_, val) => searchItems(val)}
+                                                    filterOptions={(x) => x}
+                                                    renderInput={(params) => <TextField {...params} variant="standard" placeholder="Type to search..." />} />
                                             ) : (
                                                 <Typography sx={{ fontSize: '0.85rem' }}>
                                                     {l.itemCode ? `${l.itemCode} · ` : ''}{l.itemName ?? '—'}

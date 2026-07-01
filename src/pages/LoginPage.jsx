@@ -40,8 +40,10 @@ const resolveRecoveryErrorMessage = (error) => {
 };
 
 function ForgotPasswordDialog({ open, onClose }) {
-    const [step, setStep] = useState(1); // 1 = enter login, 2 = enter OTP + new password
+    const [step, setStep] = useState(1); // OTP mode only: 1 = enter login, 2 = enter OTP + new password
     const [login, setLogin] = useState("");
+    const [username, setUsername] = useState("");
+    const [passcode, setPasscode] = useState("");
     const [otp, setOtp] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -49,7 +51,7 @@ function ForgotPasswordDialog({ open, onClose }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
-    const [recoveryInfo, setRecoveryInfo] = useState({ hint: "" });
+    const [recoveryInfo, setRecoveryInfo] = useState({ hint: "", mode: "passcode" });
 
     React.useEffect(() => {
         if (open) {
@@ -59,9 +61,13 @@ function ForgotPasswordDialog({ open, onClose }) {
         }
     }, [open]);
 
+    const isPasscodeMode = recoveryInfo.mode !== "otp";
+
     const handleClose = () => {
         setStep(1);
         setLogin("");
+        setUsername("");
+        setPasscode("");
         setOtp("");
         setNewPassword("");
         setConfirmPassword("");
@@ -71,6 +77,35 @@ function ForgotPasswordDialog({ open, onClose }) {
         onClose();
     };
 
+    const validatePasswordFields = () => {
+        if (!newPassword || !confirmPassword) return "All fields are required.";
+        if (newPassword !== confirmPassword) return "Passwords do not match.";
+        if (newPassword.length < 6) return "New password must be at least 6 characters.";
+        return null;
+    };
+
+    // Passcode mode: single-step, calls /auth/recovery/reset with {recoverySecret, username, newPassword}
+    const handlePasscodeReset = async (e) => {
+        e.preventDefault();
+        setError("");
+        if (!username.trim() || !passcode.trim()) {
+            setError("All fields are required.");
+            return;
+        }
+        const pwError = validatePasswordFields();
+        if (pwError) { setError(pwError); return; }
+        setLoading(true);
+        try {
+            await recoveryResetPassword({ recoverySecret: passcode.trim(), username: username.trim(), newPassword });
+            setSuccess(true);
+        } catch (err) {
+            setError(resolveRecoveryErrorMessage(err));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // OTP mode step 1: request OTP
     const handleSendCode = async (e) => {
         e.preventDefault();
         setError("");
@@ -89,21 +124,13 @@ function ForgotPasswordDialog({ open, onClose }) {
         }
     };
 
-    const handleReset = async (e) => {
+    // OTP mode step 2: submit OTP + new password
+    const handleOtpReset = async (e) => {
         e.preventDefault();
         setError("");
-        if (!otp.trim() || !newPassword || !confirmPassword) {
-            setError("All fields are required.");
-            return;
-        }
-        if (newPassword !== confirmPassword) {
-            setError("Passwords do not match.");
-            return;
-        }
-        if (newPassword.length < 6) {
-            setError("New password must be at least 6 characters.");
-            return;
-        }
+        if (!otp.trim()) { setError("All fields are required."); return; }
+        const pwError = validatePasswordFields();
+        if (pwError) { setError(pwError); return; }
         setLoading(true);
         try {
             await recoveryResetPassword({ login: login.trim(), otp: otp.trim(), newPassword });
@@ -115,6 +142,38 @@ function ForgotPasswordDialog({ open, onClose }) {
         }
     };
 
+    const passwordFields = (
+        <>
+            <TextField
+                label="New Password"
+                type={showPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                fullWidth
+                size="small"
+                autoComplete="new-password"
+                InputProps={{
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <IconButton size="small" onClick={() => setShowPassword((s) => !s)} edge="end">
+                                {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                        </InputAdornment>
+                    ),
+                }}
+            />
+            <TextField
+                label="Confirm New Password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                fullWidth
+                size="small"
+                autoComplete="new-password"
+            />
+        </>
+    );
+
     return (
         <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
             <DialogTitle>Reset Password</DialogTitle>
@@ -123,6 +182,34 @@ function ForgotPasswordDialog({ open, onClose }) {
                     <Alert severity="success" sx={{ mt: 1 }}>
                         Password reset successfully. You can now sign in with your new password.
                     </Alert>
+                ) : isPasscodeMode ? (
+                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handlePasscodeReset}>
+                        {recoveryInfo.hint ? (
+                            <Typography variant="body2" color="text.secondary">
+                                {recoveryInfo.hint}
+                            </Typography>
+                        ) : null}
+                        {error ? <Alert severity="error">{error}</Alert> : null}
+                        <TextField
+                            label="Username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            fullWidth
+                            size="small"
+                            autoFocus
+                            autoComplete="username"
+                        />
+                        <TextField
+                            label={recoveryInfo.label || "Passcode"}
+                            value={passcode}
+                            onChange={(e) => setPasscode(e.target.value)}
+                            fullWidth
+                            size="small"
+                            type="password"
+                            autoComplete="off"
+                        />
+                        {passwordFields}
+                    </Stack>
                 ) : step === 1 ? (
                     <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleSendCode}>
                         {recoveryInfo.hint ? (
@@ -143,7 +230,7 @@ function ForgotPasswordDialog({ open, onClose }) {
                         />
                     </Stack>
                 ) : (
-                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleReset}>
+                    <Stack spacing={2} sx={{ mt: 1 }} component="form" onSubmit={handleOtpReset}>
                         <Typography variant="body2" color="text.secondary">
                             A 6-digit verification code was sent to your registered email. It expires in 15 minutes.
                         </Typography>
@@ -157,33 +244,7 @@ function ForgotPasswordDialog({ open, onClose }) {
                             autoFocus
                             inputProps={{ maxLength: 6, inputMode: "numeric" }}
                         />
-                        <TextField
-                            label="New Password"
-                            type={showPassword ? "text" : "password"}
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            fullWidth
-                            size="small"
-                            autoComplete="new-password"
-                            InputProps={{
-                                endAdornment: (
-                                    <InputAdornment position="end">
-                                        <IconButton size="small" onClick={() => setShowPassword((s) => !s)} edge="end">
-                                            {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                        </IconButton>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                        <TextField
-                            label="Confirm New Password"
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            fullWidth
-                            size="small"
-                            autoComplete="new-password"
-                        />
+                        {passwordFields}
                         <Typography variant="caption" color="text.secondary">
                             Didn't receive a code?{" "}
                             <span
@@ -200,7 +261,17 @@ function ForgotPasswordDialog({ open, onClose }) {
                 <Button onClick={handleClose} disabled={loading}>
                     {success ? "Close" : "Cancel"}
                 </Button>
-                {!success && step === 1 && (
+                {!success && isPasscodeMode && (
+                    <Button
+                        variant="contained"
+                        onClick={handlePasscodeReset}
+                        disabled={loading}
+                        startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+                    >
+                        {loading ? "Resetting..." : "Reset Password"}
+                    </Button>
+                )}
+                {!success && !isPasscodeMode && step === 1 && (
                     <Button
                         variant="contained"
                         onClick={handleSendCode}
@@ -210,10 +281,10 @@ function ForgotPasswordDialog({ open, onClose }) {
                         {loading ? "Sending..." : "Send Code"}
                     </Button>
                 )}
-                {!success && step === 2 && (
+                {!success && !isPasscodeMode && step === 2 && (
                     <Button
                         variant="contained"
-                        onClick={handleReset}
+                        onClick={handleOtpReset}
                         disabled={loading}
                         startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
                     >

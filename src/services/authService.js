@@ -153,7 +153,7 @@ export const recoveryRequestOtp = async (payload) => {
 };
 
 /**
- * @param {{ login: string, otp: string, newPassword: string }} payload
+ * @param {{ recoverySecret: string, username: string, newPassword: string } | { login: string, otp: string, newPassword: string }} payload
  */
 export const recoveryResetPassword = async (payload) => {
     const response = await apiClient.post("/auth/recovery/reset", payload);

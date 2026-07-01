@@ -2,9 +2,11 @@ import React from 'react';
 import {
     Box, Paper, TableBody, TableCell, TableContainer, TableHead, TableRow,
     TextField, Typography, Table, MenuItem, Select, FormControl, InputLabel,
-    Pagination, Button
+    Pagination, Button, Tooltip, Chip
 } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import SendIcon from '@mui/icons-material/Send';
 
 const HEADER_BG = '#f8fafc';
 const BORDER_COLOR = '#e2e8f0';
@@ -33,7 +35,7 @@ const filterCellSx = {
 
 const InventoryList = ({
     inventoryList, setSortBy, setSortDir, filters, handleSort, onFilterChange,
-    handleAdd, currentPage, totalPages, handlePageChange
+    handleAdd, currentPage, totalPages, handlePageChange, onSendToPlanning
 }) => {
     const columnMapping = {
         itemCode: 'Item Code',
@@ -98,6 +100,7 @@ const InventoryList = ({
                                         {columnMapping[column]}
                                     </TableCell>
                                 ))}
+                                <TableCell align="center" sx={{ ...headerCellSx, cursor: 'default' }}>Actions</TableCell>
                             </TableRow>
                         </TableHead>
 
@@ -152,38 +155,73 @@ const InventoryList = ({
                                         )}
                                     </TableCell>
                                 ))}
+                                <TableCell sx={filterCellSx} />
                             </TableRow>
                         </TableHead>
 
                         {/* Body */}
                         <TableBody>
                             {inventoryList.length > 0 ? (
-                                inventoryList.map((inventory, rowIndex) => (
-                                    <TableRow
-                                        key={inventory.inventoryItemId}
-                                        sx={{
-                                            bgcolor: '#fff',
-                                            transition: 'background 0.15s',
-                                            '&:hover': { bgcolor: ROW_HOVER },
-                                            '& td': { fontSize: '0.8125rem', py: '10px', px: '14px', borderBottom: `1px solid ${ROW_BORDER}`, color: '#475569' },
-                                        }}
-                                    >
-                                        {columns.map((key) => (
-                                            <TableCell key={key} align="center">
-                                                {key === 'itemCode' ? (
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>
-                                                        {inventory[key] ?? '-'}
-                                                    </Typography>
-                                                ) : typeof inventory[key] === 'number'
-                                                    ? inventory[key].toFixed(2)
-                                                    : inventory[key] ?? '-'}
+                                inventoryList.map((inventory) => {
+                                    const belowReorder = inventory.reorderLevel > 0 && inventory.totalQuantity <= inventory.reorderLevel;
+                                    return (
+                                        <TableRow
+                                            key={inventory.inventoryItemId}
+                                            sx={{
+                                                bgcolor: belowReorder ? '#fffbeb' : '#fff',
+                                                transition: 'background 0.15s',
+                                                '&:hover': { bgcolor: belowReorder ? '#fef3c7' : ROW_HOVER },
+                                                '& td': { fontSize: '0.8125rem', py: '10px', px: '14px', borderBottom: `1px solid ${ROW_BORDER}`, color: '#475569' },
+                                            }}
+                                        >
+                                            {columns.map((key) => (
+                                                <TableCell key={key} align="center">
+                                                    {key === 'itemCode' ? (
+                                                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>
+                                                            {inventory[key] ?? '-'}
+                                                        </Typography>
+                                                    ) : key === 'totalQuantity' ? (
+                                                        <Box display="flex" alignItems="center" justifyContent="center" gap={0.75}>
+                                                            {inventory[key]?.toFixed(2) ?? '-'}
+                                                            {belowReorder && (
+                                                                <Tooltip title={`Below reorder level (${inventory.reorderLevel})`}>
+                                                                    <WarningAmberIcon sx={{ fontSize: 16, color: '#f59e0b' }} />
+                                                                </Tooltip>
+                                                            )}
+                                                        </Box>
+                                                    ) : typeof inventory[key] === 'number'
+                                                        ? inventory[key].toFixed(2)
+                                                        : inventory[key] ?? '-'}
+                                                </TableCell>
+                                            ))}
+                                            <TableCell align="center">
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={<SendIcon sx={{ fontSize: 14 }} />}
+                                                    onClick={() => onSendToPlanning(inventory)}
+                                                    sx={{
+                                                        textTransform: 'none',
+                                                        fontSize: '0.75rem',
+                                                        borderRadius: 1,
+                                                        borderColor: belowReorder ? '#f59e0b' : '#94a3b8',
+                                                        color: belowReorder ? '#b45309' : '#475569',
+                                                        '&:hover': {
+                                                            borderColor: '#1565c0',
+                                                            color: '#1565c0',
+                                                            bgcolor: '#eff6ff',
+                                                        },
+                                                    }}
+                                                >
+                                                    Send to Planning
+                                                </Button>
                                             </TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
+                                        </TableRow>
+                                    );
+                                })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={columns.length} align="center" sx={{ py: 6 }}>
+                                    <TableCell colSpan={columns.length + 1} align="center" sx={{ py: 6 }}>
                                         <Typography variant="body2" color="text.secondary">No inventory items found.</Typography>
                                     </TableCell>
                                 </TableRow>
