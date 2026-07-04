@@ -6,6 +6,12 @@ import {
 
 const BORDER_COLOR = '#e5e7eb';
 
+const COST_TYPE_LABELS = {
+  FIXED_RATE: 'Fixed',
+  SUB_CONTRACTED: 'Sub-con',
+  RATE_TIMES_QTY: 'Piece-rate',
+};
+
 export default function OperationCard({ operation, onClick, highlight }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -52,7 +58,7 @@ export default function OperationCard({ operation, onClick, highlight }) {
               sx={{ height: 20, fontSize: '0.65rem', fontWeight: 500, bgcolor: '#e8f5e9', color: '#2e7d32' }} />
           )}
           {operation.costType && operation.costType !== 'CALCULATED' && (
-            <Chip label={operation.costType === 'FIXED_RATE' ? 'Fixed' : 'Sub-con'} size="small"
+            <Chip label={COST_TYPE_LABELS[operation.costType] || operation.costType} size="small"
               sx={{ height: 20, fontSize: '0.65rem', fontWeight: 500, bgcolor: '#fff3e0', color: '#e65100' }} />
           )}
           <Box onClick={handleToggle} sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', ml: 0.5 }}>
@@ -84,6 +90,16 @@ export default function OperationCard({ operation, onClick, highlight }) {
             <AccessTime sx={{ fontSize: 11, color: '#6b7280' }} />
             <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
               {operation.setupTime || 0}m + {operation.runTime || 0}m/u
+            </Typography>
+          </Box>
+        )}
+        {operation.costType === 'RATE_TIMES_QTY' && operation.costQuantity != null && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Build sx={{ fontSize: 11, color: '#6b7280' }} />
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+              {operation.costQuantity}{operation.productionJob?.pieceUnit ? ` ${operation.productionJob.pieceUnit}` : ' ea'}
+              {(operation.costRate ?? operation.productionJob?.defaultPieceRate) != null &&
+                ` × ₹${operation.costRate ?? operation.productionJob.defaultPieceRate}`}
             </Typography>
           </Box>
         )}

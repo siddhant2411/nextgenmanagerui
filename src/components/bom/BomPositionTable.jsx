@@ -113,6 +113,28 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
 
     const handlePositionAdd = (val) => {
         if (!val) return;
+
+        // CONSUMABLE items are flat-cost lines — route them to the "Additional Costs" section
+        // (below) with a per-BOM price instead of a quantity component. Same search box.
+        if (String(val.itemType).toUpperCase() === "CONSUMABLE") {
+            const costLines = formik.values.costLines || [];
+            const itemId = getChildItemId(val);
+            if (!costLines.some((line) => line.inventoryItemId === itemId)) {
+                formik.setFieldValue("costLines", [
+                    ...costLines,
+                    {
+                        inventoryItemId: itemId,
+                        itemCode: val.itemCode,
+                        itemName: val.name ?? val.itemName,
+                        amount: val.productFinanceSettings?.standardCost ?? 0,
+                        position: (costLines.length + 1) * 10,
+                    },
+                ]);
+            }
+            handleSearchChange("");
+            return;
+        }
+
         const components = formik.values.components;
         const valChildItemId = getChildItemId(val);
         const index = components.findIndex((c) => getChildItemId(c) === valChildItemId);

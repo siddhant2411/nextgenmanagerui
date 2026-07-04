@@ -48,7 +48,7 @@ const getPathBgColour = (path, allPaths) => {
     return PATH_COLOURS_LIST[Math.max(idx, 0) % PATH_COLOURS_LIST.length];
 };
 
-const COST_TYPES = ['CALCULATED', 'FIXED_RATE', 'SUB_CONTRACTED'];
+const COST_TYPES = ['CALCULATED', 'FIXED_RATE', 'SUB_CONTRACTED', 'RATE_TIMES_QTY'];
 const BORDER_COLOR = '#e5e7eb';
 const HEADER_BG = '#0f2744';
 
@@ -133,6 +133,8 @@ export default function BomRouting({
             numberOfOperators: 1,
             costType: "CALCULATED",
             fixedCostPerUnit: null,
+            costQuantity: null,
+            costRate: null,
         };
         setOperations([...operations || [], newOp]);
     };
@@ -242,6 +244,18 @@ export default function BomRouting({
     };
 
     const isCalculated = selectedOperation?.costType === 'CALCULATED' || !selectedOperation?.costType;
+    const isRateTimesQty = selectedOperation?.costType === 'RATE_TIMES_QTY';
+    const isFlatCost = selectedOperation?.costType === 'FIXED_RATE' || selectedOperation?.costType === 'SUB_CONTRACTED';
+
+    // Effective per-each rate for a piece-rate op: operation override, else the job's standard rate.
+    const jobPieceRate = selectedOperation?.productionJob?.defaultPieceRate;
+    const jobPieceUnit = selectedOperation?.productionJob?.pieceUnit;
+    const effectivePieceRate = (selectedOperation?.costRate != null && selectedOperation?.costRate !== '')
+        ? Number(selectedOperation.costRate)
+        : (jobPieceRate != null ? Number(jobPieceRate) : null);
+    const pieceLineCost = (effectivePieceRate != null && selectedOperation?.costQuantity)
+        ? effectivePieceRate * Number(selectedOperation.costQuantity)
+        : null;
 
     return (
         <Grid container sx={{ height: "80vh", overflow: "hidden" }} spacing={0}>
@@ -485,21 +499,68 @@ export default function BomRouting({
 
                             <TextField select fullWidth size="small" label="Cost Type" sx={{ ...fieldSx, mb: 1.5 }}
                                 value={selectedOperation.costType || "CALCULATED"}
-                                onChange={(e) => setSelectedOperation({
-                                    ...selectedOperation, costType: e.target.value,
-                                    fixedCostPerUnit: e.target.value === 'CALCULATED' ? null : selectedOperation.fixedCostPerUnit,
-                                })}
+                                onChange={(e) => {
+                                    const ct = e.target.value;
+                                    setSelectedOperation({
+                                        ...selectedOperation,
+                                        costType: ct,
+                                        // Clear cost fields that don't apply to the newly-selected type
+                                        fixedCostPerUnit: (ct === 'FIXED_RATE' || ct === 'SUB_CONTRACTED') ? selectedOperation.fixedCostPerUnit : null,
+                                        costQuantity: ct === 'RATE_TIMES_QTY' ? selectedOperation.costQuantity : null,
+                                        costRate: ct === 'RATE_TIMES_QTY' ? selectedOperation.costRate : null,
+                                    });
+                                }}
                             >
                                 {COST_TYPES.map((ct) => <MenuItem key={ct} value={ct}>{ct.replace(/_/g, ' ')}</MenuItem>)}
                             </TextField>
 
-                            {!isCalculated && (
+                            {isFlatCost && (
                                 <TextField fullWidth size="small" type="number" label="Fixed Cost Per Unit (₹)" sx={{ ...fieldSx, mb: 1.5 }}
                                     value={selectedOperation.fixedCostPerUnit ?? ""}
                                     onChange={(e) => setSelectedOperation({
                                         ...selectedOperation, fixedCostPerUnit: e.target.value !== '' ? parseFloat(e.target.value) : null
                                     })}
                                 />
+                            )}
+
+                            {isRateTimesQty && (
+                                <>
+                                    <Grid container spacing={1.5} sx={{ mb: 1 }}>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth size="small" type="number"
+                                                label={`Quantity${jobPieceUnit ? ` (${jobPieceUnit})` : ''}`}
+                                                sx={fieldSx}
+                                                value={selectedOperation.costQuantity ?? ""}
+                                                onChange={(e) => setSelectedOperation({
+                                                    ...selectedOperation, costQuantity: e.target.value !== '' ? parseFloat(e.target.value) : null
+                                                })}
+                                                placeholder="e.g. 12"
+                                            />
+                                        </Grid>
+                                        <Grid item xs={6}>
+                                            <TextField fullWidth size="small" type="number"
+                                                label="Rate Override (₹/each)"
+                                                sx={fieldSx}
+                                                value={selectedOperation.costRate ?? ""}
+                                                onChange={(e) => setSelectedOperation({
+                                                    ...selectedOperation, costRate: e.target.value !== '' ? parseFloat(e.target.value) : null
+                                                })}
+                                                placeholder={jobPieceRate != null ? `Job: ${jobPieceRate}` : 'Set on Job'}
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5, fontSize: '0.72rem' }}>
+                                        {effectivePieceRate == null ? (
+                                            <>No rate — set <strong>Default Piece Rate</strong> on the Production Job, or a rate override here.</>
+                                        ) : (
+                                            <>
+                                                Rate {selectedOperation.costRate != null && selectedOperation.costRate !== '' ? '(override)' : '(from Job)'}:{' '}
+                                                <strong>₹{effectivePieceRate}</strong>/{jobPieceUnit || 'each'}
+                                                {pieceLineCost != null && <> × {selectedOperation.costQuantity} = <strong>₹{pieceLineCost.toFixed(2)}</strong></>}
+                                            </>
+                                        )}
+                                    </Typography>
+                                </>
                             )}
 
                             {/* Options */}

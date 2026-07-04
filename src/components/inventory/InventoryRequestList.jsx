@@ -22,7 +22,12 @@ import {
   Stack,
   Tooltip,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import { Check, Close, FilterList, Search, InfoOutlined, AssignmentOutlined } from '@mui/icons-material';
 import { format } from 'date-fns';
@@ -70,6 +75,7 @@ const InventoryRequestList = ({ refreshKey }) => {
   const [trackedOnly, setTrackedOnly] = useState(true); // Default to tracked only as per user request
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [negativeConfirm, setNegativeConfirm] = useState({ open: false, id: null, message: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const debounceTimeout = useRef(null);
   const { canAction, user } = useAuth();
@@ -110,18 +116,40 @@ const InventoryRequestList = ({ refreshKey }) => {
     fetchRequests();
   }, [page, rowsPerPage, approvalStatus, trackedOnly, refreshKey]);
 
+  const doApprove = async (id, force = false) => {
+    const req = requests.find(r => r.id === id);
+    if (req?.source === 'WORK_ORDER') {
+      await approveMaterialRequest(id, force);
+    } else {
+      const approvedBy = user?.username || 'System';
+      const approvalRemarks = `Approved via Panel by ${approvedBy}`;
+      await approveInventoryRequest({ requestId: id, approvedBy, approvalRemarks });
+    }
+  };
+
   const handleApprove = async (id) => {
     if (!canManageInventory) return;
     try {
-      const req = requests.find(r => r.id === id);
-      if (req?.source === 'WORK_ORDER') {
-        await approveMaterialRequest(id);
-      } else {
-        const approvedBy = user?.username || 'System';
-        const approvalRemarks = `Approved via Panel by ${approvedBy}`;
-        await approveInventoryRequest({ requestId: id, approvedBy, approvalRemarks });
-      }
+      await doApprove(id);
       showSnackbar('Request approved successfully!', 'success');
+      fetchRequests();
+    } catch (err) {
+      // Backend asks for confirmation when the approval would drive stock negative (allowed items).
+      if (err?.response?.status === 409 && err?.response?.data?.requiresConfirmation) {
+        setNegativeConfirm({ open: true, id, message: err.response.data.message });
+        return;
+      }
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to approve request.'), 'error');
+    }
+  };
+
+  const handleConfirmNegativeApprove = async () => {
+    const { id } = negativeConfirm;
+    setNegativeConfirm({ open: false, id: null, message: '' });
+    if (id == null) return;
+    try {
+      await doApprove(id, true);
+      showSnackbar('Request approved — stock is now negative.', 'warning');
       fetchRequests();
     } catch (err) {
       showSnackbar(resolveApiErrorMessage(err, 'Failed to approve request.'), 'error');
@@ -290,6 +318,23 @@ const InventoryRequestList = ({ refreshKey }) => {
       </Paper>
 
       <CreateInventoryRequestForm openDialog={openDialog} setOpenDialog={setOpenDialog} canManageInventory={canManageInventory} />
+
+      <Dialog open={negativeConfirm.open} onClose={() => setNegativeConfirm({ open: false, id: null, message: '' })} maxWidth="xs" fullWidth>
+        <DialogTitle fontWeight={700} sx={{ color: '#b45309' }}>Negative stock warning</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ color: '#334155' }}>
+            {negativeConfirm.message || 'Approving this request will take available stock below zero.'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setNegativeConfirm({ open: false, id: null, message: '' })} sx={{ textTransform: 'none', fontWeight: 600, color: '#475569' }}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="warning" onClick={handleConfirmNegativeApprove} sx={{ textTransform: 'none', fontWeight: 700 }}>
+            Approve anyway
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar(p => ({ ...p, open: false }))}>
         <Alert severity={snackbar.severity} sx={{ borderRadius: 2, boxShadow: 3 }}>{snackbar.message}</Alert>

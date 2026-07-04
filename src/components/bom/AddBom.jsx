@@ -38,6 +38,7 @@ import { getAttachmentBlob } from "../../services/inventoryService";
 import dayjs from "dayjs";
 import BomRouting from "./BomRouting";
 import BomPositionTable from "./BomPositionTable";
+import BomCostLinesTable from "./BomCostLinesTable";
 import BomStatusChangeDialog from "./BomStatusChangeDialog";
 import { useAuth } from "../../auth/AuthContext";
 import { ACTION_KEYS } from "../../auth/roles";
@@ -92,6 +93,7 @@ const initialFormValues = {
     effectiveTo: "",
     description: "",
     components: [],
+    costLines: [],
     productFinanceSettings: { stanadrCost: 0 },
 };
 
@@ -305,6 +307,12 @@ const buildDirtySignature = (values, operations) => {
                 routingOperationId: component?.routingOperationId ?? null,
             }))
             .sort((a, b) => a.position - b.position),
+        costLines: (values?.costLines || [])
+            .map((line) => ({
+                inventoryItemId: line?.inventoryItemId ?? null,
+                amount: toFiniteNumber(line?.amount),
+            }))
+            .sort((a, b) => (a.inventoryItemId ?? 0) - (b.inventoryItemId ?? 0)),
     };
 
     const normalizedOperations = (operations || []).map((operation, index) => ({
@@ -493,6 +501,13 @@ const AddBom = () => {
                         routingOperationId: component.routingOperationId ?? null,
                         routingOperationSequenceNumber: component.routingOperationSequenceNumber ?? null,
                     })),
+                costLines: (values.costLines || [])
+                    .filter((line) => Boolean(line?.inventoryItemId))
+                    .map((line) => ({
+                        inventoryItemId: line.inventoryItemId,
+                        amount: toFiniteNumber(line.amount),
+                        position: toFiniteNumber(line.position),
+                    })),
             };
 
             const payload = sanitize({
@@ -608,6 +623,14 @@ const AddBom = () => {
                     ? dayjs(bom.effectiveTo).format("YYYY-MM-DD")
                     : "",
                 components: (bom.positions || []).map(normalizeBomPosition),
+                costLines: (bom.costLines || []).map((line) => ({
+                    id: line.id ?? null,
+                    inventoryItemId: line.inventoryItemId ?? null,
+                    itemCode: line.itemCode ?? "",
+                    itemName: line.itemName ?? "",
+                    amount: line.amount ?? 0,
+                    position: line.position ?? 0,
+                })),
                 operations: nextOperations,
                 routingStatus: routing.status,
                 routingCreatedBy: routing.createdBy,
@@ -1332,6 +1355,8 @@ const AddBom = () => {
                                             routingOperationOptions?.length ? routingOperationOptions : operations
                                         }
                                     />
+
+                                    <BomCostLinesTable formik={formik} />
                                     {bomId && (
                                         <Box
                                             sx={{

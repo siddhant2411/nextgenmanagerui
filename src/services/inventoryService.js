@@ -92,11 +92,13 @@ export const getPendingMaterialRequests = (params = {}) =>
 export const getMaterialRequestsForWorkOrder = (workOrderId) =>
     apiService.get(`/material-requests/work-order/${workOrderId}`);
 
-export const approveMaterialRequest = (requestId) =>
-    apiService.post(`/material-requests/${requestId}/approve`, {});
+// `force=true` confirms an approval that drives available stock negative (items that allow it);
+// without it, such approvals respond 409 { requiresConfirmation: true } so the UI can prompt.
+export const approveMaterialRequest = (requestId, force = false) =>
+    apiService.post(`/material-requests/${requestId}/approve?force=${force}`, {});
 
-export const partialApproveMaterialRequest = (requestId, approvedQuantity) =>
-    apiService.post(`/material-requests/${requestId}/partial-approve`, { approvedQuantity });
+export const partialApproveMaterialRequest = (requestId, approvedQuantity, force = false) =>
+    apiService.post(`/material-requests/${requestId}/partial-approve?force=${force}`, { approvedQuantity });
 
 export const rejectMaterialRequest = (requestId, reason) =>
     apiService.post(`/material-requests/${requestId}/reject`, { reason });
