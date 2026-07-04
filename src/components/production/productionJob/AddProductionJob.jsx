@@ -69,6 +69,8 @@ const AddProductionJob = () => {
       jobName: '',
       defaultSetupTime: '',
       defaultRunTimePerUnit: '',
+      defaultPieceRate: '',
+      pieceUnit: '',
       description: '',
       active: true,
     },
@@ -77,12 +79,15 @@ const AddProductionJob = () => {
       jobName: Yup.string().required('Job Name is required'),
       defaultSetupTime: Yup.number().min(0, 'Must be >= 0').nullable(),
       defaultRunTimePerUnit: Yup.number().min(0, 'Must be >= 0').nullable(),
+      defaultPieceRate: Yup.number().min(0, 'Must be >= 0').nullable(),
     }),
     onSubmit: (values) => {
       const payload = {
         ...values,
         defaultSetupTime: values.defaultSetupTime !== '' ? Number(values.defaultSetupTime) : null,
         defaultRunTimePerUnit: values.defaultRunTimePerUnit !== '' ? Number(values.defaultRunTimePerUnit) : null,
+        defaultPieceRate: values.defaultPieceRate !== '' ? Number(values.defaultPieceRate) : null,
+        pieceUnit: values.pieceUnit?.trim() || null,
       };
 
       const request = isEditMode
@@ -106,6 +111,8 @@ const AddProductionJob = () => {
         jobName: jobData.jobName || '',
         defaultSetupTime: jobData.defaultSetupTime ?? '',
         defaultRunTimePerUnit: jobData.defaultRunTimePerUnit ?? '',
+        defaultPieceRate: jobData.defaultPieceRate ?? '',
+        pieceUnit: jobData.pieceUnit || '',
         description: jobData.description || '',
         active: jobData.active ?? true,
       });
@@ -237,6 +244,29 @@ const AddProductionJob = () => {
                   onBlur={formik.handleBlur}
                   error={formik.touched.defaultRunTimePerUnit && Boolean(formik.errors.defaultRunTimePerUnit)}
                   helperText={formik.touched.defaultRunTimePerUnit && formik.errors.defaultRunTimePerUnit}
+                  size='small' sx={fieldSx}
+                />
+              </Grid>
+
+              <SectionHeading>Piece-Rate Costing</SectionHeading>
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontSize: '0.75rem' }}>
+                  For operations costed per-each (₹ per hole / kg / test). Set the rate once here — every
+                  routing operation that uses this job re-costs automatically when you change it.
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth name="defaultPieceRate" label="Default Piece Rate (₹ / each)" type="number"
+                  value={formik.values.defaultPieceRate} onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  error={formik.touched.defaultPieceRate && Boolean(formik.errors.defaultPieceRate)}
+                  helperText={formik.touched.defaultPieceRate && formik.errors.defaultPieceRate}
+                  size='small' sx={fieldSx}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth name="pieceUnit" label="Piece Unit (e.g. hole, kg, test)"
+                  value={formik.values.pieceUnit} onChange={formik.handleChange}
                   size='small' sx={fieldSx}
                 />
               </Grid>

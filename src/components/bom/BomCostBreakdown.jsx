@@ -37,7 +37,8 @@ const SummaryCard = ({ label, value, color }) => (
 
 const COST_FORMULA_TEXT = `CALCULATED: (Machine Rate × Time + Labor Rate × Operators × Time) × (1 + Overhead%)
 FIXED_RATE: Fixed Cost Per Unit
-SUB_CONTRACTED: Sub-contract Rate Per Unit`;
+SUB_CONTRACTED: Sub-contract Rate Per Unit
+RATE_TIMES_QTY: Piece Rate (₹/each) × Quantity`;
 
 export default function BomCostBreakdown({ data, loading }) {
     if (loading) {
@@ -62,6 +63,7 @@ export default function BomCostBreakdown({ data, loading }) {
             <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
                 <SummaryCard label="Material Cost" value={data.totalMaterialCost} color="#2e7d32" />
                 <SummaryCard label="Operation Cost" value={data.totalOperationCost} color="#1565c0" />
+                <SummaryCard label="Additional Cost" value={data.totalAdditionalCost} color="#ef6c00" />
                 <SummaryCard label="Total Cost" value={data.totalCost} color="#c62828" />
             </Box>
 
@@ -157,20 +159,30 @@ export default function BomCostBreakdown({ data, loading }) {
                             <TableBody>
                                 {data.operationCosts.map((row) => {
                                     const isCalculated = row.costType === "CALCULATED";
+                                    const isPieceRate = row.costType === "RATE_TIMES_QTY";
                                     return (
                                         <TableRow key={row.operationId} hover>
                                             <TableCell sx={{ fontSize: "0.75rem" }}>{row.sequenceNumber}</TableCell>
                                             <TableCell sx={{ fontSize: "0.75rem" }}>{row.operationName}</TableCell>
                                             <TableCell sx={{ fontSize: "0.75rem" }}>{(row.costType || "").replace(/_/g, " ")}</TableCell>
-                                            <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.workCenterName || "—") : "—"}</TableCell>
-                                            <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.machineName || "—") : "—"}</TableCell>
-                                            <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.laborRoleName || "—") : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.numberOfOperators : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.setupTime : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.runTime : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.machineCost) : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.laborCost) : "—"}</TableCell>
-                                            <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.overheadCost) : "—"}</TableCell>
+                                            {isPieceRate ? (
+                                                <TableCell colSpan={9} sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                                                    {formatCurrency(row.costRate)}/{row.costUnit || "each"} × {row.costQuantity ?? 0}
+                                                    {row.costUnit ? ` ${row.costUnit}` : ""}
+                                                </TableCell>
+                                            ) : (
+                                                <>
+                                                    <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.workCenterName || "—") : "—"}</TableCell>
+                                                    <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.machineName || "—") : "—"}</TableCell>
+                                                    <TableCell sx={{ fontSize: "0.75rem" }}>{isCalculated ? (row.laborRoleName || "—") : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.numberOfOperators : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.setupTime : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.runTime : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.machineCost) : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.laborCost) : "—"}</TableCell>
+                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.overheadCost) : "—"}</TableCell>
+                                                </>
+                                            )}
                                             <TableCell align="right" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>{formatCurrency(row.totalCost)}</TableCell>
                                         </TableRow>
                                     );
@@ -181,6 +193,45 @@ export default function BomCostBreakdown({ data, loading }) {
                                     </TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#1565c0" }}>
                                         {formatCurrency(data.totalOperationCost)}
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Box>
+            )}
+
+            {/* Additional / Consumable Cost Table */}
+            {data.additionalCosts?.length > 0 && (
+                <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle2" fontWeight={600} color="#0f2744" sx={{ fontSize: "0.8125rem", textTransform: "uppercase", letterSpacing: 0.8, mb: 1 }}>
+                        Additional / Consumable Costs
+                    </Typography>
+                    <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+                                    <TableCell sx={{ fontWeight: 600, fontSize: "0.75rem" }}>#</TableCell>
+                                    <TableCell sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Item Code</TableCell>
+                                    <TableCell sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Item</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Amount</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {data.additionalCosts.map((row, idx) => (
+                                    <TableRow key={row.id || idx} hover>
+                                        <TableCell sx={{ fontSize: "0.75rem" }}>{idx + 1}</TableCell>
+                                        <TableCell sx={{ fontSize: "0.75rem" }}>{row.itemCode || "—"}</TableCell>
+                                        <TableCell sx={{ fontSize: "0.75rem" }}>{row.itemName || "—"}</TableCell>
+                                        <TableCell align="right" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>{formatCurrency(row.amount)}</TableCell>
+                                    </TableRow>
+                                ))}
+                                <TableRow sx={{ backgroundColor: "#f9f9f9" }}>
+                                    <TableCell colSpan={3} align="right" sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                                        Total Additional Cost
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#ef6c00" }}>
+                                        {formatCurrency(data.totalAdditionalCost)}
                                     </TableCell>
                                 </TableRow>
                             </TableBody>

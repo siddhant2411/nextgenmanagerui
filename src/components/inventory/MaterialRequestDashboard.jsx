@@ -55,7 +55,12 @@ export default function MaterialRequestDashboard() {
     // Action dialogs
     const [partialDialog, setPartialDialog] = useState({ open: false, request: null, qty: '' });
     const [rejectDialog, setRejectDialog] = useState({ open: false, request: null, reason: '', customReason: '' });
+    // qty === null → confirm a full approve; qty set → confirm a partial approve.
+    const [negativeConfirm, setNegativeConfirm] = useState({ open: false, message: '', requestId: null, qty: null });
     const [actionLoading, setActionLoading] = useState(false);
+
+    const isNegativeStockPrompt = (e) =>
+        e?.response?.status === 409 && e?.response?.data?.requiresConfirmation;
 
     const fetchRequests = useCallback(async () => {
         setLoading(true);
@@ -73,28 +78,57 @@ export default function MaterialRequestDashboard() {
 
     useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-    const handleApprove = async (requestId) => {
+    const handleApprove = async (requestId, force = false) => {
         setActionLoading(true);
         try {
-            await approveMaterialRequest(requestId);
+            await approveMaterialRequest(requestId, force);
             fetchRequests();
         } catch (e) {
+            if (isNegativeStockPrompt(e)) {
+                setNegativeConfirm({ open: true, message: e.response.data.message, requestId, qty: null });
+                return;
+            }
             setError(resolveApiErrorMessage(e, 'Approval failed.'));
         } finally {
             setActionLoading(false);
         }
     };
 
-    const handlePartialSubmit = async () => {
+    const handlePartialSubmit = async (force = false) => {
         const qty = parseFloat(partialDialog.qty);
         if (!qty || qty <= 0) return;
+        const requestId = partialDialog.request.id;
         setActionLoading(true);
         try {
-            await partialApproveMaterialRequest(partialDialog.request.id, qty);
+            await partialApproveMaterialRequest(requestId, qty, force);
             setPartialDialog({ open: false, request: null, qty: '' });
             fetchRequests();
         } catch (e) {
+            if (isNegativeStockPrompt(e)) {
+                setPartialDialog({ open: false, request: null, qty: '' });
+                setNegativeConfirm({ open: true, message: e.response.data.message, requestId, qty });
+                return;
+            }
             setError(resolveApiErrorMessage(e, 'Partial approval failed.'));
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleConfirmNegative = async () => {
+        const { requestId, qty } = negativeConfirm;
+        setNegativeConfirm({ open: false, message: '', requestId: null, qty: null });
+        if (requestId == null) return;
+        setActionLoading(true);
+        try {
+            if (qty == null) {
+                await approveMaterialRequest(requestId, true);
+            } else {
+                await partialApproveMaterialRequest(requestId, qty, true);
+            }
+            fetchRequests();
+        } catch (e) {
+            setError(resolveApiErrorMessage(e, 'Approval failed.'));
         } finally {
             setActionLoading(false);
         }
@@ -263,8 +297,24 @@ export default function MaterialRequestDashboard() {
                     </DialogContent>
                     <DialogActions>
                         <Button onClick={() => setPartialDialog({ open: false, request: null, qty: '' })}>Cancel</Button>
-                        <Button variant="contained" color="warning" onClick={handlePartialSubmit} disabled={actionLoading || !partialDialog.qty}>
+                        <Button variant="contained" color="warning" onClick={() => handlePartialSubmit()} disabled={actionLoading || !partialDialog.qty}>
                             {actionLoading ? 'Approving…' : 'Approve Partial'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+
+                {/* Negative-stock confirmation */}
+                <Dialog open={negativeConfirm.open} onClose={() => setNegativeConfirm({ open: false, message: '', requestId: null, qty: null })} maxWidth="xs" fullWidth>
+                    <DialogTitle fontWeight={700} sx={{ color: '#b45309' }}>Negative stock warning</DialogTitle>
+                    <DialogContent>
+                        <Typography variant="body2" sx={{ color: '#334155' }}>
+                            {negativeConfirm.message || 'Approving this request will take available stock below zero.'}
+                        </Typography>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setNegativeConfirm({ open: false, message: '', requestId: null, qty: null })}>Cancel</Button>
+                        <Button variant="contained" color="warning" onClick={handleConfirmNegative} disabled={actionLoading}>
+                            {actionLoading ? 'Approving…' : 'Approve anyway'}
                         </Button>
                     </DialogActions>
                 </Dialog>
