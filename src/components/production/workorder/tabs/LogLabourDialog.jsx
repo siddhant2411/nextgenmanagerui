@@ -29,15 +29,18 @@ const EMPTY_FORM = {
   endTime: null,
   durationMinutes: '',
   costRatePerHour: '',
+  totalCost: '',
   remarks: '',
 };
 
-export default function LogLabourDialog({ open, onClose, operationId, operationName, laborRoles = [], entry = null, defaultValues = null }) {
+export default function LogLabourDialog({ open, onClose, operationId, operationName, laborRoles = [], entry = null, defaultValues = null, onCommitBeforeSave = null }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const isEdit = !!entry;
+  // Piece-rate (RATE_TIMES_QTY) operations record a direct total cost instead of time × rate.
+  const isPieceRate = !isEdit && !!defaultValues?.pieceRate;
 
   useEffect(() => {
     if (open) {
@@ -50,6 +53,7 @@ export default function LogLabourDialog({ open, onClose, operationId, operationN
           endTime: entry.endTime ? dayjs(entry.endTime) : null,
           durationMinutes: entry.durationMinutes ?? '',
           costRatePerHour: entry.costRatePerHour ?? '',
+          totalCost: entry.totalCost ?? '',
           remarks: entry.remarks || '',
         });
       } else {
@@ -86,28 +90,51 @@ export default function LogLabourDialog({ open, onClose, operationId, operationN
     return null;
   };
 
+  // Whether the form carries recordable labour/cost data.
+  const hasLabourData = isPieceRate
+    ? (form.totalCost !== '' && !isNaN(parseFloat(form.totalCost)))
+    : (!!form.durationMinutes || !!(form.startTime && form.endTime));
+
   const handleSave = async () => {
     setError('');
-    if (!form.durationMinutes && !(form.startTime && form.endTime)) {
-      setError('Provide either start/end time or duration.');
+    // Standalone labour logging must carry labour data. In the batch-completion flow (onCommitBeforeSave)
+    // labour is optional — some cost types have no time/rate — but invalid data is still rejected.
+    if (!onCommitBeforeSave && !hasLabourData) {
+      setError(isPieceRate
+        ? 'Provide the total cost for this piece-rate operation.'
+        : 'Provide either start/end time or duration.');
       return;
     }
     setSaving(true);
     try {
-      const payload = {
-        operatorName: form.operatorName || null,
-        laborRoleId: form.laborRoleId || null,
-        laborType: form.laborType,
-        startTime: form.startTime ? form.startTime.toISOString() : null,
-        endTime: form.endTime ? form.endTime.toISOString() : null,
-        durationMinutes: form.durationMinutes !== '' ? parseFloat(form.durationMinutes) : null,
-        costRatePerHour: form.costRatePerHour !== '' ? parseFloat(form.costRatePerHour) : null,
-        remarks: form.remarks || null,
-      };
-      if (isEdit) {
-        await updateLabourEntry(entry.id, payload);
-      } else {
-        await logLabour(operationId, payload);
+      // Commit the deferred batch quantity first. If it's rejected (e.g. material/input gate),
+      // the parent surfaces the error — abort without logging labour and close so the error shows.
+      if (onCommitBeforeSave) {
+        const committed = await onCommitBeforeSave();
+        if (!committed) {
+          setSaving(false);
+          onClose(false);
+          return;
+        }
+      }
+      // Only record a labour entry when there is data to record.
+      if (hasLabourData) {
+        const payload = {
+          operatorName: form.operatorName || null,
+          laborRoleId: form.laborRoleId || null,
+          laborType: form.laborType,
+          startTime: form.startTime ? form.startTime.toISOString() : null,
+          endTime: form.endTime ? form.endTime.toISOString() : null,
+          durationMinutes: form.durationMinutes !== '' ? parseFloat(form.durationMinutes) : null,
+          costRatePerHour: form.costRatePerHour !== '' ? parseFloat(form.costRatePerHour) : null,
+          totalCost: isPieceRate && form.totalCost !== '' ? parseFloat(form.totalCost) : null,
+          remarks: form.remarks || null,
+        };
+        if (isEdit) {
+          await updateLabourEntry(entry.id, payload);
+        } else {
+          await logLabour(operationId, payload);
+        }
       }
       onClose(true);
     } catch (err) {
@@ -131,7 +158,13 @@ export default function LogLabourDialog({ open, onClose, operationId, operationN
         </DialogTitle>
         <DialogContent dividers>
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-          {!isEdit && defaultValues?.numberOfOperators > 1 && (
+          {onCommitBeforeSave && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Confirm to record this batch{defaultValues?.batchQty ? ` of ${defaultValues.batchQty}` : ''}.
+              Cancel discards it — nothing is logged.
+            </Alert>
+          )}
+          {!isEdit && !isPieceRate && defaultValues?.numberOfOperators > 1 && (
             <Alert severity="info" sx={{ mb: 2 }}>
               Routing shows <strong>{defaultValues.numberOfOperators} operators</strong> for this operation.
               The cost rate below is per operator — adjust if all are being logged together.
@@ -166,51 +199,66 @@ export default function LogLabourDialog({ open, onClose, operationId, operationN
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Cost Rate (₹/hr)"
-                fullWidth size="small" type="number"
-                value={form.costRatePerHour}
-                onChange={set('costRatePerHour')}
-                inputProps={{ min: 0 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <DateTimePicker
-                label="Start Time"
-                value={form.startTime}
-                onChange={v => setForm(f => ({ ...f, startTime: v }))}
-                slotProps={{ textField: { size: 'small', fullWidth: true } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <DateTimePicker
-                label="End Time"
-                value={form.endTime}
-                minDateTime={form.startTime}
-                onChange={v => setForm(f => ({ ...f, endTime: v }))}
-                slotProps={{ textField: { size: 'small', fullWidth: true } }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                label="Duration (minutes)"
-                fullWidth size="small" type="number"
-                value={form.durationMinutes}
-                onChange={set('durationMinutes')}
-                inputProps={{ min: 0, step: 0.5 }}
-                helperText="Auto-calculated from start/end"
-              />
-            </Grid>
-            {cost && (
+            {isPieceRate ? (
               <Grid item xs={12} sm={6}>
                 <TextField
-                  label="Estimated Cost (₹)"
-                  fullWidth size="small"
-                  value={cost}
-                  InputProps={{ readOnly: true }}
+                  label="Total Cost (₹)"
+                  fullWidth size="small" type="number"
+                  value={form.totalCost}
+                  onChange={set('totalCost')}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  helperText="Piece-rate: rate × qty × units completed"
                 />
               </Grid>
+            ) : (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Cost Rate (₹/hr)"
+                    fullWidth size="small" type="number"
+                    value={form.costRatePerHour}
+                    onChange={set('costRatePerHour')}
+                    inputProps={{ min: 0 }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DateTimePicker
+                    label="Start Time"
+                    value={form.startTime}
+                    onChange={v => setForm(f => ({ ...f, startTime: v }))}
+                    slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <DateTimePicker
+                    label="End Time"
+                    value={form.endTime}
+                    minDateTime={form.startTime}
+                    onChange={v => setForm(f => ({ ...f, endTime: v }))}
+                    slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Duration (minutes)"
+                    fullWidth size="small" type="number"
+                    value={form.durationMinutes}
+                    onChange={set('durationMinutes')}
+                    inputProps={{ min: 0, step: 0.5 }}
+                    helperText="Auto-calculated from start/end"
+                  />
+                </Grid>
+                {cost && (
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      label="Estimated Cost (₹)"
+                      fullWidth size="small"
+                      value={cost}
+                      InputProps={{ readOnly: true }}
+                    />
+                  </Grid>
+                )}
+              </>
             )}
             <Grid item xs={12}>
               <TextField
@@ -226,7 +274,7 @@ export default function LogLabourDialog({ open, onClose, operationId, operationN
         <DialogActions>
           <Button onClick={() => onClose(false)} disabled={saving}>Cancel</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving}>
-            {saving ? <CircularProgress size={18} /> : isEdit ? 'Update' : 'Log Time'}
+            {saving ? <CircularProgress size={18} /> : isEdit ? 'Update' : onCommitBeforeSave ? 'Confirm & Record' : 'Log Time'}
           </Button>
         </DialogActions>
       </Dialog>

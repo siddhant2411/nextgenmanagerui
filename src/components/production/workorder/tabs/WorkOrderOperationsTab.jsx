@@ -338,7 +338,10 @@ export default function WorkOrderOperationsTab({
     }
   };
 
-  const submitBatch = async (operation, index, reasonCodes) => {
+  // Opens the labour dialog pre-filled but commits NOTHING yet. The batch quantity is only
+  // committed when the user confirms the labour dialog (see commitPendingCompletion); cancelling
+  // the dialog discards the whole batch so nothing is logged.
+  const submitBatch = (operation, index, reasonCodes) => {
     if (!onCompleteOperation) return;
     const rowKey = getOperationRowKey(operation, index);
     const draft = partialDrafts[rowKey] || {};
@@ -352,37 +355,58 @@ export default function WorkOrderOperationsTab({
     };
 
     setReasonDialog({ open: false, operation: null, index: null });
-    const result = await onCompleteOperation(operation?.id, payload);
-    if (result) {
-      if (result.warnings?.length) {
-        setOverCompletionWarning(result.warnings[0]);
-      }
-      setPartialDrafts(prev => ({
-        ...prev,
-        [rowKey]: { completedQuantity: '', rejectedQuantity: '', scrappedQuantity: '', remarks: '' },
-      }));
 
-      // Auto-open labour dialog pre-filled from the routing operation
-      const routingOp = operation?.routingOperation;
-      const batchQty = toNumberValue(payload.completedQuantity);
-      const runTime = parseFloat(routingOp?.runTime) || 0;
-      setLabourDialog({
-        open: true,
-        operationId: operation?.id,
-        operationName: operation?.operationName || routingOp?.name,
-        operation,
-        entry: null,
-        defaultValues: {
-          laborRoleId: routingOp?.laborRole?.id || '',
-          costRatePerHour: routingOp?.laborRole?.costPerHour || '',
-          laborType: 'RUN',
-          durationMinutes: runTime > 0 && batchQty > 0 ? (runTime * batchQty).toFixed(2) : '',
-          operatorName: routingOp?.productionJob?.jobName || '',
-          numberOfOperators: routingOp?.numberOfOperators || 1,
-          batchQty,
-        },
-      });
+    const routingOp = operation?.routingOperation;
+    const batchQty = toNumberValue(payload.completedQuantity);
+    const runTime = parseFloat(routingOp?.runTime) || 0;
+
+    // Piece-rate operations: cost is rate × eaches-per-unit × units completed (no time basis).
+    const isPieceRate = routingOp?.costType === 'RATE_TIMES_QTY';
+    let pieceRateCost = null;
+    if (isPieceRate) {
+      const rate = parseFloat(routingOp?.costRate ?? routingOp?.productionJob?.defaultPieceRate) || 0;
+      const eachesPerUnit = parseFloat(routingOp?.costQuantity) || 0;
+      pieceRateCost = (rate * eachesPerUnit * batchQty).toFixed(2);
     }
+
+    setLabourDialog({
+      open: true,
+      operationId: operation?.id,
+      operationName: operation?.operationName || routingOp?.name,
+      operation,
+      entry: null,
+      pendingCompletion: { operationId: operation?.id, payload, rowKey },
+      defaultValues: {
+        laborRoleId: isPieceRate ? '' : (routingOp?.laborRole?.id || ''),
+        costRatePerHour: isPieceRate ? '' : (routingOp?.laborRole?.costPerHour || ''),
+        laborType: 'RUN',
+        durationMinutes: !isPieceRate && runTime > 0 && batchQty > 0 ? (runTime * batchQty).toFixed(2) : '',
+        operatorName: routingOp?.productionJob?.jobName || '',
+        numberOfOperators: routingOp?.numberOfOperators || 1,
+        batchQty,
+        pieceRate: isPieceRate,
+        totalCost: pieceRateCost ?? '',
+      },
+    });
+  };
+
+  // Commits the deferred batch quantity when the labour dialog is confirmed. Returns the
+  // completion result (truthy) on success, or a falsy value when the backend rejects it
+  // (e.g. material/input gate) so the dialog can abort before logging labour.
+  const commitPendingCompletion = async () => {
+    const pending = labourDialog.pendingCompletion;
+    if (!pending) return true;                    // standalone labour entry — nothing to commit
+    if (!onCompleteOperation) return false;
+    const result = await onCompleteOperation(pending.operationId, pending.payload);
+    if (!result) return false;                    // parent surfaced the gate/validation error
+    if (result.warnings?.length) {
+      setOverCompletionWarning(result.warnings[0]);
+    }
+    setPartialDrafts(prev => ({
+      ...prev,
+      [pending.rowKey]: { completedQuantity: '', rejectedQuantity: '', scrappedQuantity: '', remarks: '' },
+    }));
+    return result;
   };
 
   const openQaDialog = async (op) => {
@@ -906,6 +930,7 @@ export default function WorkOrderOperationsTab({
         laborRoles={laborRoles}
         entry={labourDialog.entry}
         defaultValues={labourDialog.defaultValues}
+        onCommitBeforeSave={labourDialog.pendingCompletion ? commitPendingCompletion : undefined}
       />
 
       <ReasonCodeDialog

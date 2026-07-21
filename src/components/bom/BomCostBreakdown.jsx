@@ -35,10 +35,11 @@ const SummaryCard = ({ label, value, color }) => (
     </Card>
 );
 
-const COST_FORMULA_TEXT = `CALCULATED: (Machine Rate × Time + Labor Rate × Operators × Time) × (1 + Overhead%)
+const COST_FORMULA_TEXT = `CALCULATED: Machine Rate × Time + Labor Rate × Operators × Time
 FIXED_RATE: Fixed Cost Per Unit
 SUB_CONTRACTED: Sub-contract Rate Per Unit
-RATE_TIMES_QTY: Piece Rate (₹/each) × Quantity`;
+RATE_TIMES_QTY: Piece Rate (₹/each) × Quantity
+Overhead: BOM Overhead % × (Material + Operations + Additional − Subcontract)`;
 
 export default function BomCostBreakdown({ data, loading }) {
     if (loading) {
@@ -64,6 +65,11 @@ export default function BomCostBreakdown({ data, loading }) {
                 <SummaryCard label="Material Cost" value={data.totalMaterialCost} color="#2e7d32" />
                 <SummaryCard label="Operation Cost" value={data.totalOperationCost} color="#1565c0" />
                 <SummaryCard label="Additional Cost" value={data.totalAdditionalCost} color="#ef6c00" />
+                <SummaryCard
+                    label={`Overhead${Number(data.overheadPercentage) ? ` (${data.overheadPercentage}%)` : ""}`}
+                    value={data.overheadCost}
+                    color="#7c3aed"
+                />
                 <SummaryCard label="Total Cost" value={data.totalCost} color="#c62828" />
             </Box>
 
@@ -152,7 +158,6 @@ export default function BomCostBreakdown({ data, loading }) {
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Run</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Machine Cost</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Labor Cost</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Overhead</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Total</TableCell>
                                 </TableRow>
                             </TableHead>
@@ -166,7 +171,7 @@ export default function BomCostBreakdown({ data, loading }) {
                                             <TableCell sx={{ fontSize: "0.75rem" }}>{row.operationName}</TableCell>
                                             <TableCell sx={{ fontSize: "0.75rem" }}>{(row.costType || "").replace(/_/g, " ")}</TableCell>
                                             {isPieceRate ? (
-                                                <TableCell colSpan={9} sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                                                <TableCell colSpan={8} sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
                                                     {formatCurrency(row.costRate)}/{row.costUnit || "each"} × {row.costQuantity ?? 0}
                                                     {row.costUnit ? ` ${row.costUnit}` : ""}
                                                 </TableCell>
@@ -180,7 +185,6 @@ export default function BomCostBreakdown({ data, loading }) {
                                                     <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? row.runTime : "—"}</TableCell>
                                                     <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.machineCost) : "—"}</TableCell>
                                                     <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.laborCost) : "—"}</TableCell>
-                                                    <TableCell align="right" sx={{ fontSize: "0.75rem" }}>{isCalculated ? formatCurrency(row.overheadCost) : "—"}</TableCell>
                                                 </>
                                             )}
                                             <TableCell align="right" sx={{ fontSize: "0.75rem", fontWeight: 600 }}>{formatCurrency(row.totalCost)}</TableCell>
@@ -188,7 +192,7 @@ export default function BomCostBreakdown({ data, loading }) {
                                     );
                                 })}
                                 <TableRow sx={{ backgroundColor: "#f9f9f9" }}>
-                                    <TableCell colSpan={12} align="right" sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
+                                    <TableCell colSpan={11} align="right" sx={{ fontWeight: 700, fontSize: "0.75rem" }}>
                                         Total Operation Cost
                                     </TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", color: "#1565c0" }}>

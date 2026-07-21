@@ -31,6 +31,7 @@ import {
   PrecisionManufacturing,
   Settings,
   AccountBalance,
+  Handshake,
 } from '@mui/icons-material';
 import { getCostReport, resolveApiErrorMessage } from '../../../../services/workOrderService';
 
@@ -207,6 +208,10 @@ export default function WorkOrderCostTab({ workOrderId }) {
           estimated={r.estimatedMachineCost} actual={r.actualMachineCost} variance={r.machineVariance} />
         <CostCard icon={<AccountBalance fontSize="small" />} label="Overhead" color="#10b981"
           estimated={r.estimatedOverheadCost} actual={r.actualOverheadCost} variance={r.overheadVariance} />
+        {(parseFloat(r.estimatedSubcontractCost) > 0 || parseFloat(r.actualSubcontractCost) > 0) && (
+          <CostCard icon={<Handshake fontSize="small" />} label="Subcontract" color="#7c3aed"
+            estimated={r.estimatedSubcontractCost} actual={r.actualSubcontractCost} variance={r.subcontractVariance} />
+        )}
       </Stack>
 
       {/* ── Total summary bar ── */}
@@ -240,6 +245,9 @@ export default function WorkOrderCostTab({ workOrderId }) {
                 { label: 'Labour',   val: r.estimatedLabourCost,   total: r.totalEstimatedCost, color: '#8b5cf6' },
                 { label: 'Machine',  val: r.estimatedMachineCost,  total: r.totalEstimatedCost, color: '#f59e0b' },
                 { label: 'Overhead', val: r.estimatedOverheadCost, total: r.totalEstimatedCost, color: '#10b981' },
+                ...(parseFloat(r.estimatedSubcontractCost) > 0
+                  ? [{ label: 'Subcontract', val: r.estimatedSubcontractCost, total: r.totalEstimatedCost, color: '#7c3aed' }]
+                  : []),
               ].map(({ label, val, total, color }) => {
                 const pct = parseFloat(total) > 0 ? (parseFloat(val) / parseFloat(total) * 100) : 0;
                 return (
@@ -319,7 +327,6 @@ export default function WorkOrderCostTab({ workOrderId }) {
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Actual min (labour)</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Labour ₹/hr × ops</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Machine ₹/hr</TableCell>
-                <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Ovhd %</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Est. Total</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Act. Total</TableCell>
                 <TableCell sx={{ fontWeight: 700, fontSize: '0.75rem', color: '#64748b' }}>Variance</TableCell>
@@ -327,7 +334,7 @@ export default function WorkOrderCostTab({ workOrderId }) {
             </TableHead>
             <TableBody>
               {(r.operations || []).length === 0 ? (
-                <TableRow><TableCell colSpan={11} align="center" sx={{ py: 4, color: '#94a3b8' }}>No operations</TableCell></TableRow>
+                <TableRow><TableCell colSpan={10} align="center" sx={{ py: 4, color: '#94a3b8' }}>No operations</TableCell></TableRow>
               ) : (r.operations || []).map((op, i) => {
                 const isFlat = op.costType === 'SUB_CONTRACTED' || op.costType === 'FIXED_RATE';
                 return (
@@ -348,7 +355,7 @@ export default function WorkOrderCostTab({ workOrderId }) {
                     <TableCell sx={{ fontSize: '0.78rem' }}>{op.workCenterName || '—'}</TableCell>
                     {isFlat ? (
                       <>
-                        <TableCell colSpan={5} sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>
+                        <TableCell colSpan={4} sx={{ fontSize: '0.75rem', color: '#9ca3af', fontStyle: 'italic' }}>
                           Flat rate — no time/labour/machine breakdown
                         </TableCell>
                       </>
@@ -367,7 +374,6 @@ export default function WorkOrderCostTab({ workOrderId }) {
                           {fmt(op.laborCostPerHour)} × {fmtNum(op.numberOfOperators, 0)}
                         </TableCell>
                         <TableCell sx={{ fontSize: '0.78rem' }}>{fmt(op.machineCostPerHour)}</TableCell>
-                        <TableCell sx={{ fontSize: '0.78rem' }}>{fmtNum(op.overheadPercentage, 1)}%</TableCell>
                       </>
                     )}
                     <TableCell sx={{ fontSize: '0.78rem' }}>
@@ -393,16 +399,20 @@ export default function WorkOrderCostTab({ workOrderId }) {
                 );
               })}
               {(r.operations || []).length > 0 && (
-                <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                  <TableCell colSpan={8} sx={{ fontWeight: 700, fontSize: '0.78rem' }}>Total Operation Cost</TableCell>
-                  <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem' }}>
-                    {fmt((parseFloat(r.estimatedLabourCost || 0) + parseFloat(r.estimatedMachineCost || 0) + parseFloat(r.estimatedOverheadCost || 0)).toFixed(2))}
-                  </TableCell>
-                  <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem' }}>
-                    {fmt((parseFloat(r.actualLabourCost || 0) + parseFloat(r.actualMachineCost || 0) + parseFloat(r.actualOverheadCost || 0)).toFixed(2))}
-                  </TableCell>
-                  <VarCell value={(parseFloat(r.labourVariance || 0) + parseFloat(r.machineVariance || 0) + parseFloat(r.overheadVariance || 0)).toFixed(2)} />
-                </TableRow>
+                (() => {
+                  // Sum the per-line totals so subcontract / fixed-rate / piece-rate operations are
+                  // all included (they don't populate the labour/machine/overhead buckets).
+                  const estOpTotal = (r.operations || []).reduce((s, op) => s + parseFloat(op.estimatedTotalCost || 0), 0);
+                  const actOpTotal = (r.operations || []).reduce((s, op) => s + parseFloat(op.actualTotalCost || 0), 0);
+                  return (
+                    <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                      <TableCell colSpan={7} sx={{ fontWeight: 700, fontSize: '0.78rem' }}>Total Operation Cost</TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem' }}>{fmt(estOpTotal.toFixed(2))}</TableCell>
+                      <TableCell sx={{ fontWeight: 800, fontSize: '0.82rem' }}>{fmt(actOpTotal.toFixed(2))}</TableCell>
+                      <VarCell value={(actOpTotal - estOpTotal).toFixed(2)} />
+                    </TableRow>
+                  );
+                })()
               )}
             </TableBody>
           </Table>
