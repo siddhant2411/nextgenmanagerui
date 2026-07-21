@@ -81,6 +81,17 @@ export const getBomCostBreakdown = (bomId) => {
     return apiService.get(`/bom/${bomId}/cost-breakdown`);
 }
 
+// Recompute stored standard cost bottom-up for an item and its manufactured sub-tree.
+// Use after a component/item price or a sub-assembly BOM changes in the master.
+export const recostItem = (itemId) => {
+    return apiService.post(`/bom/item/${itemId}/recost`, {});
+}
+
+// Full catalog roll-up (also runs nightly).
+export const recostAll = () => {
+    return apiService.post(`/bom/recost`, {});
+}
+
 // ---- Routing Operation Attachments ----
 
 export const uploadOperationAttachment = (operationId, file) => {

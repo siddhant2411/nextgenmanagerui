@@ -24,7 +24,7 @@ import BulkImportItems from './BulkImportItems';
 const allColumns = [
   { field: 'itemCode', headerName: 'Product Code', width: 120, type: 'string' },
   { field: 'name', headerName: 'Product Name', width: 180, type: 'string' },
-  { field: 'uom', headerName: 'UOM', width: 70, type: "enum", options: ["NOS", "KG", "GRAM", "TON", "METER", "CENTIMETER", "INCH", "LITER", "SET"] },
+  { field: 'uom', headerName: 'UOM', width: 70, type: "enum", options: ["NOS", "KG", "GRAM", "TON", "METER", "CENTIMETER", "INCH", "LITER", "SET", "SQFT", "SQM", "SQIN"] },
   { field: 'itemType', headerName: 'Type', width: 130, type: "enum", options: ["RAW_MATERIAL", "SEMI_FINISHED", "FINISHED_GOOD", "SUB_CONTRACTED", "CONSUMABLE"] },
   { field: 'basicMaterial', headerName: 'Material', width: 110, type: 'string' },
   { field: 'dimension', headerName: 'Dimension', width: 100, type: 'string' },

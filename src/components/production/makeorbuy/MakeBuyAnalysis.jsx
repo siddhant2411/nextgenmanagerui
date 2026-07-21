@@ -107,6 +107,9 @@ const MakeCard = ({ analysis, isRec }) => {
                         {(analysis.unitRunCost != null && analysis.unitRunCost > 0) && (
                             <CostRow label="  · Run" value={analysis.unitRunCost} />
                         )}
+                        {(analysis.unitOverheadCost != null && analysis.unitOverheadCost > 0) && (
+                            <CostRow label="Overhead" value={analysis.unitOverheadCost} />
+                        )}
                         <CostRow label="Total / unit" value={unitCost} bold />
                     </TableBody>
                 </Table>

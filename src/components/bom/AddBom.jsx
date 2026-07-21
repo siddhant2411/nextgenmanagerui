@@ -6,6 +6,7 @@ import {
     Select,
     MenuItem,
     TextField,
+    InputAdornment,
     Typography,
     Tabs,
     Tab,
@@ -54,6 +55,7 @@ import {
     getBomChangeLog,
     getBomCostBreakdown,
     getBomHistoryByInventoryItem,
+    recostItem,
     uploadBomAttachment,
 } from "../../services/bomService";
 import { getAllInventoryItems, searchInventoryItems } from "../../services/inventoryService";
@@ -92,6 +94,7 @@ const initialFormValues = {
     effectiveFrom: "",
     effectiveTo: "",
     description: "",
+    overheadPercentage: "",
     components: [],
     costLines: [],
     productFinanceSettings: { stanadrCost: 0 },
@@ -141,11 +144,10 @@ const resolveOperationCost = (operation) => {
     );
     const laborCostRate = toFiniteNumber(operation?.laborRole?.costPerHour ?? 0);
     const operators = toFiniteNumber(operation?.numberOfOperators ?? 1) || 1;
-    const overheadPct = toFiniteNumber(operation?.workCenter?.overheadPercentage ?? 0);
     const machineCost = machineCostRate * totalTime;
     const laborCost = laborCostRate * operators * totalTime;
-    const subtotal = machineCost + laborCost;
-    return subtotal * (1 + overheadPct / 100);
+    // Direct conversion cost only — overhead is a blanket BOM-level rate, not per operation.
+    return machineCost + laborCost;
 };
 
 const normalizeComponentForComparison = (component, index) => {
@@ -297,6 +299,7 @@ const buildDirtySignature = (values, operations) => {
         effectiveFrom: values?.effectiveFrom ?? "",
         effectiveTo: values?.effectiveTo ?? "",
         description: values?.description ?? "",
+        overheadPercentage: values?.overheadPercentage ?? "",
         components: (values?.components || [])
             .filter((component) => !component?.isChild)
             .map((component) => ({
@@ -381,6 +384,7 @@ const AddBom = () => {
     const [compareLoading, setCompareLoading] = useState(false);
     const [costBreakdown, setCostBreakdown] = useState(null);
     const [costBreakdownLoading, setCostBreakdownLoading] = useState(false);
+    const [recosting, setRecosting] = useState(false);
     const [statusDialogOpen, setStatusDialogOpen] = useState(false);
     const [nextStatus, setNextStatus] = useState(null);
     const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
@@ -484,6 +488,8 @@ const AddBom = () => {
                 bomName: values.bomName,
                 parentInventoryItem: { inventoryItemId: values.parentItemId },
                 description: values.description,
+                overheadPercentage: (values.overheadPercentage === "" || values.overheadPercentage == null)
+                    ? null : toFiniteNumber(values.overheadPercentage),
                 isActive: values.isActive,
                 isDefault: values.isDefault,
                 revision: values.revision,
@@ -616,6 +622,7 @@ const AddBom = () => {
                 isActive: Boolean(bom.isActive),
                 isDefault: Boolean(bom.isDefault),
                 revision: bom.revision || "",
+                overheadPercentage: bom.overheadPercentage ?? "",
                 effectiveFrom: dayjs(bom.effectiveFrom).isValid()
                     ? dayjs(bom.effectiveFrom).format("YYYY-MM-DD")
                     : "",
@@ -733,6 +740,24 @@ const AddBom = () => {
             setCostBreakdownLoading(false);
         }
     }, [bomId, showSnackbar]);
+
+    // Recompute stored standard costs bottom-up (this item + its sub-assemblies), then refresh the
+    // breakdown. Use after a component/item price or a sub-assembly BOM changed in the master.
+    const handleRecost = useCallback(async () => {
+        const itemId = formik.values.parentItemId;
+        if (!itemId) return;
+        setRecosting(true);
+        try {
+            await recostItem(itemId);
+            await fetchCostBreakdown();
+            showSnackbar("Standard costs recomputed from master.");
+        } catch (recostError) {
+            showSnackbar(resolveApiErrorMessage(recostError, "Failed to recompute standard costs."), "error");
+        } finally {
+            setRecosting(false);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formik.values.parentItemId, fetchCostBreakdown, showSnackbar]);
 
     const fetchLaborRoles = useCallback(async (search = "") => {
         try {
@@ -1333,7 +1358,7 @@ const AddBom = () => {
                                                 sx={fieldSx}
                                             />
                                         </Grid>
-                                        <Grid item xs={12}>
+                                        <Grid item xs={12} sm={8}>
                                             <TextField
                                                 type="text"
                                                 label="Description"
@@ -1341,6 +1366,19 @@ const AddBom = () => {
                                                 size="small"
                                                 InputLabelProps={{ shrink: true }}
                                                 {...formik.getFieldProps("description")}
+                                                sx={fieldSx}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} sm={4}>
+                                            <TextField
+                                                type="number"
+                                                label="Overhead %"
+                                                fullWidth
+                                                size="small"
+                                                InputLabelProps={{ shrink: true }}
+                                                InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                                {...formik.getFieldProps("overheadPercentage")}
+                                                helperText="Blanket manufacturing overhead on total cost (excl. subcontract)"
                                                 sx={fieldSx}
                                             />
                                         </Grid>
@@ -1683,6 +1721,21 @@ const AddBom = () => {
 
                             {selectedTab === 4 && bomId && (
                                 <Box sx={{ mt: 1 }}>
+                                    <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+                                        <Tooltip title="Recompute stored standard costs for this item and its sub-assemblies. Use after a component/item price or a sub-assembly BOM changed in the master.">
+                                            <span>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={recosting ? <CircularProgress size={14} /> : <Save />}
+                                                    disabled={recosting || !formik.values.parentItemId}
+                                                    onClick={handleRecost}
+                                                >
+                                                    {recosting ? "Recosting…" : "Recost from Master"}
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    </Box>
                                     <BomCostBreakdown data={costBreakdown} loading={costBreakdownLoading} />
                                 </Box>
                             )}

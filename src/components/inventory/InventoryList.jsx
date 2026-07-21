@@ -49,7 +49,7 @@ const InventoryList = ({
 
     const columns = Object.keys(columnMapping);
     const itemTypeOptions = ["RAW_MATERIAL", "SEMI_FINISHED", "FINISHED_GOOD", "SUB_CONTRACTED", "CONSUMABLE"];
-    const uomOptions = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 'LITER', 'SET'];
+    const uomOptions = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 'LITER', 'SET', 'SQFT', 'SQM', 'SQIN'];
 
     return (
         <Box sx={{ width: '100%', p: { xs: 1.5, sm: 2, md: 3 } }}>

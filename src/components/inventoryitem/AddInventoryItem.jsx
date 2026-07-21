@@ -64,7 +64,7 @@ const GST_SLABS = [
 ];
 
 /* ── UOM options ────────────────────────────────────────────────────────────── */
-const UOM_OPTIONS = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 'LITER', 'SET'];
+const UOM_OPTIONS = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 'LITER', 'SET', 'SQFT', 'SQM', 'SQIN'];
 
 /* ── Autocomplete filter that allows "add new" option ───────────────────────── */
 const autoFilter = createFilterOptions();
@@ -139,6 +139,8 @@ export default function AddInventoryItem() {
   const [bomHistory, setBomHistory] = useState([]);
   const [whereUsedList, setWhereUsedList] = useState([]);
   const [isBomLoading, setIsBomLoading] = useState(false);
+  // Active-BOM cost breakdown, for display-only "Total Cost incl. overhead" (stored standard cost stays prime).
+  const [bomCost, setBomCost] = useState(null);
 
   /* ── Attachment refs ── */
   const hydratingRef = useRef(false);
@@ -180,8 +182,10 @@ export default function AddInventoryItem() {
   /* ── Computed finance values ── */
   const standardCostVal = parseFloat(itemData.productFinanceSettings?.standardCost || itemData.standardCost) || 0;
   const sellingPriceVal = parseFloat(itemData.productFinanceSettings?.sellingPrice) || 0;
+  // Selling cost = full cost incl. overhead (from active BOM) for manufactured items, else standard cost.
+  const sellingCostVal = bomCost?.totalCost != null ? Number(bomCost.totalCost) : standardCostVal;
   const marginPct = sellingPriceVal > 0
-    ? ((sellingPriceVal - standardCostVal) / sellingPriceVal * 100).toFixed(1)
+    ? ((sellingPriceVal - sellingCostVal) / sellingPriceVal * 100).toFixed(1)
     : null;
   const marginColor = marginPct === null ? '#9ca3af' : parseFloat(marginPct) >= 20 ? '#10b981' : parseFloat(marginPct) >= 5 ? '#f59e0b' : '#ef4444';
 
@@ -278,11 +282,23 @@ export default function AddInventoryItem() {
         getBomHistoryByInventoryItem(id),
         getWhereUsedByItemId(id).catch(() => []),
       ]);
-      setActiveBom(bomRes?.bom || bomRes || null);
+      const bom = bomRes?.bom || bomRes || null;
+      setActiveBom(bom);
       setBomHistory(extractArray(histRes));
       setWhereUsedList(extractArray(whereRes));
+      // Pull the fully-loaded cost (incl. overhead) for display alongside the prime standard cost.
+      if (bom?.id) {
+        try {
+          const breakdown = await getBomCostBreakdown(bom.id);
+          setBomCost(breakdown || null);
+        } catch {
+          setBomCost(null);
+        }
+      } else {
+        setBomCost(null);
+      }
     } catch {
-      setActiveBom(null); setBomHistory([]); setWhereUsedList([]);
+      setActiveBom(null); setBomHistory([]); setWhereUsedList([]); setBomCost(null);
     } finally {
       setIsBomLoading(false);
     }
@@ -421,17 +437,20 @@ export default function AddInventoryItem() {
           return;
         }
         const breakdown = await getBomCostBreakdown(bom.id);
-        const cost = breakdown?.totalCost;
-        if (cost == null) {
+        if (breakdown?.totalCost == null) {
           showSnackbar('BOM cost is zero — ensure material costs and operation rates are set', 'warning');
           return;
         }
+        // Standard cost is the PRIME cost (materials + operations + additional, WITHOUT overhead).
+        // Overhead is applied fresh at each BOM level, so it must not be baked into the stored cost.
+        const overhead = Number(breakdown.overheadCost) || 0;
+        const cost = Number((Number(breakdown.totalCost) - overhead).toFixed(2));
         setItemData(prev => ({
           ...prev,
           standardCost: cost,
           productFinanceSettings: { ...prev.productFinanceSettings, standardCost: cost }
         }));
-        showSnackbar(`Standard cost synced from BOM "${bom.bomName}" — ₹${Number(cost).toFixed(2)}`, 'success');
+        showSnackbar(`Standard cost synced from BOM "${bom.bomName}" — ₹${cost.toFixed(2)} (excl. overhead)`, 'success');
         setIsDirty(true);
       } else if (itemData.purchased) {
         const prices = await apiService.get(`/items/${id}/vendor-prices`);
@@ -948,9 +967,29 @@ export default function AddInventoryItem() {
                   }}
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  {itemData.manufactured ? '↑ Syncs from active BOM total cost (materials + operations).' : itemData.purchased ? '↑ Syncs from preferred vendor purchase price.' : ''}
+                  {itemData.manufactured ? '↑ Syncs from active BOM cost — materials + operations, excl. overhead.' : itemData.purchased ? '↑ Syncs from preferred vendor purchase price.' : ''}
                 </Typography>
               </Grid>
+
+              {/* Total Cost incl. Overhead (display-only, from active BOM) */}
+              {bomCost?.totalCost != null && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    size="small" type="number" label="Selling Cost (₹)" fullWidth
+                    value={Number(bomCost.totalCost).toFixed(2)} sx={fieldSx}
+                    InputProps={{
+                      readOnly: true,
+                      startAdornment: <InputAdornment position="start">₹</InputAdornment>,
+                    }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    Selling cost = standard cost {Number(bomCost.overheadCost) > 0
+                      ? `₹${(Number(bomCost.totalCost) - Number(bomCost.overheadCost)).toFixed(2)} + overhead ₹${Number(bomCost.overheadCost).toFixed(2)}`
+                      : '(no overhead)'}
+                    {Number(bomCost.overheadPercentage) ? ` (${bomCost.overheadPercentage}%)` : ''}
+                  </Typography>
+                </Grid>
+              )}
 
               {/* Selling Price + Margin */}
               <Grid item xs={12} sm={6} md={4}>
@@ -965,7 +1004,7 @@ export default function AddInventoryItem() {
                     <Typography variant="caption" sx={{ color: marginColor, fontWeight: 600 }}>
                       Margin: {marginPct}%
                     </Typography>
-                    <Tooltip title="Gross margin = (Selling − Standard Cost) ÷ Selling × 100">
+                    <Tooltip title="Gross margin = (Selling Price − Selling Cost) ÷ Selling Price × 100">
                       <InfoOutlined sx={{ fontSize: 13, color: '#9ca3af' }} />
                     </Tooltip>
                   </Box>

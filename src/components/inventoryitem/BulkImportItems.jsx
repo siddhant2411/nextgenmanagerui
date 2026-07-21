@@ -37,7 +37,7 @@ const TEMPLATE_COLUMNS = [
     { key: 'itemCode',       label: 'Item Code',        sample: '',            note: 'Leave blank for auto-generate' },
     { key: 'name',           label: 'Product Name *',   sample: 'Steel Plate', note: 'Required' },
     { key: 'hsnCode',        label: 'HSN Code',         sample: '7208',        note: 'Indian HSN/SAC code' },
-    { key: 'uom',            label: 'UOM *',            sample: 'NOS',         note: 'NOS | KG | GRAM | TON | METER | CENTIMETER | INCH | LITER | SET' },
+    { key: 'uom',            label: 'UOM *',            sample: 'NOS',         note: 'NOS | KG | GRAM | TON | METER | CENTIMETER | INCH | LITER | SET | SQFT | SQM | SQIN' },
     { key: 'itemType',       label: 'Item Type *',      sample: 'RAW_MATERIAL', note: 'RAW_MATERIAL | SEMI_FINISHED | FINISHED_GOOD | SUB_CONTRACTED | CONSUMABLE' },
     { key: 'purchased',      label: 'Purchased',        sample: 'true',        note: 'true | false' },
     { key: 'manufactured',   label: 'Manufactured',     sample: 'false',       note: 'true | false' },
