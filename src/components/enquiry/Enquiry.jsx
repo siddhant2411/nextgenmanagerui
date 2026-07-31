@@ -9,6 +9,22 @@ import EnquiryList from "./EnquiryList";
 import AddUpdateEnquiry from "./AddUpdateEnquiry";
 import EnquiryDashboard from "./EnquiryDashboard";
 import EnquiryKanban from "./EnquiryKanban";
+import { useViewState } from "../../commonTools/useViewState";
+
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = "/enquiry";
+
+const DEFAULT_FILTERS = {
+    companyName: '',
+    enqNo: '',
+    lastContactedDate: '',
+    enqDate: '',
+    closedDate: '',
+    daysForNextFollowup: '',
+    lastContactedDateComp: '=',
+    enqDateComp: '=',
+    closedDateComp: '>',
+};
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -29,10 +45,10 @@ const Enquiry = () => {
     const [error, setError] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
     const showSnackbar = (message, severity = 'error') => setSnackbar({ open: true, message, severity });
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 1);
     const [totalPages, setTotalPages] = useState(1);
-    const [sortBy, setSortBy] = useState('enqDate');
-    const [sortDir, setSortDir] = useState('desc');
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'enqDate');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'desc');
     const [summary, setSummary] = useState(null);
     const [isSummaryLoading, setIsSummaryLoading] = useState(false);
     const [viewMode, setViewMode] = useState('list');
@@ -40,18 +56,10 @@ const Enquiry = () => {
     // import dialog: step='idle'|'uploading'|'done'
     const [importDialog, setImportDialog] = useState({ open: false, step: 'idle', result: null, error: null });
     const importFileRef = useRef(null);
-    const [activeFilters, setActiveFilters] = useState([]);
-    const [filters, setFilters] = useState({
-        companyName: '',
-        enqNo: '',
-        lastContactedDate: '',
-        enqDate: '',
-        closedDate: '',
-        daysForNextFollowup: '',
-        lastContactedDateComp: '=',
-        enqDateComp: '=',
-        closedDateComp: '>',
-    });
+    // activeFilters drives the FilterBar chips; it must travel with `filters` or
+    // the list would come back filtered with no visible chips explaining why.
+    const [activeFilters, setActiveFilters] = useViewState(VIEW_STATE_NS, 'activeFilters', []);
+    const [filters, setFilters] = useViewState(VIEW_STATE_NS, 'filters', DEFAULT_FILTERS);
 
     const itemsPerPage = 10;
     const navigate = useNavigate();
@@ -59,10 +67,8 @@ const Enquiry = () => {
     const debounceTimeout = useRef(null);
 
     const mapFiltersToParams = (filterArray) => {
-        const newParams = {
-            companyName: '', enqNo: '', lastContactedDate: '', enqDate: '', closedDate: '',
-            daysForNextFollowup: '', lastContactedDateComp: '=', enqDateComp: '=', closedDateComp: '>'
-        };
+        // Same shape the field reverts to on reset — keep it single-sourced.
+        const newParams = { ...DEFAULT_FILTERS };
         filterArray.forEach(f => {
             if (f.field === 'enqNo') newParams.enqNo = f.value;
             if (f.field === 'companyName') newParams.companyName = f.value;

@@ -13,6 +13,7 @@ import {
     listSalesOrders, getSalesAnalytics, getPendingDispatch, getOverdueSOs,
 } from '../../../services/salesOrderService';
 import SalesOrderList from './SalesOrderList';
+import { useViewState } from '../../../commonTools/useViewState';
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -28,6 +29,11 @@ const T = {
     header:  'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
 };
 
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/sales/sales-order';
+
+const DEFAULT_FILTERS = { page: 0, size: 10, sortBy: 'orderDate', sortDir: 'desc' };
+
 const SalesOrderHub = () => {
     const navigate = useNavigate();
     const [analytics, setAnalytics]           = useState(null);
@@ -36,8 +42,10 @@ const SalesOrderHub = () => {
     const [overdue, setOverdue]               = useState([]);
     const [quotationList, setQuotationList]   = useState([]);
     const [loadingList, setLoadingList]       = useState(true);
-    const [filters, setFilters]               = useState({ page: 0, size: 10, sortBy: 'orderDate', sortDir: 'desc' });
-    const [activeFilters, setActiveFilters]   = useState([]);
+    const [filters, setFilters]               = useViewState(VIEW_STATE_NS, 'filters', DEFAULT_FILTERS);
+    // activeFilters drives the FilterBar chips; it must travel with `filters` or
+    // the list would come back filtered with no visible chips explaining why.
+    const [activeFilters, setActiveFilters]   = useViewState(VIEW_STATE_NS, 'activeFilters', []);
     const [totalPages, setTotalPages]         = useState(0);
 
     const fetchAnalytics = async () => {

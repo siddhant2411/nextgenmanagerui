@@ -23,6 +23,10 @@ import apiService from "../../../services/apiService";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthContext";
 import { SALES_MANAGE_ROLES } from "../../../auth/roles";
+import { useViewState } from "../../../commonTools/useViewState";
+
+/* Route namespace for preserved page state — see commonTools/useViewState. */
+const VIEW_STATE_NS = "/sales/sales-order/register";
 
 const allColumns = [
   { field: 'orderNumber', headerName: 'Order No.', width: 160, align: 'left' },
@@ -61,8 +65,8 @@ const SalesOrderRegister = () => {
   const [rows, setRows] = useState([]);
   const [visibleCols, setVisibleCols] = useState(allColumns.map(c => c.field));
   const [anchorEl, setAnchorEl] = useState(null);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+  const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
 
   useEffect(() => {
     fetchSalesOrders();

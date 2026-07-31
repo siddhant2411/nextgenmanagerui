@@ -31,7 +31,12 @@ import {
 } from "../../services/inventoryService";
 import { useAuth } from "../../auth/AuthContext";
 import { ACTION_KEYS } from "../../auth/roles";
+import { useViewState, useViewStateResetSignal } from "../../commonTools/useViewState";
 import { format } from "date-fns";
+
+/* Route namespace for preserved filters/page — see commonTools/useViewState.
+   Nested under /inventory so clearing that section clears this tab too. */
+const VIEW_STATE_NS = "/inventory/procurement-orders";
 
 const statusColor = (status) => {
     switch (status) {
@@ -65,11 +70,11 @@ const headerCellSx = {
 const ProcurementOrdersTabContent = ({ refreshKey }) => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [page, setPage] = useViewState(VIEW_STATE_NS, "page", 0);
+    const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, "pageSize", 10);
     const [totalElements, setTotalElements] = useState(0);
-    const [statusFilter, setStatusFilter] = useState("");
-    const [itemCodeFilter, setItemCodeFilter] = useState("");
+    const [statusFilter, setStatusFilter] = useViewState(VIEW_STATE_NS, "status", "");
+    const [itemCodeFilter, setItemCodeFilter] = useViewState(VIEW_STATE_NS, "itemCode", "");
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
     const debounceTimeout = useRef(null);
     const { canAction, user } = useAuth();
@@ -98,9 +103,13 @@ const ProcurementOrdersTabContent = ({ refreshKey }) => {
         }
     };
 
+    // resetSignal is a dep so clearing from the nav refetches with the reverted
+    // filters, in the same pass rather than as a second request.
+    const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
     useEffect(() => {
         fetchOrders();
-    }, [page, rowsPerPage, statusFilter, itemCodeFilter, refreshKey]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, rowsPerPage, statusFilter, itemCodeFilter, refreshKey, resetSignal]);
 
     const handleMarkReceived = async (id) => {
         if (!canManageProcurement) return;

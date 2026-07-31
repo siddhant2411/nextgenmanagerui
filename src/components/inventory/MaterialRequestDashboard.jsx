@@ -13,6 +13,11 @@ import {
     rejectMaterialRequest,
 } from '../../services/inventoryService';
 import { resolveApiErrorMessage } from '../../services/apiService';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved page state — see commonTools/useViewState.
+   Matches this page's own sidebar route, so that nav item clears just this list. */
+const VIEW_STATE_NS = '/inventory/material-requests';
 
 const HEADER_BG = '#f8fafc';
 const BORDER_COLOR = '#e5e7eb';
@@ -47,8 +52,8 @@ const statusChip = (status) => {
 export default function MaterialRequestDashboard() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(20);
+    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 20);
     const [total, setTotal] = useState(0);
     const [error, setError] = useState(null);
 

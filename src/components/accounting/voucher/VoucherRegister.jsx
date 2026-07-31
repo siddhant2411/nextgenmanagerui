@@ -35,6 +35,10 @@ import {
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { getVoucher, listVouchers, reverseVoucher } from "../../../services/accounting/accountingVoucherService";
+import { useViewState } from "../../../commonTools/useViewState";
+
+/* Route namespace for preserved filters — see commonTools/useViewState. */
+const VIEW_STATE_NS = "/accounting/vouchers";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -283,12 +287,14 @@ const VoucherRegister = () => {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [from, setFrom] = useState(firstOfMonthStr);
-    const [to, setTo] = useState(todayStr);
-    const [typeFilter, setTypeFilter] = useState("");
-    const [statusFilter, setStatusFilter] = useState("");
+    const [from, setFrom] = useViewState(VIEW_STATE_NS, "from", firstOfMonthStr);
+    const [to, setTo] = useViewState(VIEW_STATE_NS, "to", todayStr);
+    const [typeFilter, setTypeFilter] = useViewState(VIEW_STATE_NS, "type", "");
+    const [statusFilter, setStatusFilter] = useViewState(VIEW_STATE_NS, "status", "");
+    // `page` stays local: `load` resets it to 0 on every fetch by design, so there
+    // would be nothing to restore.
     const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(25);
+    const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, "pageSize", 25);
     const [detailId, setDetailId] = useState(null);
 
     const load = useCallback(async () => {

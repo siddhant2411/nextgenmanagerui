@@ -53,6 +53,10 @@ import {
 } from '../../../services/jobWorkChallanService';
 import DispatchConfirmDialog from './DispatchConfirmDialog';
 import ReceiveBackModal from './ReceiveBackModal';
+import { useViewState } from '../../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/production/job-work-challan';
 
 const HEADER_BG = '#0f2744';
 const BORDER_COLOR = '#e5e7eb';
@@ -133,14 +137,14 @@ export default function JobWorkChallanList() {
     const [overdueCount, setOverdueCount] = useState(0);
 
     // Filters
-    const [statusFilter, setStatusFilter] = useState('');
-    const [vendorSearch, setVendorSearch] = useState('');
-    const [woSearch, setWoSearch] = useState('');
-    const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+    const [statusFilter, setStatusFilter] = useViewState(VIEW_STATE_NS, 'status', '');
+    const [vendorSearch, setVendorSearch] = useViewState(VIEW_STATE_NS, 'vendorSearch', '');
+    const [woSearch, setWoSearch] = useViewState(VIEW_STATE_NS, 'woSearch', '');
+    const [showOverdueOnly, setShowOverdueOnly] = useViewState(VIEW_STATE_NS, 'overdueOnly', false);
 
     // Pagination
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
 
     // Dialog state
     const [dispatchTarget, setDispatchTarget] = useState(null);

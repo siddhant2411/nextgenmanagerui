@@ -6,6 +6,7 @@ import Snackbar from "@mui/material/Snackbar";
 import { AddCircleOutline, Description, PlayArrow, Autorenew, AttachMoney, ChevronLeft } from "@mui/icons-material";
 import QuotationList from "./QuotationList";
 import AddUpdateQuotation from "./AddUpdateQuotation";
+import { useViewState } from "../../commonTools/useViewState";
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -21,6 +22,20 @@ const T = {
     header:  'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
 };
 
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/quotation';
+
+const DEFAULT_FILTERS = {
+    qtnNo: '',
+    qtnDate: '',
+    enqNo: '',
+    enqDate: '',
+    companyName: '',
+    netAmount: '',
+    totalAmount: '',
+    quotationStatus: ''
+};
+
 const Quotation = () => {
     const [loading, setLoading] = useState(false);
     const [quotationList, setQuotationList] = useState([]);
@@ -28,21 +43,14 @@ const Quotation = () => {
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
     const showSnackbar = (message, severity = 'error') => setSnackbar({ open: true, message, severity });
     
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 1);
     const [totalPages, setTotalPages] = useState(1);
-    const [sortBy, setSortBy] = useState('id');
-    const [sortDir, setSortDir] = useState('desc');
-    const [activeFilters, setActiveFilters] = useState([]);
-    const [filters, setFilters] = useState({
-        qtnNo: '',
-        qtnDate: '',
-        enqNo: '',
-        enqDate: '',
-        companyName: '',
-        netAmount: '',
-        totalAmount: '',
-        quotationStatus: ''
-    });
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'id');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'desc');
+    // activeFilters drives the FilterBar chips; it must travel with `filters` or
+    // the list would come back filtered with no visible chips explaining why.
+    const [activeFilters, setActiveFilters] = useViewState(VIEW_STATE_NS, 'activeFilters', []);
+    const [filters, setFilters] = useViewState(VIEW_STATE_NS, 'filters', DEFAULT_FILTERS);
 
     const itemsPerPage = 10;
     const navigate = useNavigate();

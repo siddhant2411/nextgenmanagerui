@@ -8,22 +8,28 @@ import {
     TextField, Typography, Alert, CircularProgress
 } from '@mui/material';
 import { addInventory, getPresentInventory, updateInventory, sendToPlanning } from '../../services/inventoryService';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/inventory';
+
+const DEFAULT_FILTERS = {
+    itemCode: '',
+    name: '',
+    hsnCode: '',
+    itemType: '',
+    uom: '',
+};
 
 const Inventory = () => {
     const [loading, setLoading] = useState(false);
     const [inventoryList, setInventoryList] = useState([]);
     const [error, setError] = useState(null);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 1);
     const [totalPages, setTotalPages] = useState(1);
-    const [sortBy, setSortBy] = useState('inventoryItemRef');
-    const [sortDir, setSortDir] = useState('asc');
-    const [filters, setFilters] = useState({
-        itemCode: '',
-        name: '',
-        hsnCode: '',
-        itemType: '',
-        uom: '',
-    });
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'inventoryItemRef');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'asc');
+    const [filters, setFilters] = useViewState(VIEW_STATE_NS, 'filters', DEFAULT_FILTERS);
 
     const [planningDialog, setPlanningDialog] = useState({ open: false, item: null });
     const [planningQty, setPlanningQty] = useState('');
@@ -128,7 +134,7 @@ const Inventory = () => {
                 setLoading(false);
             }
         },
-        [currentPage, sortBy, sortDir]
+        [currentPage, sortBy, sortDir, setCurrentPage]
     );
 
     const handlePageChange = (event, page) => {

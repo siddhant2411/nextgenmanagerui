@@ -32,6 +32,7 @@ import {
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { resetViewState } from "../../../commonTools/useViewState";
 import { useAuth } from "../../../auth/AuthContext";
 import {
     MODULE_KEYS,
@@ -89,6 +90,11 @@ const Sidebar = ({
     };
 
     const handleNavigate = (path) => {
+        // Clicking the section you are already inside is the "start clean" gesture:
+        // drop preserved filters/sort/page so the list reloads at its defaults.
+        if (path && (location.pathname === path || location.pathname.startsWith(`${path}/`))) {
+            resetViewState(path);
+        }
         navigate(path);
         if (isSmallScreen) {
             onMobileClose();

@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { getWorkOrderList, getWorkOrderSummary, scheduleAllWorkOrders } from "../../../services/workOrderService";
 import FilterBar from "../../ui/filterbar/FilterBar";
 import { useAuth } from "../../../auth/AuthContext";
+import { useViewState, useViewStateResetSignal } from "../../../commonTools/useViewState";
 import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
 
 dayjs.extend(isSameOrBefore);
@@ -115,6 +116,9 @@ const defaultFilters = [
   { field: "status", operator: "!=", value: "SHORT_CLOSED" },
 ];
 
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = "/production/work-order";
+
 const DATE_FIELDS = new Set([
   ...allColumns.filter(col => col.type?.toLowerCase() === "date").map(col => col.field),
   "actualEndDate", "actualStartDate",
@@ -184,12 +188,12 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
   const [visibleCols, setVisibleCols] = useState(() => getDefaultVisibleCols(isNarrowDesktop, isMobile));
   const stableColumns = useMemo(() => [...allColumns], []);
   const [selectedRows, setSelectedRows] = useState([]);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [itemsPerPage, setItemPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, "page", 0);
+  const [itemsPerPage, setItemPerPage] = useViewState(VIEW_STATE_NS, "pageSize", 10);
   const [WorkOrderListData, setWorkOrderListData] = useState([]);
-  const [filters, setFilters] = useState(defaultFilters);
-  const [sortBy, setSortBy] = useState("dueDate");
-  const [sortDir, setSortDir] = useState("asc");
+  const [filters, setFilters] = useViewState(VIEW_STATE_NS, "filters", defaultFilters);
+  const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, "sortBy", "dueDate");
+  const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, "sortDir", "asc");
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
   const [summary, setSummary] = useState(null);
@@ -270,7 +274,26 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
     }
   };
 
-  useEffect(() => { onPageChange(0); }, [itemsPerPage]);
+  // Drives the initial load, page-size changes, and nav-triggered clears in one
+  // pass — keeping them in a single effect means a clear that also reverts the
+  // page size fires one request rather than two.
+  //
+  // Only a genuine page-size *change* should jump back to the first page.
+  // Comparing against the previous value rather than a "first run" flag keeps
+  // this correct under StrictMode's double-invoked effects, which would
+  // otherwise discard the restored page.
+  const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
+  const lastPageSizeRef = useRef(itemsPerPage);
+  useEffect(() => {
+    if (lastPageSizeRef.current !== itemsPerPage) {
+      lastPageSizeRef.current = itemsPerPage;
+      onPageChange(0);
+      return;
+    }
+    if (resetSignal) setSelectedRows([]);
+    handleApplyFilters(filters, currentPage, sortBy, sortDir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsPerPage, resetSignal]);
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -311,7 +334,16 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
         page, size: itemsPerPage, sortBy: sortKey, sortDir: sortIn,
         filters: appliedFilters.map(f => ({ field: f.field, operator: f.operator, value: normalizeFilterValue(f) })),
       };
-      const response = await getWorkOrderList(payload);
+      let response = await getWorkOrderList(payload);
+
+      // A preserved page can outlive the rows it pointed at (deletions, or another
+      // user's edits narrowing the result set). Fall back to the first page rather
+      // than rendering an empty grid that reads as a bug.
+      if (page > 0 && page >= (response.totalPages || 0)) {
+        setCurrentPage(0);
+        response = await getWorkOrderList({ ...payload, page: 0 });
+      }
+
       setWorkOrderListData(response.content);
       setTotalPages(response.totalPages);
       setTotalElements(response.totalElements);

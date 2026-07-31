@@ -21,6 +21,7 @@ import {
     ExpandMore,
 } from "@mui/icons-material";
 import { useLocation, useNavigate } from "react-router-dom";
+import { resetViewState } from "../../../commonTools/useViewState";
 import { MODULES } from "../../../config/modules";
 
 const SIDEBAR_WIDTH = 240;
@@ -81,6 +82,10 @@ const ModuleSubSidebar = ({
         location.pathname === path || location.pathname.startsWith(path + "/");
 
     const handleNavigate = (path) => {
+        // Re-clicking the current section clears its preserved filters/sort/page.
+        if (path && pathMatches(path)) {
+            resetViewState(path);
+        }
         navigate(path);
         if (isSmallScreen) onMobileClose();
     };

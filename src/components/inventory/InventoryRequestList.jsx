@@ -42,6 +42,13 @@ import {
 import CreateInventoryRequestForm from './CreateInventoryRequestForm';
 import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
+import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/page — see commonTools/useViewState.
+   This is the Transactions tab inside the Inventory module, distinct from the
+   standalone /inventory/material-requests page. Nested under /inventory so
+   clearing that section clears this tab too. */
+const VIEW_STATE_NS = '/inventory/requests-tab';
 
 const sourceText = (source) => {
   switch (source) {
@@ -67,12 +74,12 @@ const statusChipColor = (status) => {
 const InventoryRequestList = ({ refreshKey }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+  const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
   const [totalRequests, setTotalRequests] = useState(0);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [approvalStatus, setApprovalStatus] = useState('PENDING');
-  const [trackedOnly, setTrackedOnly] = useState(true); // Default to tracked only as per user request
+  const [searchTerm, setSearchTerm] = useViewState(VIEW_STATE_NS, 'search', '');
+  const [approvalStatus, setApprovalStatus] = useViewState(VIEW_STATE_NS, 'approvalStatus', 'PENDING');
+  const [trackedOnly, setTrackedOnly] = useViewState(VIEW_STATE_NS, 'trackedOnly', true); // Default to tracked only as per user request
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [negativeConfirm, setNegativeConfirm] = useState({ open: false, id: null, message: '' });
@@ -112,9 +119,13 @@ const InventoryRequestList = ({ refreshKey }) => {
     }
   };
 
+  // resetSignal is a dep so clearing from the nav refetches with the reverted
+  // filters, in the same pass rather than as a second request.
+  const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
   useEffect(() => {
     fetchRequests();
-  }, [page, rowsPerPage, approvalStatus, trackedOnly, refreshKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage, approvalStatus, trackedOnly, refreshKey, resetSignal]);
 
   const doApprove = async (id, force = false) => {
     const req = requests.find(r => r.id === id);

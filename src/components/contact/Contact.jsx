@@ -14,18 +14,24 @@ import {
 import apiService, { resolveApiErrorMessage } from '../../services/apiService';
 import ContactList from './ContactList';
 import AddUpdateContact from './AddUpdateContact';
+import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/contact';
+
+const DEFAULT_FILTERS = { query: '', type: '' };
 
 const Contact = () => {
     const [contactList, setContactList]   = useState([]);
     const [loading, setLoading]           = useState(false);
     const [error, setError]               = useState(null);
-    const [currentPage, setCurrentPage]   = useState(1);
+    const [currentPage, setCurrentPage]   = useViewState(VIEW_STATE_NS, 'page', 1);
     const [totalPages, setTotalPages]     = useState(1);
     const [totalElements, setTotalElements] = useState(0);
-    const [rowsPerPage, setRowsPerPage]   = useState(20);
-    const [sortBy, setSortBy]             = useState('companyName');
-    const [sortDir, setSortDir]           = useState('asc');
-    const [filters, setFilters]           = useState({ query: '', type: '' });
+    const [rowsPerPage, setRowsPerPage]   = useViewState(VIEW_STATE_NS, 'pageSize', 20);
+    const [sortBy, setSortBy]             = useViewState(VIEW_STATE_NS, 'sortBy', 'companyName');
+    const [sortDir, setSortDir]           = useViewState(VIEW_STATE_NS, 'sortDir', 'asc');
+    const [filters, setFilters]           = useViewState(VIEW_STATE_NS, 'filters', DEFAULT_FILTERS);
     const [stats, setStats]               = useState(null);
     const [statsLoading, setStatsLoading] = useState(false);
     const [snackbar, setSnackbar]         = useState({ open: false, message: '', severity: 'success' });
@@ -76,7 +82,7 @@ const Contact = () => {
                 setLoading(false);
             }
         },
-        [itemsPerPage, sortBy, sortDir, filters]
+        [itemsPerPage, sortBy, sortDir, filters, setCurrentPage]
     );
 
     useEffect(() => {
@@ -87,7 +93,18 @@ const Contact = () => {
         if (location.pathname === '/contact') {
             fetchContactList(currentPage, sortBy, sortDir, filters);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [location.pathname]);
+
+    // This effect keys on the pathname *string*, so re-navigating to /contact from
+    // /contact does not re-run it. Clearing from the nav therefore needs its own
+    // trigger; the values read here are already reverted to defaults.
+    const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
+    useEffect(() => {
+        if (!resetSignal) return;
+        fetchContactList(currentPage, sortBy, sortDir, filters);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetSignal]);
 
     useEffect(() => {
         return () => { if (debounceTimeout.current) clearTimeout(debounceTimeout.current); };

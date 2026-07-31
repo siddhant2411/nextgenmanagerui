@@ -9,6 +9,7 @@ import {
     saveTokenPayload,
 } from "../services/authStorage";
 import { setSessionRefreshedHandler, setUnauthorizedHandler } from "../services/apiService";
+import { resetAllViewState } from "../commonTools/useViewState";
 import {
     canAction as canActionUtil,
     canManageAdminRoles as canManageAdminRolesUtil,
@@ -66,6 +67,8 @@ export function AuthProvider({ children }) {
 
     const clearSession = useCallback((redirectToLogin = true, message = "") => {
         clearAuthSession();
+        // Preserved list filters are per-user; never carry them into the next session.
+        resetAllViewState();
         setAccessToken("");
         setRefreshToken("");
         setUser(null);
