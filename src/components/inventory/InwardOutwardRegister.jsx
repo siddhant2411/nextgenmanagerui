@@ -13,6 +13,11 @@ import {
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getRegister } from '../../services/grnService';
+import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved date range/filters/page — see commonTools/useViewState.
+   Nested under /inventory so clearing that section clears this tab too. */
+const VIEW_STATE_NS = '/inventory/inward-outward';
 
 /* ─── design tokens ──────────────────────────────────────────────────────────── */
 const T = {
@@ -83,14 +88,14 @@ const InwardOutwardRegister = ({ refreshKey }) => {
     const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         .toISOString().split('T')[0];
 
-    const [fromDate,   setFromDate]   = useState(firstOfMonth);
-    const [toDate,     setToDate]     = useState(today);
-    const [typeFilter, setTypeFilter] = useState(''); // '' = All, 'INWARD', 'OUTWARD'
+    const [fromDate,   setFromDate]   = useViewState(VIEW_STATE_NS, 'from', firstOfMonth);
+    const [toDate,     setToDate]     = useViewState(VIEW_STATE_NS, 'to', today);
+    const [typeFilter, setTypeFilter] = useViewState(VIEW_STATE_NS, 'type', ''); // '' = All, 'INWARD', 'OUTWARD'
 
     const [rows,     setRows]     = useState([]);
     const [total,    setTotal]    = useState(0);
-    const [page,     setPage]     = useState(0);     // 0-based for TablePagination
-    const [pageSize, setPageSize] = useState(50);
+    const [page,     setPage]     = useViewState(VIEW_STATE_NS, 'page', 0);     // 0-based for TablePagination
+    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 50);
     const [fetching, setFetching] = useState(false);
     const [error,    setError]    = useState('');
     const [searched, setSearched] = useState(false);
@@ -130,10 +135,13 @@ const InwardOutwardRegister = ({ refreshKey }) => {
     }, [fromDate, toDate, typeFilter, pageSize]);
 
     /* ── auto-load on mount AND whenever refreshKey changes (e.g. after stock movements) ── */
+    // Loads the preserved date range/type/page rather than hardcoded defaults, so
+    // returning to this tab does not silently reset the range you were reading.
+    const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
     useEffect(() => {
-        fetchPage(0, firstOfMonth, today, '', 50);
+        fetchPage(page, fromDate, toDate, typeFilter, pageSize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [refreshKey]);
+    }, [refreshKey, resetSignal]);
 
     const handleSearch = () => {
         setPage(0);

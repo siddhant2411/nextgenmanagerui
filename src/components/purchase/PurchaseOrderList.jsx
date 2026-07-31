@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { listPurchaseOrders, downloadPOPdf } from '../../services/purchaseOrderService';
+import { useViewState } from '../../commonTools/useViewState';
 
 // ── Design tokens (Aligned with Inventory/BOM) ────────────────────────────────
 const BORDER = '#e2e8f0';
@@ -145,16 +146,20 @@ const POCard = ({ row, onClick, onDownload, onInvoices }) => {
     );
 };
 
+/* Route namespace for preserved filters/page — see commonTools/useViewState.
+   Clearing "/purchase" from the nav also clears the sections beneath it. */
+const VIEW_STATE_NS = '/purchase';
+
 export default function PurchaseOrderList() {
     const navigate = useNavigate();
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(0);
-    const [pageSize, setPageSize] = useState(12);
+    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 12);
     const [loading, setLoading] = useState(false);
-    const [filterStatus, setFilterStatus] = useState('');
-    const [filterApproval, setFilterApproval] = useState('');
-    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useViewState(VIEW_STATE_NS, 'status', '');
+    const [filterApproval, setFilterApproval] = useViewState(VIEW_STATE_NS, 'approval', '');
+    const [searchTerm, setSearchTerm] = useViewState(VIEW_STATE_NS, 'search', '');
 
     const load = useCallback(async () => {
         setLoading(true);

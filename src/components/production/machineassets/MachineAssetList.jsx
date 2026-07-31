@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Box,
@@ -35,6 +35,7 @@ import {
 import AddProductionLogDialog from "./AddProductionLogDialog";
 import { MACHINE_STATUS_COLOR_MAP, MACHINE_STATUS_OPTIONS } from "./constants";
 import LogMachineEventDialog from "./LogMachineEventDialog";
+import { useViewState } from "../../../commonTools/useViewState";
 import {
     getWorkCenterDisplayValue,
     resolveMachineErrorMessage,
@@ -69,6 +70,9 @@ const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(value);
 };
 
+/* Route namespace for preserved search/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = "/production/machine-assets";
+
 export default function MachineAssetList({ onSuccess, onError }) {
     const navigate = useNavigate();
     const { hasAnyRole } = useAuth();
@@ -78,12 +82,14 @@ export default function MachineAssetList({ onSuccess, onError }) {
     const [isLoading, setIsLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
 
-    const [searchText, setSearchText] = useState("");
-    const [debouncedSearchText, setDebouncedSearchText] = useState("");
-    const [sortBy, setSortBy] = useState("machineName");
-    const [sortDir, setSortDir] = useState("asc");
-    const [page, setPage] = useState(0);
-    const [size, setSize] = useState(10);
+    const [searchText, setSearchText] = useViewState(VIEW_STATE_NS, "search", "");
+    // Preserved alongside `searchText` so the mount fetch uses the restored term
+    // immediately, instead of loading unfiltered and re-fetching after the debounce.
+    const [debouncedSearchText, setDebouncedSearchText] = useViewState(VIEW_STATE_NS, "debouncedSearch", "");
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, "sortBy", "machineName");
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, "sortDir", "asc");
+    const [page, setPage] = useViewState(VIEW_STATE_NS, "page", 0);
+    const [size, setSize] = useViewState(VIEW_STATE_NS, "pageSize", 10);
     const [totalElements, setTotalElements] = useState(0);
 
     const [eventDialogMachine, setEventDialogMachine] = useState(null);
@@ -117,16 +123,32 @@ export default function MachineAssetList({ onSuccess, onError }) {
         } finally {
             setIsLoading(false);
         }
-    }, [debouncedSearchText, onError, page, size, sortBy, sortDir]);
+    }, [debouncedSearchText, onError, page, size, sortBy, sortDir, setPage, setSize]);
 
     useEffect(() => { loadMachines(); }, [loadMachines]);
 
     useEffect(() => {
         const timeoutId = setTimeout(() => setDebouncedSearchText(searchText), 400);
         return () => clearTimeout(timeoutId);
-    }, [searchText]);
+    }, [searchText, setDebouncedSearchText]);
 
-    useEffect(() => { setPage(0); }, [debouncedSearchText, sortBy, sortDir]);
+    // Jump to the first page when the query genuinely changes. Comparing against
+    // the previous values matters here: this effect also runs on mount, where
+    // unconditionally calling setPage(0) would discard the restored page.
+    const lastQueryRef = useRef({ debouncedSearchText, sortBy, sortDir });
+    useEffect(() => {
+        const previous = lastQueryRef.current;
+        if (
+            previous.debouncedSearchText === debouncedSearchText &&
+            previous.sortBy === sortBy &&
+            previous.sortDir === sortDir
+        ) {
+            return;
+        }
+        lastQueryRef.current = { debouncedSearchText, sortBy, sortDir };
+        setPage(0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSearchText, sortBy, sortDir]);
 
     const handleDeleteMachine = async () => {
         if (!deleteDialogMachine?.id) { if (onError) onError("Machine id is missing."); return; }

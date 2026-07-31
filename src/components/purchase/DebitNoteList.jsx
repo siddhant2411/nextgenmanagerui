@@ -10,6 +10,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { getDebitNotes, confirmDebitNote, cancelDebitNote } from '../../services/debitNoteService';
+import { useViewState } from '../../commonTools/useViewState';
 
 /* ── Design Tokens (matches Sales UI) ── */
 const T = {
@@ -37,14 +38,17 @@ const fmtDate = (d) => {
 const fmt = (n) => n != null ? Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00';
 const fmtReason = (r) => r ? r.replace(/_/g, ' ') : '—';
 
+/* Route namespace for preserved search/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/purchase/debit-notes';
+
 export default function DebitNoteList() {
     const navigate = useNavigate();
     const [notes, setNotes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(null);
     const [error, setError] = useState('');
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(0);
+    const [search, setSearch] = useViewState(VIEW_STATE_NS, 'search', '');
+    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
     const [totalPages, setTotalPages] = useState(0);
 
     const load = useCallback(async () => {

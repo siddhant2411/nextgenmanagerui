@@ -12,6 +12,11 @@ import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
 import { format } from 'date-fns';
 import DebitNoteForm from './DebitNoteForm';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/page — see commonTools/useViewState.
+   Nested under /inventory so clearing that section clears this tab too. */
+const VIEW_STATE_NS = '/inventory/debit-notes';
 
 const T = {
     primary: '#2563eb', success: '#059669', error: '#dc2626',
@@ -45,13 +50,13 @@ const DebitNoteList = ({ refreshKey, onRefresh }) => {
 
     const [rows,    setRows]    = useState([]);
     const [total,   setTotal]   = useState(0);
-    const [page,    setPage]    = useState(0);
-    const [size,    setSize]    = useState(20);
+    const [page,    setPage]    = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [size,    setSize]    = useViewState(VIEW_STATE_NS, 'pageSize', 20);
     const [loading, setLoading] = useState(false);
     const [error,   setError]   = useState('');
     const [success, setSuccess] = useState('');
 
-    const [statusFilter, setStatusFilter] = useState('');
+    const [statusFilter, setStatusFilter] = useViewState(VIEW_STATE_NS, 'status', '');
     const [formOpen,     setFormOpen]     = useState(false);
     const [viewNote,     setViewNote]     = useState(null);  // null = create, object = view
 

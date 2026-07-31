@@ -10,6 +10,11 @@ import { useAuth } from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
 import { format } from 'date-fns';
 import GRNForm from './GRNForm';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/page — see commonTools/useViewState.
+   Nested under /inventory so clearing that section clears this tab too. */
+const VIEW_STATE_NS = '/inventory/grn';
 
 const statusColor = (s) => {
     switch (s) {
@@ -27,12 +32,12 @@ const GRNList = ({ refreshKey }) => {
 
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
-    const [page, setPage] = useState(0);
-    const [size, setSize] = useState(20);
+    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [size, setSize] = useViewState(VIEW_STATE_NS, 'pageSize', 20);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [grnFilter, setGrnFilter] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
+    const [grnFilter, setGrnFilter] = useViewState(VIEW_STATE_NS, 'grnNumber', '');
+    const [statusFilter, setStatusFilter] = useViewState(VIEW_STATE_NS, 'status', '');
     const [formOpen, setFormOpen] = useState(false);
     const [viewGrn, setViewGrn] = useState(null);
 

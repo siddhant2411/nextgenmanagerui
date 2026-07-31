@@ -27,6 +27,16 @@ import { useAuth } from '../../auth/AuthContext';
 import { PRODUCTION_APPROVAL_ROLES, PRODUCTION_MANAGE_ROLES } from '../../auth/roles';
 import { EditIcon } from 'lucide-react';
 import { getAttachmentBlob } from '../../services/inventoryService';
+import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/bom';
+
+const defaultFilters = [
+    { field: 'bomStatus', operator: '!=', value: 'INACTIVE' },
+    { field: 'bomStatus', operator: '!=', value: 'OBSOLETE' },
+    { field: 'bomStatus', operator: '!=', value: 'ARCHIVED' },
+];
 
 /* ── Theme constants ── */
 const HEADER_BG = '#f0f7ff';
@@ -197,18 +207,14 @@ const BomList = ({
     const [visibleCols, setVisibleCols] = useState(() => getDefaultVisibleCols(isNarrowDesktop, isMobile));
     const stableColumns = useMemo(() => [...allColumns], [allColumns]);
     const [selectedRows, setSelectedRows] = useState([]);
-    const [filters, setFilters] = useState([
-        { field: 'bomStatus', operator: '!=', value: 'INACTIVE' },
-        { field: 'bomStatus', operator: '!=', value: 'OBSOLETE' },
-        { field: 'bomStatus', operator: '!=', value: 'ARCHIVED' }
-    ]);
+    const [filters, setFilters] = useViewState(VIEW_STATE_NS, 'filters', defaultFilters);
     const [totalElements, setTotalElements] = useState(0);
-    const [itemsPerPage, setItemPerPage] = useState(10);
+    const [itemsPerPage, setItemPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
     const navigate = useNavigate();
     const debounceTimeout = useRef(null);
-    const [currentPage, setCurrentPage] = useState(0);
-    const [sortBy, setSortBy] = useState('id');
-    const [sortDir, setSortDir] = useState('asc');
+    const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'id');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'asc');
     const [totalPages, setTotalPages] = useState(1);
     const [anchorEl, setAnchorEl] = useState(null);
     const [bomList, setBomList] = useState([]);
@@ -393,7 +399,26 @@ const BomList = ({
         setItemPerPage(parseInt(event.target.value, 10));
     };
 
-    useEffect(() => { onPageChange(0); }, [itemsPerPage]);
+    // Drives the initial load, page-size changes, and nav-triggered clears in one
+    // pass — keeping them in a single effect means a clear that also reverts the
+    // page size fires one request rather than two.
+    //
+    // Only a genuine page-size *change* should jump back to the first page.
+    // Comparing against the previous value rather than a "first run" flag keeps
+    // this correct under StrictMode's double-invoked effects, which would
+    // otherwise discard the restored page.
+    const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
+    const lastPageSizeRef = useRef(itemsPerPage);
+    useEffect(() => {
+        if (lastPageSizeRef.current !== itemsPerPage) {
+            lastPageSizeRef.current = itemsPerPage;
+            onPageChange(0);
+            return;
+        }
+        if (resetSignal) setSelectedRows([]);
+        handleApplyFilters(filters, currentPage, sortBy, sortDir);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itemsPerPage, resetSignal]);
 
     const handleApplyFilters = async (appliedFilters = filters, page = currentPage, sortKey = sortBy, sortIn = sortDir) => {
         setLoading(true);
@@ -402,7 +427,16 @@ const BomList = ({
                 page, size: itemsPerPage, sortBy: sortKey, sortDir: sortIn,
                 filters: appliedFilters.map(f => ({ field: f.field, operator: f.operator, value: f.value })),
             };
-            const response = await apiService.post("/bom/filter", payload);
+            let response = await apiService.post("/bom/filter", payload);
+
+            // A preserved page can outlive the rows it pointed at (deletions, or another
+            // user's edits narrowing the result set). Fall back to the first page rather
+            // than rendering an empty grid that reads as a bug.
+            if (page > 0 && page >= (response.totalPages || 0)) {
+                setCurrentPage(0);
+                response = await apiService.post("/bom/filter", { ...payload, page: 0 });
+            }
+
             handleFilterApplied(response);
         } catch (err) {
             setError(err.message || "Something went wrong");

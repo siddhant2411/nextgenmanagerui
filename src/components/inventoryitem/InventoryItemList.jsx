@@ -19,6 +19,16 @@ import FilterBar from '../ui/filterbar/FilterBar';
 import { filterInventoryItems, exportInventoryItems, getAttachmentBlob, getInventorySummary } from '../../services/inventoryService';
 import { CheckCircleIcon, Hammer, PackageIcon } from 'lucide-react';
 import BulkImportItems from './BulkImportItems';
+import PriceListExportDialog from './PriceListExportDialog';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
+import { useAuth } from '../../auth/AuthContext';
+import { INVENTORY_FINANCE_ROLES, hasAnyRole } from '../../auth/roles';
+import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/inventory-item';
+
+const defaultFilters = [];
 
 /* ── Column definitions ── */
 const allColumns = [
@@ -219,6 +229,10 @@ const InventoryItemList = ({
   isAdminRole = false
 }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Mirrors the backend guard on /export/price-list: only finance-visible roles get the
+  // internal copy (cost, margin, floor price + max discount).
+  const canExportInternalPriceList = hasAnyRole(user?.roles, INVENTORY_FINANCE_ROLES);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isNarrowDesktop = useMediaQuery(theme.breakpoints.down('xl'));
@@ -228,17 +242,18 @@ const InventoryItemList = ({
   const stableColumns = useMemo(() => [...allColumns], [allColumns]);
   const [selectedRows, setSelectedRows] = useState([]);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [filters, setFilters] = useState([]);
+  const [filters, setFilters] = useViewState(VIEW_STATE_NS, 'filters', defaultFilters);
   const [totalPages, setTotalPages] = useState(1);
-  const [itemsPerPage, setItemPerPage] = useState(10);
-  const [sortBy, setSortBy] = useState('inventoryItemId');
-  const [sortDir, setSortDir] = useState('asc');
-  const [currentPage, setCurrentPage] = useState(0);
+  const [itemsPerPage, setItemPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
+  const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'inventoryItemId');
+  const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'asc');
+  const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 0);
   const [totalElements, setTotalElements] = useState(0);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [tableContainerWidth, setTableContainerWidth] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, id: null });
   const [exportAnchorEl, setExportAnchorEl] = useState(null);
+  const [priceListOpen, setPriceListOpen] = useState(false);
   const [drawingPreview, setDrawingPreview] = useState({ open: false, url: '', contentType: '', fileName: '' });
   const [summary, setSummary] = useState(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
@@ -373,7 +388,16 @@ const InventoryItemList = ({
         page, size: itemsPerPage, sortBy: sortKey, sortDir: sortIn,
         filters: appliedFilters.map(f => ({ field: f.field, operator: f.operator, value: f.value })),
       };
-      const response = await filterInventoryItems(payload);
+      let response = await filterInventoryItems(payload);
+
+      // A preserved page can outlive the rows it pointed at (deletions, or another
+      // user's edits narrowing the result set). Fall back to the first page rather
+      // than rendering an empty grid that reads as a bug.
+      if (page > 0 && page >= (response.totalPages || 0)) {
+        setCurrentPage(0);
+        response = await filterInventoryItems({ ...payload, page: 0 });
+      }
+
       handleFilterApplied(response);
     } catch (err) {
       setError(err.message || "Something went wrong");
@@ -397,7 +421,26 @@ const InventoryItemList = ({
     setItemPerPage(parseInt(event.target.value, 10));
   };
 
-  useEffect(() => { onPageChange(0); }, [itemsPerPage]);
+  // Drives the initial load, page-size changes, and nav-triggered clears in one
+  // pass — keeping them in a single effect means a clear that also reverts the
+  // page size fires one request rather than two.
+  //
+  // Only a genuine page-size *change* should jump back to the first page.
+  // Comparing against the previous value rather than a "first run" flag keeps
+  // this correct under StrictMode's double-invoked effects, which would
+  // otherwise discard the restored page.
+  const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
+  const lastPageSizeRef = useRef(itemsPerPage);
+  useEffect(() => {
+    if (lastPageSizeRef.current !== itemsPerPage) {
+      lastPageSizeRef.current = itemsPerPage;
+      onPageChange(0);
+      return;
+    }
+    if (resetSignal) setSelectedRows([]);
+    handleApplyFilters(filters, currentPage, sortBy, sortDir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsPerPage, resetSignal]);
 
   const [columnWidths, setColumnWidths] = useState(
     allColumns.reduce((acc, col) => { acc[col.field] = col.width || 150; return acc; }, {})
@@ -529,6 +572,16 @@ const InventoryItemList = ({
                             <MenuItem onClick={() => downloadExport('pdf')}>
                                 <ListItemIcon><DownloadIcon fontSize="small" /></ListItemIcon>
                                 <ListItemText primary="Product Data Sheet (PDF)" primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }} />
+                            </MenuItem>
+                            <Divider />
+                            <MenuItem onClick={() => { handleExportClose(); setPriceListOpen(true); }}>
+                                <ListItemIcon><LocalOfferIcon fontSize="small" /></ListItemIcon>
+                                <ListItemText
+                                    primary="Price List (PDF / Excel)…"
+                                    secondary="Customer or internal copy"
+                                    primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                                    secondaryTypographyProps={{ variant: 'caption' }}
+                                />
                             </MenuItem>
                             <Divider />
                             <MenuItem onClick={() => downloadExport('vendor-prices')}>
@@ -959,6 +1012,15 @@ const InventoryItemList = ({
           />
         )}
         </Box>
+
+        {/* ── Price List Export Dialog ── */}
+        <PriceListExportDialog
+          open={priceListOpen}
+          onClose={() => setPriceListOpen(false)}
+          selectedIds={selectedRows}
+          filters={filters}
+          canExportInternal={canExportInternalPriceList}
+        />
 
         <Dialog
           open={deleteDialog.open}

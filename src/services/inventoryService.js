@@ -121,6 +121,36 @@ export const exportInventoryItems = (type, ids = []) => {
     return apiService.download(path, params, filename);
 };
 
+/**
+ * Exports a sales price list.
+ *
+ * Pass `itemIds` for an explicit selection, otherwise `filter` (the same shape the grid posts to
+ * /filter) to export everything matching the current filter. `audience: 'INTERNAL'` adds floor
+ * price and max discount and requires finance-level roles; 'CUSTOMER' is list price + GST only.
+ */
+export const exportPriceList = ({
+    itemIds = [],
+    filter = null,
+    format = 'PDF',
+    audience = 'CUSTOMER',
+    validUntil,
+    customerName,
+    title,
+    preparedBy,
+} = {}) => {
+    const isExcel = String(format).toUpperCase() === 'XLSX';
+    const body = { format, audience, validUntil, customerName, title, preparedBy };
+
+    if (itemIds.length) {
+        body.itemIds = itemIds;
+    } else if (filter) {
+        body.filter = filter;
+    }
+
+    const filename = `Price_List.${isExcel ? 'xlsx' : 'pdf'}`;
+    return apiService.downloadPost('/inventory_item/export/price-list', body, filename);
+};
+
 const inventoryService = {
     getInventorySummary,
     searchInventoryItems,

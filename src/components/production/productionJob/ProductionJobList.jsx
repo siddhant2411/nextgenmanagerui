@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../../services/apiService';
+import { useViewState, useViewStateResetSignal } from '../../../commonTools/useViewState';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import { Search, Add } from '@mui/icons-material';
@@ -29,12 +30,15 @@ const headerCellSx = {
   borderBottom: '2px solid rgba(255,255,255,0.15)',
 };
 
+/* Route namespace for preserved search/page — see commonTools/useViewState. */
+const VIEW_STATE_NS = '/production/production-job';
+
 const ProductionJobList = () => {
   const [productionJobs, setProductionJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [search, setSearch] = useViewState(VIEW_STATE_NS, 'search', '');
+  const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
+  const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 10);
   const [totalItems, setTotalItems] = useState(0);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, id: null });
@@ -47,7 +51,11 @@ const ProductionJobList = () => {
     setSnackbar({ open: true, message, severity });
   };
 
-  useEffect(() => { fetchProductionJobs(); }, [page, rowsPerPage]);
+  // resetSignal is a dep so clearing from the nav refetches with the reverted
+  // search/page, in the same pass rather than as a second request.
+  const resetSignal = useViewStateResetSignal(VIEW_STATE_NS);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchProductionJobs(); }, [page, rowsPerPage, resetSignal]);
 
   const fetchProductionJobs = async () => {
     setLoading(true);

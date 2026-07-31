@@ -12,6 +12,11 @@ import {
 import { Dialog, DialogTitle, DialogContent } from '@mui/material';
 import InstanceGenealogy from './InstanceGenealogy';
 import { getGroupedInventory, getPresentInventory } from '../../services/inventoryService';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved search/page — see commonTools/useViewState.
+   Nested under /inventory so clearing that section clears this tab too. */
+const VIEW_STATE_NS = '/inventory/instances';
 
 
 const InventoryInstanceList = () => {
@@ -22,8 +27,8 @@ const InventoryInstanceList = () => {
   const [groupedLoading, setGroupedLoading] = useState({});
   const [groupedPage, setGroupedPage] = useState({});
   const [groupedRowsPerPage, setGroupedRowsPerPage] = useState({});
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useViewState(VIEW_STATE_NS, 'search', '');
+  const [currentPage, setCurrentPage] = useViewState(VIEW_STATE_NS, 'page', 1);
   const [totalPages, setTotalPages] = useState(1);
   const [historyDialog, setHistoryDialog] = useState({ open: false, instanceId: null, uniqueId: '' });
   const debounceRef = useRef();
@@ -121,8 +126,17 @@ const InventoryInstanceList = () => {
     fetchPresentInventory(page, searchQuery);
   };
 
+  // fetchPresentInventory defaults to page 1, which would throw away a restored
+  // page on mount. Only a genuine search change should jump back to page 1.
+  const lastSearchRef = useRef(searchQuery);
   useEffect(() => {
-    fetchPresentInventory();
+    if (lastSearchRef.current !== searchQuery) {
+      lastSearchRef.current = searchQuery;
+      fetchPresentInventory(1, searchQuery);
+      return;
+    }
+    fetchPresentInventory(currentPage, searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchPresentInventory]);
 
   return (

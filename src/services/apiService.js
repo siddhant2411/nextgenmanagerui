@@ -177,6 +177,29 @@ const attachInterceptors = (client) => {
 attachInterceptors(apiClient);
 attachInterceptors(apiClientFile);
 
+// Turns a blob response into a browser download, preferring the server's
+// Content-Disposition filename over the caller's fallback.
+const saveBlobResponse = (response, fallbackName) => {
+    const contentDisposition = response.headers["content-disposition"];
+    let filename = fallbackName;
+    if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+?)"/);
+        if (match?.[1]) {
+            filename = match[1];
+        }
+    }
+    filename = filename.replace(/^\d+_/, "");
+
+    const blob = new Blob([response.data], { type: response.headers["content-type"] });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+};
+
 const apiService = {
     get: async (endpoint, params = {}) => {
         const response = await apiClient.get(endpoint, { params });
@@ -188,25 +211,16 @@ const apiService = {
             params,
             responseType: "blob",
         });
+        saveBlobResponse(response, fileName);
+    },
 
-        const contentDisposition = response.headers["content-disposition"];
-        let filename = fileName;
-        if (contentDisposition) {
-            const match = contentDisposition.match(/filename="(.+?)"/);
-            if (match?.[1]) {
-                filename = match[1];
-            }
-        }
-        filename = filename.replace(/^\d+_/, "");
-
-        const blob = new Blob([response.data], { type: response.headers["content-type"] });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
+    // POST variant of download(), for exports whose options are too rich for a query string
+    // (explicit id lists, grid filters, audience/format/validity).
+    downloadPost: async (endpoint, body = {}, fileName = "downloaded_file") => {
+        const response = await apiClient.post(endpoint, body, {
+            responseType: "blob",
+        });
+        saveBlobResponse(response, fileName);
     },
 
     fetchBlob: async (endpoint, params) => {

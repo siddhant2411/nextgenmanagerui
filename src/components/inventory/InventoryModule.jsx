@@ -29,6 +29,12 @@ import LowStockList          from './LowStockList';
 
 import { useAuth }     from '../../auth/AuthContext';
 import { ACTION_KEYS } from '../../auth/roles';
+import { useViewState } from '../../commonTools/useViewState';
+
+/* Route namespace for preserved tab/filters — see commonTools/useViewState.
+   The leaf tabs namespace under this prefix, so clearing "/inventory" from the
+   nav clears the whole section at once. */
+const VIEW_STATE_NS = '/inventory';
 
 /* ─── tab definitions ─────────────────────────────────────────────────────── */
 const TABS = [
@@ -42,7 +48,10 @@ const TABS = [
 
 /* ─── component ───────────────────────────────────────────────────────────── */
 const InventoryModule = () => {
-    const [tab,          setTab]          = useState(0);
+    // Which section you were reading is view state like any filter — losing it on
+    // navigation is the same complaint. The inner tabs stay local: they double as
+    // jump targets for handleTabChange, and a stored value would override that.
+    const [tab,          setTab]          = useViewState(VIEW_STATE_NS, 'tab', 0);
     const [txInnerTab,   setTxInnerTab]   = useState(0);   // inner tab for Transactions
     const [scInnerTab,   setScInnerTab]   = useState(0);   // inner tab for Stock Control
 
