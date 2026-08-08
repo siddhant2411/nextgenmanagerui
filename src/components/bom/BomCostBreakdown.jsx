@@ -154,8 +154,8 @@ export default function BomCostBreakdown({ data, loading }) {
                                     <TableCell sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Machine</TableCell>
                                     <TableCell sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Labor Role</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Operators</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Setup</TableCell>
-                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Run</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Setup (min)</TableCell>
+                                    <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Run (min/u)</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Machine Cost</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Labor Cost</TableCell>
                                     <TableCell align="right" sx={{ fontWeight: 600, fontSize: "0.75rem" }}>Total</TableCell>
