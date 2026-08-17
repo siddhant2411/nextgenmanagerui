@@ -3,6 +3,8 @@ import {
   Box, Tabs, Tab, Typography, Divider, Button, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Alert, TextField, Paper, Tooltip, LinearProgress, Grid, Menu, MenuItem
 } from '@mui/material';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import RelatedWorkOrdersSection from './RelatedWorkOrdersSection';
+import SplitWorkOrderDialog from './SplitWorkOrderDialog';
 import WorkOrderBasicDetails from './tabs/WorkOrderBasicDetails';
 import WorkOrderMaterialsTab from './tabs/WorkOrderMaterialsTab';
 import WorkOrderOperationsTab from './tabs/WorkOrderOperationsTab';
@@ -52,6 +54,8 @@ const getDefaultValues = () => ({
   sourceType: 'SALES_ORDER',
   materials: [],
   operations: [],
+  lines: [],
+  additionalLines: [],
   workCenter: '',
   dueDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
   plannedStartDate: dayjs().format('YYYY-MM-DD'),
@@ -84,6 +88,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const [isMaterialsLoading, setIsMaterialsLoading] = useState(false);
   const [isReleaseLoading, setIsReleaseLoading] = useState(false);
   const [isReleaseConfirmOpen, setIsReleaseConfirmOpen] = useState(false);
+  const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
+  const [relatedRefreshToken, setRelatedRefreshToken] = useState(0);
   const [operationActionState, setOperationActionState] = useState({
     loading: false,
     operationId: null,
@@ -216,6 +222,42 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
         return cleaned;
       };
 
+      // Turn the primary item plus any additional rows into the work order's line requests.
+      // Sent only when there is genuinely more than one item: a single-item work order keeps
+      // using the flat bomId/plannedQuantity contract it always has.
+      const extraLines = (values.additionalLines || [])
+        .filter((row) => row.bom?.id && Number(row.plannedQuantity) > 0)
+        .map((row) => ({
+          bomId: row.bom.id,
+          routingId: row.bom.routing?.id || null,
+          plannedQuantity: Number(row.plannedQuantity),
+        }));
+
+      if (extraLines.length > 0) {
+        payload.lines = [
+          {
+            bomId: payload.bomId,
+            routingId: payload.routingId,
+            plannedQuantity: Number(values.plannedQuantity),
+          },
+          ...extraLines,
+        ];
+      } else {
+        // Nothing extra: drop the lines loaded from the server so an update never echoes
+        // them back as if they were line requests.
+        delete payload.lines;
+      }
+      delete payload.additionalLines;
+
+      // On an existing multi-line work order the flat plannedQuantity is the total across every
+      // line, so sending it back would read as an attempt to force that total onto one line.
+      // Line quantities are edited per line; the header update carries only header fields.
+      const isExistingMultiLine = !!workOrderId && (values.lines?.length || 0) > 1;
+      if (isExistingMultiLine) {
+        delete payload.plannedQuantity;
+        delete payload.lines;
+      }
+
       const cleanedValues = cleanPayload(payload);
       if (workOrderId) {
         updateWorkOrder(workOrderId, cleanedValues)
@@ -312,7 +354,6 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       ...getDefaultValues(),
       ...response,
       remarks: response?.remarks || '',
-      referenceDocument: response?.referenceDocument || '',
       plannedQuantity: response?.plannedQuantity ?? 0,
       completedQuantity: response?.completedQuantity ?? 0,
       scrappedQuantity: response?.scrappedQuantity ?? 0,
@@ -323,6 +364,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
       actualEndDate: response?.actualEndDate ? dayjs(response.actualEndDate).format('YYYY-MM-DD') : '',
       materials: response?.materials || response?.workOrderMaterials || [],
       operations: response?.operations || [],
+      lines: response?.lines || [],
       bom: response?.bom || null,
       selectedItem: selectedItemFromInventory,
       sourceType:
@@ -926,6 +968,11 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
   const canCancelWorkOrderStatus = ['CREATED', 'SCHEDULED', 'RELEASED', 'IN_PROGRESS','MATERIAL_PENDING','READY_FOR_PRODUCTION','PARTIALLY_READY'].includes(workOrderStatus);
   const canShortCloseWorkOrderStatus = ['RELEASED', 'IN_PROGRESS','PARTIALLY_READY','READY_FOR_PRODUCTION'].includes(workOrderStatus);
+  // Mirrors the server's SPLIT_BLOCKED_STATUSES: a finished or abandoned work order has no
+  // remaining work to move. Needs a saved work order with lines to split.
+  const canSplitWorkOrder = Boolean(workOrderId)
+    && !['COMPLETED', 'CLOSED', 'SHORT_CLOSED', 'CANCELLED'].includes(workOrderStatus)
+    && (formik.values.lines?.length || 0) > 0;
   const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
   const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
@@ -1157,6 +1204,16 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                     </span>
                   </Tooltip>
                   <Divider sx={{ my: 0.5 }} />
+                  <Tooltip title={!canSplitWorkOrder ? `Cannot split — current status: ${workOrderStatus}` : ''} placement="left">
+                    <span>
+                      <MenuItem dense disabled={!canSplitWorkOrder}
+                        onClick={() => { setActionsMenuAnchor(null); setIsSplitDialogOpen(true); }}
+                        sx={{ fontSize: '0.8125rem', color: '#475569', gap: 1 }}>
+                        Split WO
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Divider sx={{ my: 0.5 }} />
                   <Tooltip title={!canCancelWorkOrderStatus ? `Cannot cancel — current status: ${workOrderStatus}` : !canManageWorkOrderAdminActions ? 'Admin role required' : ''} placement="left">
                     <span>
                       <MenuItem dense disabled={isWorkOrderActionLoading || !canCancelWorkOrderStatus || !canManageWorkOrderAdminActions}
@@ -1275,9 +1332,9 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Paper>
         )}
 
-        <Tabs 
-          value={selectedTab} 
-          onChange={handleTabChange} 
+        <Tabs
+          value={selectedTab}
+          onChange={handleTabChange}
           sx={{ 
             mb: 3,
             minHeight: 44,
@@ -1382,6 +1439,30 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           )}
         </Box>
       </Paper>
+
+      {/* Below the tabs: which work orders this one is tied to is a footnote to the whole page
+          rather than the subject of any one tab. Renders nothing when there are no links. */}
+      <RelatedWorkOrdersSection
+        workOrderId={workOrderId ? Number(workOrderId) : null}
+        refreshToken={relatedRefreshToken}
+      />
+
+      <SplitWorkOrderDialog
+        open={isSplitDialogOpen}
+        onClose={() => setIsSplitDialogOpen(false)}
+        workOrderId={Number(workOrderId)}
+        workOrderNumber={formik.values.workOrderNumber}
+        lines={formik.values.lines || []}
+        onSplit={(created) => {
+          // The source shrank as the new order was created, so both sides need re-reading —
+          // including the link list, which has just gained the order that was split off.
+          reloadWorkOrder();
+          setRelatedRefreshToken((token) => token + 1);
+          if (setSnackbar) {
+            setSnackbar(`Split into work order ${created?.workOrderNumber || ''}.`.trim(), 'success');
+          }
+        }}
+      />
 
       <Dialog
         open={isReleaseConfirmOpen}

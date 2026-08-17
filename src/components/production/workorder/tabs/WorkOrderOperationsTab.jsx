@@ -61,6 +61,7 @@ import QaCheckDialog from './QaCheckDialog';
 import { getReasonCodes, deleteLabourEntry, getQaEntriesForOperation, resolveApiErrorMessage } from '../../../../services/workOrderService';
 import { getLaborRoles } from '../../../../services/laborRoleService';
 import { downloadOperationAttachment } from '../../../../services/bomService';
+import { groupByWorkOrderLine, shouldShowLineGroups, LineGroupHeaderRow } from './workOrderLineGrouping';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMPTY_OPERATIONS = [];
@@ -97,6 +98,25 @@ const compactCellSx = {
   borderBottom: '1px solid rgba(224, 224, 224, 0.4)',
 };
 
+/** Matches the 5-decimal scale the backend rounds material consumption to before comparing. */
+const round5 = (value) => Math.round(value * 1e5) / 1e5;
+
+/**
+ * How many units a stock quantity covers, given a per-unit requirement.
+ *
+ * A plain division under-reports whenever the requirement doesn't divide evenly: 10 units of
+ * material over a planned qty of 3 gives 3.3333333333333335 per unit, so stock issued for
+ * exactly one unit (3.33333 at the DB's scale) divides out to 0.999999 and the floor gate
+ * rejects a batch the backend happily accepts. The backend rounds consumption to 5 decimals
+ * before comparing, so a whole unit is affordable whenever that rounded figure fits.
+ */
+const unitsCovered = (stockQty, reqPerUnit) => {
+  if (!(reqPerUnit > 0)) return Infinity;
+  const raw = stockQty / reqPerUnit;
+  const whole = Math.round(raw);
+  return whole > 0 && round5(whole * reqPerUnit) <= stockQty ? Math.max(whole, raw) : raw;
+};
+
 const getOperationRowKey = (operation, index) =>
   String(operation?.id ?? operation?.routingOperation?.id ?? index);
 
@@ -110,6 +130,192 @@ const STATUS_CONFIG = {
   HOLD:                   { color: 'error',   icon: <Info fontSize="inherit" />, colorMain: '#b84040', bg: '#fdf0f0', border: '#f0c8c8' },
   CANCELLED:              { color: 'default', icon: <Block fontSize="inherit" />, colorMain: '#6b6b6b', bg: '#f5f5f5', border: '#ddd' },
 };
+
+// ─── Requirements panel ───────────────────────────────────────────────────────
+const REQ_TONE = {
+  ok:      { main: '#2a6640', bg: '#f4faf5', border: '#c7e2cd' },
+  warn:    { main: '#8a4a1c', bg: '#fdf7f0', border: '#efd0b0' },
+  blocked: { main: '#b84040', bg: '#fdf4f4', border: '#f0c8c8' },
+};
+
+const fmtQty = (value) => {
+  const n = toNumberValue(value);
+  if (!Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+};
+
+const ReqColumnTitle = ({ children }) => (
+  <Typography
+    variant="caption"
+    sx={{ display: 'block', mb: 1, fontWeight: 800, fontSize: '0.62rem', letterSpacing: 0.6, textTransform: 'uppercase', color: '#64748b' }}
+  >
+    {children}
+  </Typography>
+);
+
+/**
+ * Explains, in one card, everything that gates this operation: the upstream operations it is
+ * waiting on, the materials it needs on the floor (with the shortfall), and what it produces.
+ */
+function OperationRequirements({ readiness, outputItem, dependents, allowBackflush }) {
+  const tone = readiness.blockedReason
+    ? REQ_TONE.blocked
+    : (readiness.shortMaterials.length > 0 ? REQ_TONE.warn : REQ_TONE.ok);
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 2, borderRadius: 2, bgcolor: tone.bg, borderColor: tone.border }}>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1.5 }}>
+        <Typography variant="subtitle2" fontWeight={700} color="#0f2744">
+          Start Requirements
+        </Typography>
+        <Chip
+          size="small"
+          icon={readiness.blockedReason ? <Block sx={{ fontSize: '12px !important' }} /> : <CheckCircle sx={{ fontSize: '12px !important' }} />}
+          label={readiness.blockedReason || `${fmtQty(readiness.completableNow)} units completable now`}
+          sx={{ height: 20, fontSize: '0.66rem', fontWeight: 800, bgcolor: '#fff', color: tone.main, border: `1px solid ${tone.main}40` }}
+        />
+        {!readiness.blockedReason && readiness.units > readiness.completableNow && (
+          <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.66rem' }}>
+            {fmtQty(readiness.units)} once the rest is issued to the floor
+          </Typography>
+        )}
+      </Stack>
+
+      <Grid container spacing={2}>
+        {/* ① Upstream input */}
+        <Grid item xs={12} md={4}>
+          <ReqColumnTitle>Input from upstream</ReqColumnTitle>
+          {readiness.dependencies.length === 0 ? (
+            <Typography variant="caption" color="text.secondary">
+              No upstream dependency — this operation starts the chain.
+            </Typography>
+          ) : (
+            <Stack spacing={0.75}>
+              {readiness.dependencies.map((dep) => {
+                const depCfg = STATUS_CONFIG[dep.status] || STATUS_CONFIG.PLANNED;
+                return (
+                  <Box key={dep.id ?? dep.sequence} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="caption" fontWeight={700} sx={{ color: '#1e293b', display: 'block' }} noWrap>
+                        {dep.sequence}. {dep.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: depCfg.colorMain, fontWeight: 700, fontSize: '0.62rem' }}>
+                        {dep.status}
+                      </Typography>
+                    </Box>
+                    <Typography variant="caption" fontWeight={700} sx={{ whiteSpace: 'nowrap', color: '#475569' }}>
+                      {fmtQty(dep.completed)} / {fmtQty(dep.planned)} done
+                    </Typography>
+                  </Box>
+                );
+              })}
+            </Stack>
+          )}
+          <Divider sx={{ my: 1 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>Input available</Typography>
+            <Typography variant="caption" fontWeight={800} color={readiness.blockedByInput ? 'error.main' : 'success.main'}>
+              {fmtQty(readiness.inputQty)} units
+            </Typography>
+          </Box>
+        </Grid>
+
+        {/* ② Materials */}
+        <Grid item xs={12} md={5} sx={{ borderLeft: { md: '1px dashed #cbd5e1' }, pl: { md: 2 } }}>
+          <ReqColumnTitle>
+            Required materials{readiness.remainingQty > 0 ? ` · for ${fmtQty(readiness.remainingQty)} units` : ''}
+          </ReqColumnTitle>
+          {readiness.requirements.length === 0 ? (
+            <Typography variant="caption" color="text.secondary">
+              No materials gated on this operation.
+            </Typography>
+          ) : (
+            <Stack spacing={0.75} sx={{ maxHeight: 180, overflowY: 'auto', pr: 0.5 }}>
+              {readiness.requirements.map((req) => (
+                <Box key={req.id} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="caption" fontWeight={700} sx={{ color: '#1e293b', display: 'block' }} noWrap>
+                      {req.itemCode} {req.itemName ? <span style={{ fontWeight: 400, color: '#64748b' }}>· {req.itemName}</span> : null}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#64748b', fontSize: '0.62rem' }}>
+                      {fmtQty(req.perUnit)} {req.uom} / unit → need {fmtQty(req.needQty)} {req.uom}
+                      {req.mrPending ? ' · MR not approved' : ''}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <Typography variant="caption" fontWeight={700} sx={{ display: 'block', color: '#475569' }}>
+                      {fmtQty(req.onFloor)} on floor
+                      <span style={{ fontWeight: 400, color: '#94a3b8' }}>
+                        {' '}= {fmtQty(req.unitsFromFloor)} units
+                      </span>
+                    </Typography>
+                    {req.blocking ? (
+                      <Typography variant="caption" fontWeight={800} sx={{ color: REQ_TONE.blocked.main, fontSize: '0.62rem' }}>
+                        no stock anywhere
+                      </Typography>
+                    ) : req.shortOnFloor > 0 ? (
+                      <Typography variant="caption" fontWeight={800} sx={{ color: REQ_TONE.warn.main, fontSize: '0.62rem' }}>
+                        issue {fmtQty(req.shortOnFloor)} more
+                      </Typography>
+                    ) : (
+                      <Typography variant="caption" fontWeight={800} sx={{ color: REQ_TONE.ok.main, fontSize: '0.62rem' }}>
+                        sufficient
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          )}
+          {readiness.requirements.length > 0 && !allowBackflush && (
+            <>
+              <Divider sx={{ my: 1 }} />
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+                <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                  Batchable from floor stock
+                </Typography>
+                <Typography variant="caption" fontWeight={800} sx={{ color: readiness.completableNow >= 1 ? REQ_TONE.ok.main : REQ_TONE.blocked.main }}>
+                  {fmtQty(readiness.completableNow)} units
+                </Typography>
+              </Box>
+              {readiness.issuedLimitedBy && readiness.issuedUnits < readiness.remainingQty && (
+                <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontSize: '0.62rem' }}>
+                  Limited by {readiness.issuedLimitedBy}
+                </Typography>
+              )}
+            </>
+          )}
+          {allowBackflush && readiness.requirements.length > 0 && (
+            <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#64748b', fontSize: '0.62rem' }}>
+              Backflush is enabled — material shortages will not block this operation.
+            </Typography>
+          )}
+        </Grid>
+
+        {/* ③ Output */}
+        <Grid item xs={12} md={3} sx={{ borderLeft: { md: '1px dashed #cbd5e1' }, pl: { md: 2 } }}>
+          <ReqColumnTitle>Output</ReqColumnTitle>
+          <Typography variant="h6" fontWeight={800} sx={{ lineHeight: 1.1, color: '#0f2744' }}>
+            {fmtQty(readiness.remainingQty)} units
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            remaining to produce
+          </Typography>
+          {outputItem && (
+            <Typography variant="caption" fontWeight={700} sx={{ display: 'block', mt: 0.75, color: '#1e293b' }}>
+              {outputItem.itemCode}{outputItem.name ? ` · ${outputItem.name}` : ''}
+            </Typography>
+          )}
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: '#64748b', fontSize: '0.62rem' }}>
+            {dependents.length > 0
+              ? `Feeds ${dependents.map(d => `${d.sequence}. ${d.name}`).join(', ')}`
+              : 'Final operation — output goes to finished goods'}
+          </Typography>
+        </Grid>
+      </Grid>
+    </Paper>
+  );
+}
 
 // ─── Reason Code Dialog ───────────────────────────────────────────────────────
 function ReasonCodeDialog({ open, onClose, onSubmit, rejectedQty, scrapQty, rejectionCodes, scrapCodes }) {
@@ -270,47 +476,161 @@ export default function WorkOrderOperationsTab({
   const firstOperationId = sortedOps.length > 0 ? sortedOps[0]?.id : null;
   const allowBackflush = !!formik.values?.allowBackflush;
 
+  const operationGroups = useMemo(() => groupByWorkOrderLine(operations), [operations]);
+  const showLineGroups = shouldShowLineGroups(operationGroups);
+
+  // Materials that are not pinned to a specific operation are consumed at the start of THEIR OWN
+  // line. Attributing them to the work order's first operation overall would hang line 2's raw
+  // material off line 1's opening operation.
+  const firstOperationIdByLine = useMemo(() => {
+    const map = new Map();
+    sortedOps.forEach((op) => {
+      const lineKey = op?.workOrderLineId ?? null;
+      if (!map.has(lineKey)) map.set(lineKey, op?.id);
+    });
+    return map;
+  }, [sortedOps]);
+
+  const opsById = useMemo(() => {
+    const map = new Map();
+    operations.forEach(o => { if (o?.id != null) map.set(o.id, o); });
+    return map;
+  }, [operations]);
+
+  const dependencyIdsOf = (op) => {
+    const raw = op?.dependsOnOperationIds;
+    if (!raw) return [];
+    return Array.isArray(raw) ? raw : Array.from(raw);
+  };
+
+  const describeOp = (o) => ({
+    id: o.id,
+    sequence: o.sequence,
+    name: o.operationName || o.routingOperation?.name || 'Operation',
+    status: o.status,
+    completed: toNumberValue(o.completedQuantity),
+    planned: toNumberValue(o.plannedQuantity),
+  });
+
+  // Mirrors the backend: use the explicit dependency graph when the routing defines one,
+  // otherwise fall back to the legacy previous-by-sequence chain.
+  const getDependencies = (op) => {
+    const ids = dependencyIdsOf(op);
+    if (ids.length > 0) return ids.map(id => opsById.get(id)).filter(Boolean).map(describeOp);
+    const idx = sortedOps.findIndex(o => o.id != null && o.id === op.id);
+    return idx > 0 ? [describeOp(sortedOps[idx - 1])] : [];
+  };
+
+  const getDependents = (op) => {
+    const explicit = operations.filter(o => dependencyIdsOf(o).includes(op.id));
+    if (explicit.length > 0) return explicit.map(describeOp);
+    const idx = sortedOps.findIndex(o => o.id != null && o.id === op.id);
+    return idx >= 0 && idx < sortedOps.length - 1 ? [describeOp(sortedOps[idx + 1])] : [];
+  };
+
   const getReadiness = (op) => {
     const plannedTotal = toNumberValue(op.plannedQuantity) || 1;
     const inputQty = toNumberValue(op.availableInputQuantity);
+    const remainingQty = Math.max(toNumberValue(op.plannedQuantity) - toNumberValue(op.completedQuantity), 0);
 
-    const opMaterials = materials.filter(m =>
-      m.workOrderOperationId === op.id ||
-      (op.id === firstOperationId && !m.workOrderOperationId && !m.operationName)
-    );
+    const lineFirstOpId = firstOperationIdByLine.has(op.workOrderLineId ?? null)
+      ? firstOperationIdByLine.get(op.workOrderLineId ?? null)
+      : firstOperationId;
+
+    const opMaterials = materials.filter(m => {
+      // Never let one line's operation claim another line's material.
+      if (m.workOrderLineId != null && op.workOrderLineId != null
+          && m.workOrderLineId !== op.workOrderLineId) {
+        return false;
+      }
+      return m.workOrderOperationId === op.id
+        || (op.id === lineFirstOpId && !m.workOrderOperationId && !m.operationName);
+    });
 
     let materialReady = Infinity;
     let issuedReady = Infinity;
-    const shortages = [];
+    let issuedLimitedBy = null;
+    const requirements = [];
 
     opMaterials.forEach(m => {
       const onFloor = Math.max(toNumberValue(m.issuedQuantity) - toNumberValue(m.consumedQuantity), 0);
       const totalReq = toNumberValue(m.netRequiredQuantity || m.plannedRequiredQuantity);
 
       const reqPerUnit = totalReq / plannedTotal;
-      console.log(reqPerUnit,onFloor);
-      const issuedReadyFor = reqPerUnit > 0 ? onFloor / reqPerUnit : Infinity;
-      if (issuedReadyFor < issuedReady) issuedReady = issuedReadyFor;
-
-      if (allowBackflush) return;
+      const issuedReadyFor = unitsCovered(onFloor, reqPerUnit);
+      if (issuedReadyFor < issuedReady) {
+        issuedReady = issuedReadyFor;
+        issuedLimitedBy = m.component?.itemCode || 'Material';
+      }
 
       const warehouseAvailable = toNumberValue(m.component?.availableQuantity);
       const warehouseReserved = toNumberValue(m.component?.reservedQuantity);
       const totalAccessible = onFloor + warehouseAvailable + warehouseReserved;
-      const readyFor = reqPerUnit > 0 ? totalAccessible / reqPerUnit : Infinity;
+      const readyFor = unitsCovered(totalAccessible, reqPerUnit);
 
-      if (readyFor < materialReady) materialReady = readyFor;
-      if (readyFor < 1) {
-        shortages.push(`${m.component?.itemCode || 'Material'}: ${totalAccessible.toFixed(2)} available / ${reqPerUnit.toFixed(2)} needed per unit`);
-      }
+      // Backflush lets an operation run against stock that has not been issued yet, so it
+      // never gates the start — the shortfall is still surfaced for information.
+      if (!allowBackflush && readyFor < materialReady) materialReady = readyFor;
+
+      const needQty = reqPerUnit * remainingQty;
+      requirements.push({
+        id: m.id,
+        itemCode: m.component?.itemCode || 'Material',
+        itemName: m.component?.name || '',
+        uom: m.component?.uom || '',
+        perUnit: reqPerUnit,
+        needQty,
+        onFloor,
+        warehouse: warehouseAvailable + warehouseReserved,
+        unitsFromFloor: issuedReadyFor,
+        shortOnFloor: Math.max(needQty - onFloor, 0),
+        blocking: !allowBackflush && reqPerUnit > 0 && totalAccessible < reqPerUnit,
+        mrPending: !!m.mrStatus && !['APPROVED', 'PARTIAL'].includes(m.mrStatus),
+      });
     });
 
     const finalReadiness = Math.min(inputQty, materialReady);
+    const dependencies = getDependencies(op);
+    const blockedByInput = inputQty < 1;
+    const blockingMaterials = requirements.filter(r => r.blocking);
+    const shortMaterials = requirements.filter(r => !r.blocking && r.shortOnFloor > 0);
+
+    let blockedReason = null;
+    if (op.status === 'PLANNED') {
+      // Nothing is forwarded to any operation until the work order is released.
+      blockedReason = 'Work order not released yet';
+    } else if (blockedByInput) {
+      const pending = dependencies.filter(d => d.status !== 'COMPLETED');
+      blockedReason = pending.length > 0
+        ? `Waiting on ${pending.slice(0, 2).map(d => `Op ${d.sequence} ${d.name}`).join(', ')}${pending.length > 2 ? ` +${pending.length - 2} more` : ''}`
+        : 'No input quantity forwarded from upstream yet';
+    } else if (blockingMaterials.length > 0) {
+      blockedReason = `No stock: ${blockingMaterials.slice(0, 2).map(r => r.itemCode).join(', ')}${blockingMaterials.length > 2 ? ` +${blockingMaterials.length - 2} more` : ''}`;
+    }
+
     return {
       units: finalReadiness === Infinity ? inputQty : finalReadiness,
-      shortages,
       isStartable: finalReadiness >= 1,
       issuedUnits: issuedReady,
+      // Units that can actually be batched right now — floor stock only, capped by upstream
+      // input. This is what gates Submit Batch, and is usually lower than `units`, which also
+      // counts stock still sitting in the warehouse. Also capped by what is left to produce:
+      // an operation cannot usefully batch past its planned quantity unless it is explicitly
+      // allowed to over-complete.
+      completableNow: Math.min(
+        inputQty,
+        issuedReady === Infinity ? inputQty : issuedReady,
+        op.allowOverCompletion ? Infinity : remainingQty,
+      ),
+      issuedLimitedBy,
+      inputQty,
+      remainingQty,
+      dependencies,
+      requirements,
+      blockedByInput,
+      blockingMaterials,
+      shortMaterials,
+      blockedReason,
     };
   };
 
@@ -564,7 +884,16 @@ export default function WorkOrderOperationsTab({
               {operations.length === 0 ? (
                 <TableRow><TableCell colSpan={5} align="center" sx={{ py: 6 }}>No operations scheduled.</TableCell></TableRow>
               ) : (
-                operations.map((op, index) => {
+                operationGroups.flatMap((group) => [
+                  ...(showLineGroups ? [(
+                    <LineGroupHeaderRow
+                      key={`group-${group.key}`}
+                      group={group}
+                      colSpan={5}
+                      countLabel={`${group.entries.length} operation${group.entries.length === 1 ? '' : 's'}`}
+                    />
+                  )] : []),
+                  ...group.entries.map(({ row: op, index }) => {
                   const rowKey = getOperationRowKey(op, index);
                   const isCurrentAction = operationActionState?.loading && operationActionState?.operationId === op?.id;
                   const readiness = getReadiness(op);
@@ -583,7 +912,11 @@ export default function WorkOrderOperationsTab({
                   const draftTotal    = draftGood + draftRejected + draftScrap;
 
                   const cfg = STATUS_CONFIG[op.status] || STATUS_CONFIG.PLANNED;
-                  const insufficientIssued = !allowBackflush && readiness.issuedUnits !== Infinity && draftGood > readiness.issuedUnits;
+                  // Mirrors the backend gate: it rounds each material's consumption for the batch
+                  // to 5 decimals and compares that against the floor quantity, rather than
+                  // comparing whole units against a divided-out unit count.
+                  const insufficientIssued = !allowBackflush && draftGood > 0 &&
+                    readiness.requirements.some(r => round5(draftGood * r.perUnit) > r.onFloor);
                   const batchDisabled = isCurrentAction || draftTotal <= 0 || insufficientIssued;
 
                   return (
@@ -629,6 +962,19 @@ export default function WorkOrderOperationsTab({
                                 </Tooltip>
                               )}
                             </Stack>
+                            {!['COMPLETED', 'CANCELLED'].includes(op.status) && (readiness.blockedReason || readiness.shortMaterials.length > 0) && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, fontWeight: 700, fontSize: '0.68rem',
+                                  color: readiness.blockedReason ? REQ_TONE.blocked.main : REQ_TONE.warn.main,
+                                }}
+                              >
+                                {readiness.blockedReason
+                                  ? <><Block sx={{ fontSize: 12 }} /> {readiness.blockedReason}</>
+                                  : <><Warning sx={{ fontSize: 12 }} /> {fmtQty(readiness.completableNow)} units batchable — short {readiness.shortMaterials.slice(0, 2).map(r => `${r.itemCode} ×${fmtQty(r.shortOnFloor)}`).join(', ')}{readiness.shortMaterials.length > 2 ? ` +${readiness.shortMaterials.length - 2} more` : ''}</>}
+                              </Typography>
+                            )}
                           </Box>
                         </TableCell>
 
@@ -676,15 +1022,19 @@ export default function WorkOrderOperationsTab({
                         <TableCell align="center" sx={compactCellSx}>
                           <Stack direction="row" spacing={1} justifyContent="center" onClick={(e) => e.stopPropagation()}>
                             {isEditMode && !isWoTerminal && ['READY', 'WAITING_FOR_DEPENDENCY'].includes(op.status) && op.routingOperation?.costType !== 'SUB_CONTRACTED' && (
-                               <Button
-                                 variant="contained" size="small" disableElevation
-                                 disabled={!readiness.isStartable || isCurrentAction}
-                                 onClick={() => onStartOperation(op.id)}
-                                 startIcon={<PlayArrow fontSize="small" />}
-                                 sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2, bgcolor: '#1677ff' }}
-                               >
-                                 Start
-                               </Button>
+                               <Tooltip title={readiness.isStartable ? '' : (readiness.blockedReason || 'Not enough input or material to start a unit')}>
+                                 <span>
+                                   <Button
+                                     variant="contained" size="small" disableElevation
+                                     disabled={!readiness.isStartable || isCurrentAction}
+                                     onClick={() => onStartOperation(op.id)}
+                                     startIcon={<PlayArrow fontSize="small" />}
+                                     sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, px: 2, bgcolor: '#1677ff' }}
+                                   >
+                                     Start
+                                   </Button>
+                                 </span>
+                               </Tooltip>
                             )}
                             <Button
                               variant="outlined" size="small"
@@ -702,6 +1052,14 @@ export default function WorkOrderOperationsTab({
                         <TableCell colSpan={5} sx={{ p: 0, border: 'none' }}>
                           <Collapse in={isExpanded} unmountOnExit>
                             <Box sx={{ m: 2, p: 2, bgcolor: '#fff', borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+                              {!['COMPLETED', 'CANCELLED'].includes(op.status) && (
+                                <OperationRequirements
+                                  readiness={readiness}
+                                  outputItem={formik.values?.selectedItem}
+                                  dependents={getDependents(op)}
+                                  allowBackflush={allowBackflush}
+                                />
+                              )}
                               <Grid container spacing={3}>
                                 {/* Left Side: Instructions & Attachments */}
                                 <Grid item xs={12} md={7}>
@@ -788,7 +1146,10 @@ export default function WorkOrderOperationsTab({
                                         </Button>
                                         {insufficientIssued && (
                                           <Alert severity="error" sx={{ py: 0, '& .MuiAlert-message': { fontSize: '0.7rem' } }}>
-                                            Insufficient materials issued to the floor.
+                                            Only {fmtQty(readiness.issuedUnits)} units can be made from the material issued to the floor
+                                            {readiness.shortMaterials.length > 0
+                                              ? ` — issue ${readiness.shortMaterials.slice(0, 2).map(r => `${fmtQty(r.shortOnFloor)} ${r.uom} of ${r.itemCode}`).join(', ')}.`
+                                              : '.'}
                                           </Alert>
                                         )}
                                       </Stack>
@@ -811,8 +1172,8 @@ export default function WorkOrderOperationsTab({
                                     </Box>
                                     <Box display="flex" justifyContent="space-between">
                                       <Typography variant="caption" fontWeight={600} color="text.secondary">Readiness</Typography>
-                                      <Typography variant="caption" fontWeight={700} color={readiness.isStartable ? 'success.main' : 'warning.main'}>
-                                        {readiness.units.toFixed(1)} units startable
+                                      <Typography variant="caption" fontWeight={700} color={readiness.completableNow >= 1 ? 'success.main' : 'warning.main'}>
+                                        {fmtQty(readiness.completableNow)} units batchable now
                                       </Typography>
                                     </Box>
                                   </Stack>
@@ -892,7 +1253,8 @@ export default function WorkOrderOperationsTab({
                       </TableRow>
                     </React.Fragment>
                   );
-                })
+                  }),
+                ])
               )}
             </TableBody>
           </Table>

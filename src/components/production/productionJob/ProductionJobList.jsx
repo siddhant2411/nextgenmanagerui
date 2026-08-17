@@ -168,8 +168,8 @@ const ProductionJobList = () => {
                   <TableRow>
                     <TableCell sx={headerCellSx}>Job Code</TableCell>
                     <TableCell sx={headerCellSx}>Job Name</TableCell>
-                    <TableCell align="right" sx={headerCellSx}>Setup Time (hrs)</TableCell>
-                    <TableCell align="right" sx={headerCellSx}>Run Time (hrs)</TableCell>
+                    <TableCell align="right" sx={headerCellSx}>Setup Time (min)</TableCell>
+                    <TableCell align="right" sx={headerCellSx}>Run Time (min)</TableCell>
                     <TableCell align="center" sx={headerCellSx}>Status</TableCell>
                     <TableCell sx={headerCellSx}>Description</TableCell>
                     <TableCell align="center" sx={headerCellSx}>Actions</TableCell>

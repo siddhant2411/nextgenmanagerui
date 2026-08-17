@@ -324,7 +324,7 @@ export default function RoutingDAGPreview({ operations = [] }) {
                                 </text>
                                 {/* Timing */}
                                 <text x={pos.x + 8} y={pos.y + 52} fontSize={9} fill="#9ca3af">
-                                    {`Setup: ${op.setupTime || 0}h | Run: ${op.runTime || 0}h`}
+                                    {`Setup: ${op.setupTime || 0}m | Run: ${op.runTime || 0}m/u`}
                                 </text>
                                 {/* Parallel badge */}
                                 {isParallel && (

@@ -230,7 +230,7 @@ const AddProductionJob = () => {
 
               <SectionHeading>Default Timings</SectionHeading>
               <Grid item xs={12} sm={6}>
-                <TextField fullWidth name="defaultSetupTime" label="Default Setup Time (hrs)" type="number"
+                <TextField fullWidth name="defaultSetupTime" label="Default Setup Time (min)" type="number"
                   value={formik.values.defaultSetupTime} onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   error={formik.touched.defaultSetupTime && Boolean(formik.errors.defaultSetupTime)}
@@ -239,7 +239,7 @@ const AddProductionJob = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField fullWidth name="defaultRunTimePerUnit" label="Default Run Time Per Unit (hrs)" type="number"
+                <TextField fullWidth name="defaultRunTimePerUnit" label="Default Run Time Per Unit (min)" type="number"
                   value={formik.values.defaultRunTimePerUnit} onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   error={formik.touched.defaultRunTimePerUnit && Boolean(formik.errors.defaultRunTimePerUnit)}

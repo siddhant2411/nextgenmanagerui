@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Alert,
@@ -26,6 +26,7 @@ import {
 } from '@mui/material';
 import { DeleteOutline, Refresh, WarningAmber, AutoFixHigh, Replay } from '@mui/icons-material';
 import { reorderMaterial, getMaterialReorders } from '../../../../services/workOrderService';
+import { groupByWorkOrderLine, shouldShowLineGroups, LineGroupHeaderRow } from './workOrderLineGrouping';
 
 const DEFAULT_ISSUE_STATUSES = [
   'NOT_ISSUED',
@@ -351,6 +352,9 @@ export default function WorkOrderMaterialsTab({
   const canReorder = !isAddMode && !REORDER_BLOCKED_STATUSES.has(woStatus);
   const canIssueToFloor = !isAddMode && !isWoTerminal;
 
+  const materialGroups = useMemo(() => groupByWorkOrderLine(materials), [materials]);
+  const showMaterialLineGroups = shouldShowLineGroups(materialGroups);
+
   useEffect(() => {
     const validKeys = new Set(materials.map((material, index) => getMaterialRowKey(material, index)));
     setIssueDrafts((prev) => {
@@ -622,7 +626,16 @@ export default function WorkOrderMaterialsTab({
                 </TableCell>
               </TableRow>
             ) : (
-              materials.map((material, index) => {
+              materialGroups.flatMap((group) => [
+                ...(showMaterialLineGroups ? [(
+                  <LineGroupHeaderRow
+                    key={`group-${group.key}`}
+                    group={group}
+                    colSpan={isAddMode ? 5 : 9}
+                    countLabel={`${group.entries.length} material${group.entries.length === 1 ? '' : 's'}`}
+                  />
+                )] : []),
+                ...group.entries.map(({ row: material, index }) => {
                 const rowKey = getMaterialRowKey(material, index);
                 const issuePayload = getIssuePayload(material, rowKey);
                 const canIssue = canIssuePayload(issuePayload);
@@ -808,7 +821,8 @@ export default function WorkOrderMaterialsTab({
                     </TableCell>
                   </TableRow>
                 );
-              })
+                }),
+              ])
             )}
           </TableBody>
         </Table>

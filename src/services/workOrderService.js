@@ -40,6 +40,33 @@ export const releaseWorkOrder = async (id) => {
     return apiService.patch(`/production/work-order/${id}/release`);
 }
 
+/**
+ * Moves quantity off a work order into a new one.
+ *
+ * @param {number} id source work order id
+ * @param {{lines: {lineId: number, quantity: number}[], dueDate?: string, remarks?: string}} payload
+ *        quantities are stated per line — the header quantity is the sum across lines, so a bare
+ *        total cannot say which item it refers to
+ * @returns the newly created work order
+ */
+export const splitWorkOrder = async (id, payload) => {
+    if (!id) {
+        throw new Error('Work order id is required');
+    }
+    return apiService.post(`/production/work-order/${id}/split`, payload);
+}
+
+/**
+ * Work orders linked to this one — what it came out of, and what came out of it, whether the
+ * link was made by hand or by a split.
+ */
+export const getRelatedWorkOrders = async (id) => {
+    if (!id) {
+        throw new Error('Work order id is required');
+    }
+    return apiService.get(`/production/work-order/${id}/related`);
+}
+
 export const startOperation = async (operationId) => {
     if (!operationId) {
         throw new Error('Operation id is required');
