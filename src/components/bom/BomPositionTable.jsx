@@ -28,6 +28,32 @@ const compactFieldSx = {
     "& .MuiOutlinedInput-root": { borderRadius: 1 },
 };
 
+// Kill floating-point noise from repeated multiplication (0.1 * 3 -> 0.30000000000000004)
+const roundQty = (value) => Math.round((Number(value) + Number.EPSILON) * 1e6) / 1e6;
+
+/**
+ * Exploded ("total required") quantity per row.
+ *
+ * A child BOM stores quantity per ONE unit of its own parent item, so a nested row must be
+ * multiplied by the whole ancestor chain to answer "how much of this do I need in total?".
+ *   Item A          1 Nos        -> 1
+ *     Item B_A      3 kg         -> 3 x 1 = 3
+ *       Item B_A_A  1 kg / unit  -> 1 x 3 = 3
+ * Rows are a flat, depth-first list (level = depth), so one pass with a per-level multiplier
+ * stack is enough.
+ */
+const computeEffectiveQuantities = (rows = []) => {
+    const effectiveByLevel = [];
+    return rows.map((row) => {
+        const level = row?.level ?? 0;
+        const parentMultiplier = level === 0 ? 1 : (effectiveByLevel[level - 1] ?? 1);
+        const effective = roundQty((Number(row?.quantity) || 0) * parentMultiplier);
+        effectiveByLevel.length = level;      // drop stale deeper levels
+        effectiveByLevel[level] = effective;
+        return { effective, parentMultiplier };
+    });
+};
+
 const getPositionRowId = (row) => row?.positionId ?? row?.id ?? null;
 const getChildItemId = (row) => row?.childInventoryItemId ?? row?.inventoryItemId ?? row?.childInventoryItem?.inventoryItemId ?? null;
 const getOperationId = (operation) => operation?.id ?? operation?.operationId ?? operation?.routingOperationId ?? operation?._tempId ?? null;
@@ -35,6 +61,9 @@ const getOperationName = (operation) => operation?.name ?? operation?.operationN
 const isPersistedOperationId = (value) => value !== null && value !== undefined && !Number.isNaN(Number(value));
 
 const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, formik, operations = [] }) => {
+
+    // Recomputed every render so editing a parent's quantity instantly re-explodes its sub-tree.
+    const effectiveQuantities = computeEffectiveQuantities(formik.values.components);
 
     const buildParentBlocks = (rows) => {
         const blocks = [];
@@ -255,13 +284,19 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                 <TableCell sx={{ color: '#1565c0', fontWeight: 500 }}>{c?.itemCode}</TableCell>
                                 <TableCell>{c?.drawingNumber}</TableCell>
 
-                                {/* Quantity */}
+                                {/* Quantity — child rows show the exploded total, not the per-unit figure */}
                                 <TableCell>
-                                    <TextField type="number" size="small" disabled={c?.isChild}
-                                        sx={{ width: 70, ...compactFieldSx }}
-                                        value={c?.quantity}
-                                        onChange={(e) => { const arr = [...formik.values.components]; arr[i].quantity = e.target.value; formik.setFieldValue("components", arr); }}
-                                    />
+                                    <Tooltip
+                                        title={c?.isChild
+                                            ? `${roundQty(c?.quantity)} ${c?.uom ?? ""} per unit x ${effectiveQuantities[i]?.parentMultiplier ?? 1} = ${effectiveQuantities[i]?.effective ?? 0} ${c?.uom ?? ""}`
+                                            : ""}
+                                    >
+                                        <TextField type="number" size="small" disabled={c?.isChild}
+                                            sx={{ width: 70, ...compactFieldSx }}
+                                            value={c?.isChild ? (effectiveQuantities[i]?.effective ?? "") : (c?.quantity ?? "")}
+                                            onChange={(e) => { const arr = [...formik.values.components]; arr[i].quantity = e.target.value; formik.setFieldValue("components", arr); }}
+                                        />
+                                    </Tooltip>
                                 </TableCell>
 
                                 {/* Scrap % */}

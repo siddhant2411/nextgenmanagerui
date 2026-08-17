@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Alert, Paper } from '@mui/material';
+import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHelperText, Select, MenuItem, InputLabel, FormControl, Divider, Typography, IconButton, Tooltip, Chip, Paper } from '@mui/material';
 import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
-import { getAllInventoryItems } from '../../../../services/inventoryService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
 import { getWorkOrderList } from '../../../../services/workOrderService';
+import WorkOrderItemsSection from './WorkOrderItemsSection';
 
 
 export default function WorkOrderBasicDetails({ formik, setError, workOrderId }) {
-  const [searchedItemList, setSearchedItemList] = useState([]);
-  const [inputValue, setInputValue] = useState('');
   const [referenceOptions, setReferenceOptions] = useState([]);
   const [referenceInputValue, setReferenceInputValue] = useState('');
 
@@ -29,31 +27,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
     }
   };
 
-  const handleProductSearch = async (e, value = '') => {
-    try {
-      const params = {
-        size: 5,
-        sortBy: 'name',
-        sortDir: 'asc',
-        search: value
-      };
-      const response = await getAllInventoryItems(params);
-      const filteredData = response.content.map(item => ({
-        id: item.inventoryItemId,
-        name: item.name,
-        itemCode: item.itemCode,
-        hsnCode: item.hsnCode,
-        uom: item.uom,
-      }));
-      setSearchedItemList(filteredData);
-    } catch (err) {
-      // handled
-    }
-  };
-
-  useEffect(() => {
-    setInputValue(formik.values.selectedItem?.name || '');
-  }, [formik.values.selectedItem]);
 
   useEffect(() => {
     if (formik.values.sourceType === 'MANUAL') {
@@ -150,18 +123,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
   }, [referenceOptions, formik.values.referenceDocument]);
 
 
-  const handleProductSelect = (selectedProduct) => {
-    formik.setFieldValue('selectedItem', selectedProduct);
-    setInputValue(selectedProduct?.name || '');
-    if (selectedProduct?.id) {
-      try {
-        handleGetBom(selectedProduct.id);
-      }
-      catch (err) {
-        // handled
-      }
-    }
-  };
 
   const isProductionStarted = ["IN_PROGRESS", "READY", "COMPLETED"].includes(
     formik.values.status
@@ -173,7 +134,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
     window.open(path, "_blank", "noopener,noreferrer");
   };
 
-  const inventoryItemId = formik.values.selectedItem?.id;
   const referenceId = formik.values.referenceDocument?.id;
   const referencePath =
     formik.values.sourceType === 'SALES_ORDER'
@@ -188,6 +148,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
 
   return (
     <Box sx={{ width: '100%', overflowX: 'hidden', minWidth: 0, pb: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
+
       
       {/* --- PRIMARY INFORMATION CARD --- */}
       <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#ffffff' }}>
@@ -195,69 +156,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           Primary Information
         </Typography>
         <Grid container spacing={2.5}>
-          <Grid item xs={12} md={6}>
-            <Autocomplete
-              fullWidth
-              size="small"
-              options={searchedItemList}
-              value={formik.values.selectedItem}
-              inputValue={inputValue || ''}
-              onChange={(e, newValue) => handleProductSelect(newValue)}
-              onInputChange={(e, newInputValue, reason) => {
-                if (reason === 'input') {
-                  setInputValue(newInputValue);
-                  handleProductSearch(e, newInputValue);
-                }
-              }}
-              getOptionLabel={(option) => option?.name || ''}
-              isOptionEqualToValue={(option, value) => option.itemCode === value.itemCode}
-              renderOption={(props, option) => (
-                <li {...props} style={{ width: '100%', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 600 }}>{option.name}</div>
-                  <div style={{ display: 'flex', gap: 16, fontSize: '0.85rem', color: '#555' }}>
-                    <span>Item Code: {option.itemCode}</span>
-                    <span>HSN: {option.hsnCode}</span>
-                  </div>
-                </li>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Item Name"
-                  fullWidth
-                  size="small"
-                  autoFocus={!workOrderId}
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {params.InputProps.endAdornment}
-                        <Tooltip title="Open item in new tab">
-                          <span>
-                            <IconButton size="small" onClick={() => openNewTab(`/inventory-item/edit/${inventoryItemId}`)} disabled={!inventoryItemId} edge="end">
-                              <OpenInNew fontSize="inherit" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </>
-                    ),
-                  }}
-                  error={!!formik.errors.selectedItem}
-                  helperText={formik.errors.selectedItem}
-                />
-              )}
-            />
-            {formik.values.selectedItem?.id && !formik.values.bom && (
-              <Box mt={0.5}>
-                <Chip size="small" color="warning" variant="outlined" label="No BOM found for this item" />
-              </Box>
-            )}
-            {formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured && (
-              <Alert severity="warning" sx={{ mt: 1, py: 0 }}>
-                This item is marked as <strong>Purchased Only</strong> and cannot be manufactured.
-              </Alert>
-            )}
-          </Grid>
 
           <Grid item xs={12} md={6}>
             <FormControl fullWidth size="small">
@@ -379,6 +277,14 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
         </Grid>
       </Paper>
 
+      {/* Every item this work order makes, in one list. */}
+      <WorkOrderItemsSection
+        formik={formik}
+        setError={setError}
+        workOrderId={workOrderId}
+        isPlanningEditable={isPlanningEditable}
+      />
+
       {/* --- QUANTITIES & CONFIGURATION CARD --- */}
       <Paper elevation={0} sx={{ p: 3, border: '1px solid #e2e8f0', borderRadius: 2, bgcolor: '#f8fafc' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, alignItems: 'center' }}>
@@ -390,18 +296,6 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           )}
         </Box>
         <Grid container spacing={2.5}>
-          <Grid item xs={12} sm={4}>
-            <TextField
-              label="Planned Qty"
-              type="number"
-              fullWidth
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              disabled={!isPlanningEditable}
-              {...formik.getFieldProps('plannedQuantity')}
-              sx={{ bgcolor: '#fff' }}
-            />
-          </Grid>
           <Grid item xs={12} sm={4}>
             <TextField
               label="Completed Qty"
