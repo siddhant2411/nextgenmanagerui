@@ -9,9 +9,8 @@ import {
 } from '@mui/icons-material';
 import { getGRNsByPO, createGRN } from '../../../services/grnService';
 import { useAuth } from '../../../auth/AuthContext';
+import { T } from '../../../theme/moduleTokens';
 
-const BORDER = '#e2e8f0';
-const BG_SOFT = '#f8fafc';
 
 const fmt = (d) => {
     if (!d) return '—';
@@ -50,7 +49,7 @@ function GRNResultDialog({ open, onClose, grn }) {
                 ) : (
                     <Stack spacing={2}>
                         {trackedItems.map((item, i) => (
-                            <Box key={i} sx={{ p: 2, bgcolor: BG_SOFT, borderRadius: 2, border: `1px solid ${BORDER}` }}>
+                            <Box key={i} sx={{ p: 2, bgcolor: T.ground, borderRadius: 2, border: `1px solid ${T.rule}` }}>
                                 <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', mb: 1 }}>
                                     {item.itemName} <Typography component="span" sx={{ fontWeight: 400, color: '#64748b', fontSize: '0.78rem' }}>({item.itemCode})</Typography>
                                 </Typography>
@@ -121,7 +120,7 @@ function GRNHistoryRow({ grn }) {
             <TableRow>
                 <TableCell colSpan={7} sx={{ p: 0, border: 0 }}>
                     <Collapse in={open} unmountOnExit>
-                        <Box sx={{ px: 6, py: 2, bgcolor: '#fafbfc', borderBottom: `1px solid ${BORDER}` }}>
+                        <Box sx={{ px: 6, py: 2, bgcolor: '#fafbfc', borderBottom: `1px solid ${T.rule}` }}>
                             <Table size="small">
                                 <TableHead>
                                     <TableRow>
@@ -336,10 +335,10 @@ function ReceiveForm({ po, grns, onPosted, onCancel }) {
                     onChange={e => setRemarks(e.target.value)} sx={{ flex: 1 }} />
             </Stack>
 
-            <Box sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, overflow: 'hidden' }}>
+            <Box sx={{ border: `1px solid ${T.rule}`, borderRadius: 2, overflow: 'hidden' }}>
                 <Table size="small">
                     <TableHead>
-                        <TableRow sx={{ bgcolor: BG_SOFT }}>
+                        <TableRow sx={{ bgcolor: T.ground }}>
                             {['#', 'Item', 'Ordered', 'Recd. So Far', 'Remaining', 'Receive Now', 'Accepted', 'Rejected', 'Rejection Reason'].map(h => (
                                 <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#475569', py: 1, whiteSpace: 'nowrap' }}>{h}</TableCell>
                             ))}
@@ -391,7 +390,7 @@ function ReceiveForm({ po, grns, onPosted, onCancel }) {
                                 {(line.batchTracked || line.serialTracked) && (
                                     <TableRow>
                                         <TableCell colSpan={9} sx={{ p: 0, border: 0 }}>
-                                            <Box sx={{ px: 4, py: 0.5, display: 'flex', alignItems: 'center', bgcolor: '#fafbfc', borderTop: `1px dashed ${BORDER}` }}>
+                                            <Box sx={{ px: 4, py: 0.5, display: 'flex', alignItems: 'center', bgcolor: '#fafbfc', borderTop: `1px dashed ${T.rule}` }}>
                                                 <Inventory2 sx={{ fontSize: 14, color: '#0369a1', mr: 0.8 }} />
                                                 <Typography variant="caption" sx={{ fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>
                                                     Inventory Tracking Details
@@ -401,7 +400,7 @@ function ReceiveForm({ po, grns, onPosted, onCancel }) {
                                                 </IconButton>
                                             </Box>
                                             <Collapse in={line.showTracking} unmountOnExit>
-                                                <Box sx={{ px: 4, py: 2, bgcolor: '#f0f9ff', borderBottom: `1px solid ${BORDER}` }}>
+                                                <Box sx={{ px: 4, py: 2, bgcolor: '#f0f9ff', borderBottom: `1px solid ${T.rule}` }}>
                                                     <Alert severity="info" sx={{ mb: 2, py: 0.5, fontSize: '0.78rem' }}>
                                                         {line.batchTracked && !line.serialTracked && <>
                                                             System will auto-generate a batch number in the format{' '}
@@ -520,7 +519,7 @@ export default function POReceiveTab({ po, poId, onReceived }) {
                     { label: 'Total Accepted', value: totalReceived, color: '#16a34a' },
                     { label: 'Still Pending', value: Math.max(0, totalOrdered - totalReceived), color: totalOrdered - totalReceived > 0 ? '#d97706' : '#16a34a' },
                 ].map(c => (
-                    <Paper key={c.label} variant="outlined" sx={{ px: 2.5, py: 1.5, borderRadius: 2, flex: 1, borderColor: BORDER }}>
+                    <Paper key={c.label} variant="outlined" sx={{ px: 2.5, py: 1.5, borderRadius: 2, flex: 1, borderColor: T.rule }}>
                         <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{c.label}</Typography>
                         <Typography sx={{ fontSize: '1.4rem', fontWeight: 800, color: c.color }}>{c.value}</Typography>
                     </Paper>
@@ -540,14 +539,14 @@ export default function POReceiveTab({ po, poId, onReceived }) {
                         {canReceive && !showForm && (
                             <Button variant="contained" disableElevation size="small" startIcon={<Add />}
                                 onClick={() => setShowForm(true)}
-                                sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' } }}>
+                                sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, bgcolor: T.accent, '&:hover': { bgcolor: T.accentHover } }}>
                                 Post New Receipt
                             </Button>
                         )}
                     </Stack>
 
                     {grns.length === 0 && !showForm ? (
-                        <Box sx={{ textAlign: 'center', py: 6, border: `1px dashed ${BORDER}`, borderRadius: 2, color: '#94a3b8' }}>
+                        <Box sx={{ textAlign: 'center', py: 6, border: `1px dashed ${T.rule}`, borderRadius: 2, color: '#94a3b8' }}>
                             <Warning sx={{ fontSize: 36, mb: 1, color: '#cbd5e1' }} />
                             <Typography variant="body2">No receipts posted yet.</Typography>
                             {canReceive && (
@@ -559,10 +558,10 @@ export default function POReceiveTab({ po, poId, onReceived }) {
                             )}
                         </Box>
                     ) : grns.length > 0 ? (
-                        <Box sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, overflow: 'hidden', mb: showForm ? 3 : 0 }}>
+                        <Box sx={{ border: `1px solid ${T.rule}`, borderRadius: 2, overflow: 'hidden', mb: showForm ? 3 : 0 }}>
                             <Table size="small">
                                 <TableHead>
-                                    <TableRow sx={{ bgcolor: BG_SOFT }}>
+                                    <TableRow sx={{ bgcolor: T.ground }}>
                                         <TableCell sx={{ width: 40 }} />
                                         {['GRN Number', 'Date', 'Status', 'Warehouse', 'Total Amount', 'Posted By'].map(h => (
                                             <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#475569', py: 1 }}>{h}</TableCell>

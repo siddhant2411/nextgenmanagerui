@@ -7,11 +7,8 @@ import {
 import { ArrowBack, CheckCircleOutline, Cancel, Refresh, NoteAlt } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getDebitNote, confirmDebitNote, cancelDebitNote } from '../../services/debitNoteService';
+import { T, STATUS, SHELL } from '../../theme/moduleTokens';
 
-const T = {
-    primary: '#2563eb', success: '#059669', error: '#dc2626', warning: '#d97706',
-    bg: '#f8fafc', border: '#e2e8f0', text: '#0f172a', textSec: '#64748b',
-};
 
 const STATUS_STYLE = {
     DRAFT:     { color: '#64748b', bg: '#f1f5f9' },
@@ -24,8 +21,8 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-dig
 const fmtReason = (r) => r ? r.replace(/_/g, ' ') : '—';
 
 const SectionCard = ({ title, children }) => (
-    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
+    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
             {title}
         </Typography>
         {children}
@@ -81,7 +78,7 @@ export default function DebitNoteDetail() {
 
     if (!note) {
         return (
-            <Box sx={{ bgcolor: T.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ bgcolor: T.ground, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Box sx={{ textAlign: 'center' }}>
                     {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
                     <Button startIcon={<ArrowBack />} onClick={() => navigate('/purchase/debit-notes')}
@@ -96,10 +93,10 @@ export default function DebitNoteDetail() {
     const ss = STATUS_STYLE[note.status] ?? STATUS_STYLE.DRAFT;
 
     return (
-        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh', pb: 10 }}>
             {/* Dark hero header */}
             <Box sx={{
-                bgcolor: '#0f172a',
+                bgcolor: SHELL.heroBg,
                 backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.15) 0%, transparent 50%)',
                 color: 'white', pt: 6, pb: 15,
             }}>
@@ -140,7 +137,7 @@ export default function DebitNoteDetail() {
                                 <Button variant="contained" disableElevation
                                     startIcon={actionLoading === 'confirm' ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutline />}
                                     disabled={!!actionLoading} onClick={handleConfirm}
-                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: T.success, px: 3,
+                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: STATUS.good, px: 3,
                                         '&:hover': { bgcolor: '#047857' } }}>
                                     Confirm
                                 </Button>
@@ -182,18 +179,18 @@ export default function DebitNoteDetail() {
                                         { label: 'Created Date',    value: fmtDate(note.createdDate) },
                                     ].map(({ label, value }) => (
                                         <Grid item xs={6} key={label}>
-                                            <Typography sx={{ fontSize: '0.7rem', color: T.textSec, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
+                                            <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
                                                 {label}
                                             </Typography>
-                                            <Typography sx={{ fontWeight: 600, color: T.text, fontSize: '0.88rem' }}>{value}</Typography>
+                                            <Typography sx={{ fontWeight: 600, color: T.ink, fontSize: '0.88rem' }}>{value}</Typography>
                                         </Grid>
                                     ))}
                                     {note.remarks && (
                                         <Grid item xs={12}>
-                                            <Typography sx={{ fontSize: '0.7rem', color: T.textSec, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
+                                            <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
                                                 Remarks
                                             </Typography>
-                                            <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>{note.remarks}</Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>{note.remarks}</Typography>
                                         </Grid>
                                     )}
                                 </Grid>
@@ -204,17 +201,17 @@ export default function DebitNoteDetail() {
                             <SectionCard title="Amount Summary">
                                 <Stack spacing={1.5}>
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>Subtotal</Typography>
+                                        <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Subtotal</Typography>
                                         <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>₹{fmt(note.subtotal)}</Typography>
                                     </Stack>
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>Total GST</Typography>
+                                        <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Total GST</Typography>
                                         <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>₹{fmt(note.totalGstAmount)}</Typography>
                                     </Stack>
                                     <Divider />
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: T.text }}>Total Amount</Typography>
-                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: T.text }}>₹{fmt(note.totalAmount)}</Typography>
+                                        <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: T.ink }}>Total Amount</Typography>
+                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: T.ink }}>₹{fmt(note.totalAmount)}</Typography>
                                     </Stack>
                                 </Stack>
                             </SectionCard>
@@ -223,9 +220,9 @@ export default function DebitNoteDetail() {
 
                     {/* Line items */}
                     {note.items?.length > 0 && (
-                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                             <Box sx={{ p: 3, pb: 0 }}>
-                                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2 }}>
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2 }}>
                                     Returned Items ({note.items.length})
                                 </Typography>
                             </Box>
@@ -235,9 +232,9 @@ export default function DebitNoteDetail() {
                                         <TableRow>
                                             {['#', 'Item', 'Code', 'Qty', 'Rate', 'GST %', 'GST Amt', 'Total', 'Warehouse', 'Remarks'].map(h => (
                                                 <TableCell key={h} sx={{
-                                                    fontWeight: 700, fontSize: '0.65rem', color: T.textSec,
-                                                    bgcolor: T.bg, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                                    borderBottom: `1px solid ${T.border}`, py: 1.5, whiteSpace: 'nowrap',
+                                                    fontWeight: 700, fontSize: '0.65rem', color: T.ink2,
+                                                    bgcolor: T.ground, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                                    borderBottom: `1px solid ${T.rule}`, py: 1.5, whiteSpace: 'nowrap',
                                                 }}>
                                                     {h}
                                                 </TableCell>
@@ -248,20 +245,20 @@ export default function DebitNoteDetail() {
                                         {note.items.map((it, idx) => (
                                             <TableRow key={it.id ?? idx}
                                                 sx={{ '&:hover': { bgcolor: '#f8fafc' }, '&:last-child td': { border: 0 } }}>
-                                                <TableCell sx={{ color: T.textSec, fontSize: '0.75rem' }}>{it.lineNumber ?? idx + 1}</TableCell>
+                                                <TableCell sx={{ color: T.ink2, fontSize: '0.75rem' }}>{it.lineNumber ?? idx + 1}</TableCell>
                                                 <TableCell>
-                                                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.text }}>
+                                                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.ink }}>
                                                         {it.itemName ?? '—'}
                                                     </Typography>
                                                 </TableCell>
-                                                <TableCell sx={{ fontSize: '0.75rem', color: T.textSec }}>{it.itemCode ?? '—'}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.75rem', color: T.ink2 }}>{it.itemCode ?? '—'}</TableCell>
                                                 <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem' }}>{it.returnedQty}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.rate)}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>{it.gstRate}%</TableCell>
+                                                <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>{it.gstRate}%</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.gstAmount)}</TableCell>
-                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', color: T.text }}>₹{fmt(it.totalAmount)}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.75rem', color: T.textSec }}>{it.warehouseFrom ?? '—'}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.75rem', color: T.textSec, maxWidth: 140 }}>{it.remarks ?? '—'}</TableCell>
+                                                <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', color: T.ink }}>₹{fmt(it.totalAmount)}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.75rem', color: T.ink2 }}>{it.warehouseFrom ?? '—'}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.75rem', color: T.ink2, maxWidth: 140 }}>{it.remarks ?? '—'}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

@@ -1,152 +1,91 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Box, Paper, Typography, Button, Grid, TablePagination, Chip,
-    TextField, MenuItem, IconButton, Tooltip, CircularProgress, Stack,
-    Card, CardContent, InputAdornment, Divider,
+    Box, Paper, Typography, Button, TablePagination, Chip, Stack,
+    TextField, MenuItem, CircularProgress, InputAdornment,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
 } from '@mui/material';
-import {
-    Add, Refresh, Visibility, Search, Event, Person,
-    LocalAtm, ChevronRight, Assignment,
-} from '@mui/icons-material';
+import { Add, Refresh, Search } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { listPurchaseRequisitions } from '../../../services/purchaseRequisitionService';
 import { useViewState } from '../../../commonTools/useViewState';
+import {
+    T, STATUS, TABLE, chipSx, heroButtonSx, heroCtaSx, panelSx,
+    fmtAmount, fmtDate, fmtNum, humanize,
+} from '../../../theme/moduleTokens';
+import ModuleHero from '../../ui/moduleshell/ModuleHero';
+import ModuleBody from '../../ui/moduleshell/ModuleBody';
+import { StatTile, StatStrip } from '../../ui/moduleshell/StatTile';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const PRIMARY_LIGHT = '#f0f7ff';
-const HEADER_TEXT = '#075985';
+/* ============================================================================
+   Purchase requisition register — the same table treatment as the PO register
+   it feeds, so moving between the two is not a change of language.
+   ========================================================================= */
 
 const STATUS_STYLE = {
-    DRAFT:     { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
-    CLOSED:    { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
-    CANCELLED: { bg: '#fef2f2', color: '#991b1b', border: '#fca5a5' },
+    DRAFT:     { color: T.ink2,          bg: T.ruleSoft },
+    CLOSED:    { color: STATUS.good,     bg: STATUS.goodBg },
+    CANCELLED: { color: STATUS.critical, bg: STATUS.criticalBg },
 };
 
 const APPROVAL_STYLE = {
-    DRAFT:            { bg: '#f4f6f8', color: '#5a6474' },
-    PENDING_APPROVAL: { bg: '#fff7ed', color: '#c2410c' },
-    APPROVED:         { bg: '#eef6f0', color: '#2a6640' },
-    REJECTED:         { bg: '#fef2f2', color: '#991b1b' },
+    DRAFT:            { color: T.ink2,         bg: T.ruleSoft },
+    PENDING_APPROVAL: { color: STATUS.serious, bg: STATUS.seriousBg },
+    APPROVED:         { color: STATUS.good,    bg: STATUS.goodBg },
+    REJECTED:         { color: STATUS.critical, bg: STATUS.criticalBg },
 };
 
+/** Priority is ordinal, so it gets an ordinal ramp rather than four unrelated hues. */
 const PRIORITY_STYLE = {
-    LOW:    { bg: '#f1f5f9', color: '#475569' },
-    NORMAL: { bg: '#eff6ff', color: '#2563eb' },
-    HIGH:   { bg: '#fff7ed', color: '#c2410c' },
-    URGENT: { bg: '#fef2f2', color: '#dc2626' },
+    LOW:    { color: T.ink2,          bg: T.ruleSoft },
+    NORMAL: { color: T.accent,        bg: T.accentDim },
+    HIGH:   { color: STATUS.serious,  bg: STATUS.seriousBg },
+    URGENT: { color: STATUS.critical, bg: STATUS.criticalBg },
 };
 
-const StatCard = ({ title, value, accent, icon: Icon }) => (
-    <Paper elevation={0} sx={{
-        p: 2, border: `1px solid ${BORDER}`, borderRadius: 2.5,
-        flex: 1, minWidth: 160, background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        borderLeft: accent ? `4px solid ${accent}` : `4px solid ${PRIMARY}`,
-    }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box>
-                <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
-                    {title}
-                </Typography>
-                <Typography sx={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e293b', lineHeight: 1 }}>
-                    {value}
-                </Typography>
-            </Box>
-            {Icon && (
-                <Box sx={{ p: 1, borderRadius: 2, background: PRIMARY_LIGHT, color: PRIMARY }}>
-                    <Icon sx={{ fontSize: 20 }} />
-                </Box>
-            )}
-        </Stack>
-    </Paper>
+const STATUSES  = ['DRAFT', 'CLOSED', 'CANCELLED'];
+const APPROVALS = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+
+const VIEW_STATE_NS = '/purchase/requisitions';
+
+const SortTh = ({ column, label, sortBy, sortDir, onSort, align = 'left', width }) => (
+    <TableCell align={align} sortDirection={sortBy === column ? sortDir : false} sx={{ ...TABLE.head, width }}>
+        <TableSortLabel
+            active={sortBy === column}
+            direction={sortBy === column ? sortDir : 'asc'}
+            onClick={() => onSort(column)}
+            sx={{ '&.Mui-active': { color: T.ink }, '& .MuiTableSortLabel-icon': { fontSize: 16 } }}
+        >
+            {label}
+        </TableSortLabel>
+    </TableCell>
 );
 
-const PRCard = ({ row, onClick }) => {
-    const ss = STATUS_STYLE[row.status] ?? STATUS_STYLE.DRAFT;
-    const as = APPROVAL_STYLE[row.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
-    const ps = PRIORITY_STYLE[row.priority] ?? PRIORITY_STYLE.NORMAL;
-    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-    const fmtAmount = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
+/** Keeps a remembered page size valid against the current options rather than discarding it. */
+const pageSizeOptions = (current) =>
+    [...new Set([25, 50, 100, current])].sort((a, b) => a - b);
 
-    return (
-        <Card elevation={0} sx={{
-            border: `1px solid ${BORDER}`, borderRadius: 2.5,
-            transition: 'all 0.2s ease-in-out', cursor: 'pointer', height: '100%',
-            '&:hover': { borderColor: PRIMARY, boxShadow: '0 8px 24px rgba(21, 101, 192, 0.08)' }
-        }} onClick={onClick}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Box>
-                        <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: HEADER_TEXT, mb: 0.2 }}>
-                            {row.prNumber}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Event sx={{ fontSize: 14 }} /> {fmtDate(row.requestDate)}
-                        </Typography>
-                    </Box>
-                    <Stack direction="column" alignItems="flex-end" spacing={0.5}>
-                        <Chip label={row.approvalStatus?.replace(/_/g, ' ')} size="small"
-                            sx={{ fontSize: '0.65rem', fontWeight: 700, borderRadius: 1, height: 20,
-                                background: as.bg, color: as.color }} />
-                        <Chip label={row.priority} size="small"
-                            sx={{ fontSize: '0.65rem', fontWeight: 700, borderRadius: 1, height: 20,
-                                background: ps.bg, color: ps.color }} />
-                    </Stack>
-                </Stack>
-
-                <Divider sx={{ mb: 2, borderStyle: 'dashed' }} />
-
-                <Stack spacing={1.2}>
-                    <Stack direction="row" alignItems="center" spacing={0.75}>
-                        <Person sx={{ fontSize: 14, color: '#94a3b8' }} />
-                        <Typography sx={{ fontSize: '0.8rem', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {row.requestedBy ?? '—'}{row.department ? ` · ${row.department}` : ''}
-                        </Typography>
-                    </Stack>
-
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-end">
-                        <Box>
-                            <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
-                                Estimated
-                            </Typography>
-                            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
-                                {fmtAmount(row.totalEstimatedAmount)}
-                            </Typography>
-                        </Box>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                            <Chip label={`${row.itemCount ?? 0} items`} size="small" variant="outlined"
-                                sx={{ fontSize: '0.65rem', height: 20 }} />
-                            <Chip label={row.status} size="small"
-                                sx={{ fontSize: '0.65rem', fontWeight: 700, borderRadius: 1, height: 20,
-                                    background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }} />
-                            <ChevronRight sx={{ color: '#cbd5e1' }} />
-                        </Stack>
-                    </Stack>
-                </Stack>
-            </CardContent>
-        </Card>
-    );
-};
-
-/* Route namespace for preserved filters/page — see commonTools/useViewState. */
-const VIEW_STATE_NS = '/purchase/requisitions';
+const Th = ({ label, align = 'left', width }) => (
+    <TableCell align={align} sx={{ ...TABLE.head, width }}>{label}</TableCell>
+);
 
 export default function PurchaseRequisitionList() {
     const navigate = useNavigate();
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
-    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 12);
+    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 25);
     const [loading, setLoading] = useState(false);
     const [filterStatus, setFilterStatus] = useViewState(VIEW_STATE_NS, 'status', '');
     const [filterApproval, setFilterApproval] = useViewState(VIEW_STATE_NS, 'approval', '');
     const [searchTerm, setSearchTerm] = useViewState(VIEW_STATE_NS, 'search', '');
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'createdDate');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'desc');
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const params = {
-                page, size: pageSize, sort: 'createdDate,desc',
+                page, size: pageSize, sort: `${sortBy},${sortDir}`,
                 ...(filterStatus ? { status: filterStatus } : {}),
                 ...(filterApproval ? { approvalStatus: filterApproval } : {}),
             };
@@ -158,128 +97,228 @@ export default function PurchaseRequisitionList() {
         } finally {
             setLoading(false);
         }
-    }, [page, pageSize, filterStatus, filterApproval]);
+    }, [page, pageSize, sortBy, sortDir, filterStatus, filterApproval]);
 
     useEffect(() => { load(); }, [load]);
 
-    const filteredRows = !searchTerm ? rows : rows.filter(r =>
-        (r.prNumber ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (r.requestedBy ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const stats = {
-        total,
-        pending: rows.filter(r => r.approvalStatus === 'PENDING_APPROVAL').length,
-        approved: rows.filter(r => r.approvalStatus === 'APPROVED').length,
-        draft: rows.filter(r => r.approvalStatus === 'DRAFT').length,
+    const handleSort = (column) => {
+        const nextDir = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
+        setSortBy(column);
+        setSortDir(nextDir);
+        setPage(0);
     };
 
+    /* The list endpoint takes status, approvalStatus and source — there is no text search on the
+       server, so this box filters the rows already on screen and says so. Status and approval do
+       go to the server, which is why they reset the page and this does not. */
+    const term = searchTerm.trim().toLowerCase();
+    const visibleRows = !term ? rows : rows.filter(r =>
+        (r.prNumber ?? '').toLowerCase().includes(term) ||
+        (r.requestedBy ?? '').toLowerCase().includes(term) ||
+        (r.department ?? '').toLowerCase().includes(term)
+    );
+
+    const onPage = {
+        pending: rows.filter(r => r.approvalStatus === 'PENDING_APPROVAL').length,
+        urgent:  rows.filter(r => r.priority === 'URGENT' || r.priority === 'HIGH').length,
+    };
+    const pageHint = loading ? 'loading' : `of ${fmtNum(rows.length)} on this page`;
+
     return (
-        <Box sx={{ p: { xs: 2, sm: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={4}>
-                <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f2744', letterSpacing: '-0.02em', mb: 0.5 }}>
-                        Purchase Requisitions
-                    </Typography>
-                    <Typography sx={{ color: '#64748b', fontSize: '0.95rem' }}>
-                        Capture purchase needs before raising vendor POs
-                    </Typography>
-                </Box>
-                <Stack direction="row" spacing={1.5}>
-                    <Tooltip title="Refresh">
-                        <IconButton onClick={load} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                            <Refresh />
-                        </IconButton>
-                    </Tooltip>
-                    <Button variant="contained" disableElevation startIcon={<Add />}
-                        sx={{ background: PRIMARY, borderRadius: 2, px: 3, py: 1, textTransform: 'none', fontWeight: 700,
-                            '&:hover': { background: '#0d47a1' } }}
-                        onClick={() => navigate('new')}>
-                        New Requisition
-                    </Button>
-                </Stack>
-            </Stack>
-
-            <Grid container spacing={2.5} mb={4}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Total" value={total} icon={Assignment} accent={PRIMARY} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Pending" value={stats.pending} accent="#e65100" icon={Visibility} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Approved" value={stats.approved} accent="#2e7d32" icon={LocalAtm} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Drafts" value={stats.draft} accent="#475569" />
-                </Grid>
-            </Grid>
-
-            <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                        <TextField fullWidth size="small" placeholder="Search by PR# or Requester..."
-                            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><Search sx={{ color: '#94a3b8' }} /></InputAdornment> }} />
-                    </Grid>
-                    <Grid item xs={6} md={2.5}>
-                        <TextField select fullWidth size="small" label="Status" value={filterStatus}
-                            onChange={e => { setFilterStatus(e.target.value); setPage(0); }}>
-                            <MenuItem value="">All</MenuItem>
-                            {['DRAFT','CLOSED','CANCELLED'].map(s =>
-                                <MenuItem key={s} value={s}>{s}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={6} md={2.5}>
-                        <TextField select fullWidth size="small" label="Approval" value={filterApproval}
-                            onChange={e => { setFilterApproval(e.target.value); setPage(0); }}>
-                            <MenuItem value="">All</MenuItem>
-                            {['DRAFT','PENDING_APPROVAL','APPROVED','REJECTED'].map(s =>
-                                <MenuItem key={s} value={s}>{s.replace(/_/g, ' ')}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <Button fullWidth variant="outlined" sx={{ height: 40, textTransform: 'none', fontWeight: 600, borderColor: BORDER, color: '#475569' }}
-                            onClick={() => { setFilterStatus(''); setFilterApproval(''); setSearchTerm(''); setPage(0); }}>
-                            Reset Filters
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh' }}>
+            <ModuleHero
+                title="Purchase Requisitions"
+                subtitle="Capture what the floor needs, approve it, and turn it into vendor orders."
+                onBack={() => navigate('/purchase')}
+                backLabel="Back to purchase orders"
+                actions={
+                    <>
+                        <Button variant="outlined" startIcon={<Refresh />} onClick={load} disabled={loading} sx={heroButtonSx}>
+                            Refresh
                         </Button>
-                    </Grid>
-                </Grid>
-            </Paper>
+                        <Button variant="contained" disableElevation startIcon={<Add />} onClick={() => navigate('new')} sx={heroCtaSx}>
+                            New Requisition
+                        </Button>
+                    </>
+                }
+            />
 
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
-                    <CircularProgress sx={{ color: PRIMARY }} />
-                </Box>
-            ) : filteredRows.length === 0 ? (
-                <Paper elevation={0} sx={{ py: 12, border: `1px dashed ${BORDER}`, borderRadius: 3, bgcolor: 'white', textAlign: 'center' }}>
-                    <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 700, mb: 1 }}>No requisitions yet</Typography>
-                    <Typography sx={{ color: '#64748b' }}>Create one to get started</Typography>
+            <ModuleBody>
+                <StatStrip>
+                    <StatTile label="Total requisitions" value={fmtNum(total)} hint="matching the current filter" loading={loading} />
+                    <StatTile
+                        label="Awaiting approval" value={fmtNum(onPage.pending)} hint={pageHint}
+                        severity={onPage.pending > 0 ? STATUS.serious : STATUS.good} loading={loading}
+                    />
+                    <StatTile
+                        label="High or urgent" value={fmtNum(onPage.urgent)} hint={pageHint}
+                        severity={onPage.urgent > 0 ? STATUS.warning : STATUS.good} loading={loading}
+                    />
+                </StatStrip>
+
+                <Paper elevation={0} sx={panelSx}>
+                    <Stack direction={{ xs: 'column', md: 'row' }} gap={1.5} alignItems={{ md: 'center' }} sx={{ mb: 3 }}>
+                        <TextField
+                            size="small" placeholder="Filter this page by PR number, requester or department..."
+                            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                            sx={{ flex: '1 1 300px' }}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Search sx={{ color: T.ink3 }} /></InputAdornment>,
+                                sx: { borderRadius: 2.5, bgcolor: T.ground, fontSize: '0.875rem' },
+                            }}
+                        />
+                        <TextField
+                            select size="small" label="Status" value={filterStatus}
+                            onChange={e => { setFilterStatus(e.target.value); setPage(0); }}
+                            sx={{ minWidth: 170 }} InputProps={{ sx: { borderRadius: 2.5, fontSize: '0.875rem' } }}
+                        >
+                            <MenuItem value="">All statuses</MenuItem>
+                            {STATUSES.map(s => <MenuItem key={s} value={s}>{humanize(s)}</MenuItem>)}
+                        </TextField>
+                        <TextField
+                            select size="small" label="Approval" value={filterApproval}
+                            onChange={e => { setFilterApproval(e.target.value); setPage(0); }}
+                            sx={{ minWidth: 180 }} InputProps={{ sx: { borderRadius: 2.5, fontSize: '0.875rem' } }}
+                        >
+                            <MenuItem value="">All approvals</MenuItem>
+                            {APPROVALS.map(s => <MenuItem key={s} value={s}>{humanize(s)}</MenuItem>)}
+                        </TextField>
+                        <Button
+                            variant="text"
+                            onClick={() => { setFilterStatus(''); setFilterApproval(''); setSearchTerm(''); setPage(0); }}
+                            disabled={!filterStatus && !filterApproval && !searchTerm}
+                            sx={{ textTransform: 'none', fontWeight: 700, color: T.ink2, borderRadius: 2.5, whiteSpace: 'nowrap' }}
+                        >
+                            Reset
+                        </Button>
+                    </Stack>
+
+                    <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.5 }}>
+                        <Typography sx={{ fontWeight: 900, color: T.ink, fontSize: '1.05rem' }}>
+                            Requisition Registry
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: T.ink2, fontWeight: 700 }}>
+                            {loading ? 'Loading...'
+                                : term ? `${fmtNum(visibleRows.length)} of ${fmtNum(rows.length)} on this page`
+                                : `${fmtNum(total)} requisition${total === 1 ? '' : 's'}`}
+                        </Typography>
+                    </Stack>
+
+                    <TableContainer component={Box} sx={{ ...TABLE.container, overflowX: 'auto' }}>
+                        <Table size="small" sx={{ minWidth: 980 }}>
+                            <TableHead>
+                                <TableRow>
+                                    <SortTh column="prNumber" label="PR Number" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <Th label="Requested by" />
+                                    <SortTh column="requestDate" label="Raised" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <SortTh column="requiredByDate" label="Required by" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <SortTh column="priority" label="Priority" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="center" />
+                                    <Th label="Items" align="right" width={72} />
+                                    <SortTh column="status" label="Status" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="center" />
+                                    <SortTh column="approvalStatus" label="Approval" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="center" />
+                                    <SortTh column="totalEstimatedAmount" label="Estimated" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="right" />
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" sx={{ py: 10, borderBottom: 0 }}>
+                                            <CircularProgress size={40} thickness={4} sx={{ color: T.accent }} />
+                                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.ink2 }}>
+                                                Fetching requisitions...
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : visibleRows.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" sx={{ py: 10, borderBottom: 0 }}>
+                                            <Typography sx={{ fontWeight: 800, color: T.ink, mb: 0.5 }}>
+                                                {term ? 'Nothing on this page matches' : 'No requisitions yet'}
+                                            </Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.875rem' }}>
+                                                {term ? 'The filter only searches the rows currently loaded.' : 'Raise one to get started.'}
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : visibleRows.map(row => {
+                                    const ss = STATUS_STYLE[row.status] ?? STATUS_STYLE.DRAFT;
+                                    const as = APPROVAL_STYLE[row.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
+                                    const ps = PRIORITY_STYLE[row.priority] ?? PRIORITY_STYLE.NORMAL;
+                                    // Wanted by a date that has passed, and not yet closed out.
+                                    const late = row.requiredByDate
+                                        && new Date(row.requiredByDate) < new Date()
+                                        && !['CLOSED', 'CANCELLED'].includes(row.status);
+
+                                    return (
+                                        <TableRow
+                                            key={row.id} hover
+                                            onClick={() => navigate(`${row.id}`)}
+                                            sx={{ ...TABLE.row, ...(late && { borderLeft: `3px solid ${STATUS.critical}` }) }}
+                                        >
+                                            <TableCell sx={TABLE.cell}>
+                                                <Typography sx={{ fontWeight: 800, color: T.accent, fontSize: '0.8125rem', letterSpacing: '0.02em' }}>
+                                                    {row.prNumber}
+                                                </Typography>
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, maxWidth: 240 }}>
+                                                <Typography sx={{
+                                                    fontWeight: 600, color: T.ink, fontSize: '0.8125rem',
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                }}>
+                                                    {row.requestedBy ?? '\u2014'}
+                                                </Typography>
+                                                {row.department && (
+                                                    <Typography sx={{ color: T.ink3, fontSize: '0.72rem' }}>{row.department}</Typography>
+                                                )}
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>{fmtDate(row.requestDate)}</TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>
+                                                <Typography sx={{
+                                                    fontSize: '0.8125rem',
+                                                    color: late ? STATUS.critical : '#334155',
+                                                    fontWeight: late ? 700 : 500,
+                                                }}>
+                                                    {fmtDate(row.requiredByDate)}
+                                                </Typography>
+                                            </TableCell>
+
+                                            <TableCell align="center">
+                                                <Chip label={humanize(row.priority)} size="small" sx={chipSx(ps.color, ps.bg)} />
+                                            </TableCell>
+
+                                            <TableCell sx={TABLE.num}>{fmtNum(row.itemCount)}</TableCell>
+
+                                            <TableCell align="center">
+                                                <Chip label={humanize(row.status)} size="small" sx={chipSx(ss.color, ss.bg)} />
+                                            </TableCell>
+
+                                            <TableCell align="center">
+                                                <Chip label={humanize(row.approvalStatus)} size="small" sx={chipSx(as.color, as.bg)} />
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.num, fontWeight: 700 }}>{fmtAmount(row.totalEstimatedAmount)}</TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+
+                    <TablePagination
+                        component="div"
+                        count={total}
+                        page={page}
+                        onPageChange={(_, p) => setPage(p)}
+                        rowsPerPage={pageSize}
+                        onRowsPerPageChange={e => { setPageSize(parseInt(e.target.value, 10)); setPage(0); }}
+                        rowsPerPageOptions={pageSizeOptions(pageSize)}
+                        sx={{ mt: 1, '& .MuiTablePagination-toolbar': { px: 0 }, color: T.ink2 }}
+                    />
                 </Paper>
-            ) : (
-                <>
-                    <Grid container spacing={3}>
-                        {filteredRows.map(row => (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={row.id}>
-                                <PRCard row={row} onClick={() => navigate(`${row.id}`)} />
-                            </Grid>
-                        ))}
-                    </Grid>
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                        <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, overflow: 'hidden' }}>
-                            <TablePagination
-                                component="div"
-                                count={total}
-                                page={page}
-                                onPageChange={(_, p) => setPage(p)}
-                                rowsPerPage={pageSize}
-                                onRowsPerPageChange={e => { setPageSize(parseInt(e.target.value)); setPage(0); }}
-                                rowsPerPageOptions={[12, 24, 48]}
-                            />
-                        </Paper>
-                    </Box>
-                </>
-            )}
+            </ModuleBody>
         </Box>
     );
 }

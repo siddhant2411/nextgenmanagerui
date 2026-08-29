@@ -3,7 +3,6 @@ import {
     Box, Paper, Typography, Stack, Chip, CircularProgress, Button,
     IconButton, Tooltip, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Alert, TextField, InputAdornment, Pagination,
-    Container,
 } from '@mui/material';
 import {
     Add, Refresh, Search, NoteAlt, CheckCircleOutline, Cancel, OpenInNew,
@@ -11,32 +10,21 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { getDebitNotes, confirmDebitNote, cancelDebitNote } from '../../services/debitNoteService';
 import { useViewState } from '../../commonTools/useViewState';
-
-/* ── Design Tokens (matches Sales UI) ── */
-const T = {
-    primary: '#2563eb',
-    success: '#059669',
-    error:   '#dc2626',
-    warning: '#d97706',
-    bg:      '#f8fafc',
-    border:  '#e2e8f0',
-    text:    '#0f172a',
-    textSec: '#64748b',
-};
+import {
+    T, STATUS, TABLE, chipSx, heroButtonSx, heroCtaSx,
+    fmtDate, humanize,
+} from '../../theme/moduleTokens';
+import ModuleHero from '../ui/moduleshell/ModuleHero';
+import ModuleBody from '../ui/moduleshell/ModuleBody';
 
 const STATUS_STYLE = {
-    DRAFT:     { color: '#64748b', bg: '#f1f5f9' },
-    CONFIRMED: { color: '#059669', bg: '#ecfdf5' },
-    CANCELLED: { color: '#dc2626', bg: '#fef2f2' },
+    DRAFT:     { color: T.ink2,          bg: T.ruleSoft },
+    CONFIRMED: { color: STATUS.good,     bg: STATUS.goodBg },
+    CANCELLED: { color: STATUS.critical, bg: STATUS.criticalBg },
 };
 
-const fmtDate = (d) => {
-    if (!d) return '—';
-    try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
-    catch { return d; }
-};
+/** Paise matter on a debit note, so this is the two-decimal formatter, not the Cr/L one. */
 const fmt = (n) => n != null ? Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 }) : '0.00';
-const fmtReason = (r) => r ? r.replace(/_/g, ' ') : '—';
 
 /* Route namespace for preserved search/page — see commonTools/useViewState. */
 const VIEW_STATE_NS = '/purchase/debit-notes';
@@ -101,48 +89,34 @@ export default function DebitNoteList() {
     );
 
     return (
-        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 8 }}>
-            {/* Dark hero header */}
-            <Box sx={{
-                bgcolor: '#0f172a',
-                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5,150,105,0.05) 0%, transparent 50%)',
-                color: 'white', pt: 6, pb: 12,
-            }}>
-                <Container maxWidth="xl">
-                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Box>
-                            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 1 }}>
-                                Debit Notes
-                            </Typography>
-                            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
-                                Vendor returns and purchase adjustments
-                            </Typography>
-                        </Box>
-                        <Stack direction="row" spacing={2}>
-                            <Tooltip title="Refresh">
-                                <IconButton onClick={load}
-                                    sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white',
-                                        '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
-                                    <Refresh />
-                                </IconButton>
-                            </Tooltip>
-                            <Button variant="contained" disableElevation startIcon={<Add />}
-                                onClick={() => navigate('/purchase/debit-notes/new')}
-                                sx={{ bgcolor: T.primary, borderRadius: 2.5, px: 3, fontWeight: 700,
-                                    textTransform: 'none', '&:hover': { bgcolor: '#1d4ed8' } }}>
-                                New Debit Note
-                            </Button>
-                        </Stack>
-                    </Stack>
-                </Container>
-            </Box>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh' }}>
+            <ModuleHero
+                title="Debit Notes"
+                subtitle="Vendor returns and purchase adjustments."
+                onBack={() => navigate('/purchase')}
+                backLabel="Back to purchase orders"
+                actions={
+                    <>
+                        <Button variant="outlined" startIcon={<Refresh />} onClick={load} disabled={loading} sx={heroButtonSx}>
+                            Refresh
+                        </Button>
+                        <Button
+                            variant="contained" disableElevation startIcon={<Add />}
+                            onClick={() => navigate('/purchase/debit-notes/new')}
+                            sx={heroCtaSx}
+                        >
+                            New Debit Note
+                        </Button>
+                    </>
+                }
+            />
 
-            <Container maxWidth="xl" sx={{ mt: -6 }}>
+            <ModuleBody>
                 {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
-                <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                     {/* Toolbar */}
-                    <Box sx={{ p: 2.5, borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ p: 2.5, borderBottom: `1px solid ${T.rule}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <TextField size="small" placeholder="Search by note #, vendor, or PO…"
                             value={search} onChange={e => setSearch(e.target.value)}
                             sx={{ width: 320, '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }}
@@ -163,15 +137,15 @@ export default function DebitNoteList() {
                     ) : filtered.length === 0 ? (
                         <Box sx={{ py: 12, textAlign: 'center' }}>
                             <NoteAlt sx={{ fontSize: 48, color: '#cbd5e1', mb: 2 }} />
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: T.text, mb: 0.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: T.ink, mb: 0.5 }}>
                                 {search ? 'No matching debit notes' : 'No debit notes yet'}
                             </Typography>
-                            <Typography sx={{ color: T.textSec, mb: 3 }}>
+                            <Typography sx={{ color: T.ink2, mb: 3 }}>
                                 {search ? 'Try a different search term.' : 'Create a debit note to record vendor returns.'}
                             </Typography>
                             {!search && (
                                 <Button variant="contained" disableElevation startIcon={<Add />}
-                                    sx={{ bgcolor: T.primary, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
+                                    sx={{ bgcolor: T.accent, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
                                     onClick={() => navigate('/purchase/debit-notes/new')}>
                                     New Debit Note
                                 </Button>
@@ -183,11 +157,7 @@ export default function DebitNoteList() {
                                 <TableHead>
                                     <TableRow>
                                         {['Note #', 'Date', 'Vendor', 'PO', 'Reason', 'Total', 'Status', 'Actions'].map(h => (
-                                            <TableCell key={h} sx={{
-                                                fontWeight: 700, fontSize: '0.65rem', color: T.textSec,
-                                                bgcolor: T.bg, borderBottom: `1px solid ${T.border}`,
-                                                textTransform: 'uppercase', letterSpacing: '0.05em',
-                                            }}>
+                                            <TableCell key={h} sx={TABLE.head}>
                                                 {h}
                                             </TableCell>
                                         ))}
@@ -202,11 +172,11 @@ export default function DebitNoteList() {
                                                 onClick={() => navigate(`/purchase/debit-notes/${dn.id}`)}
                                                 sx={{ cursor: 'pointer', '&:hover': { bgcolor: '#f1f5f9' }, transition: 'background-color 0.1s', '&:last-child td': { border: 0 } }}>
                                                 <TableCell>
-                                                    <Typography variant="body2" sx={{ fontWeight: 700, color: T.text, fontSize: '0.8rem' }}>
+                                                    <Typography variant="body2" sx={{ fontWeight: 700, color: T.ink, fontSize: '0.8rem' }}>
                                                         {dn.debitNoteNumber}
                                                     </Typography>
                                                 </TableCell>
-                                                <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>
+                                                <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>
                                                     {fmtDate(dn.debitNoteDate)}
                                                 </TableCell>
                                                 <TableCell>
@@ -216,25 +186,24 @@ export default function DebitNoteList() {
                                                 </TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>
                                                     {dn.purchaseOrderNumber
-                                                        ? <Typography variant="body2" sx={{ color: T.primary, fontWeight: 600, fontSize: '0.75rem' }}>{dn.purchaseOrderNumber}</Typography>
+                                                        ? <Typography variant="body2" sx={{ color: T.accent, fontWeight: 600, fontSize: '0.75rem' }}>{dn.purchaseOrderNumber}</Typography>
                                                         : <Typography variant="caption" color="text.disabled">—</Typography>}
                                                 </TableCell>
-                                                <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>
-                                                    {fmtReason(dn.returnReason)}
+                                                <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>
+                                                    {humanize(dn.returnReason)}
                                                 </TableCell>
                                                 <TableCell sx={{ fontWeight: 600, fontSize: '0.78rem' }}>
                                                     ₹ {fmt(dn.totalAmount)}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Chip label={dn.status} size="small"
-                                                        sx={{ fontSize: '0.65rem', fontWeight: 700, height: 20, bgcolor: ss.bg, color: ss.color }} />
+                                                    <Chip label={humanize(dn.status)} size="small" sx={chipSx(ss.color, ss.bg)} />
                                                 </TableCell>
                                                 <TableCell onClick={e => e.stopPropagation()}>
                                                     <Stack direction="row" spacing={0.5}>
                                                         <Tooltip title="View details">
                                                             <IconButton size="small"
                                                                 onClick={() => navigate(`/purchase/debit-notes/${dn.id}`)}
-                                                                sx={{ color: T.textSec, '&:hover': { color: T.primary } }}>
+                                                                sx={{ color: T.ink2, '&:hover': { color: T.accent } }}>
                                                                 <OpenInNew sx={{ fontSize: 15 }} />
                                                             </IconButton>
                                                         </Tooltip>
@@ -242,7 +211,7 @@ export default function DebitNoteList() {
                                                             <Tooltip title="Confirm — reduces stock">
                                                                 <IconButton size="small" disabled={isLoading}
                                                                     onClick={() => handleConfirm(dn.id)}
-                                                                    sx={{ color: T.textSec, '&:hover': { color: T.success } }}>
+                                                                    sx={{ color: T.ink2, '&:hover': { color: STATUS.good } }}>
                                                                     {isLoading
                                                                         ? <CircularProgress size={14} />
                                                                         : <CheckCircleOutline sx={{ fontSize: 16 }} />}
@@ -253,7 +222,7 @@ export default function DebitNoteList() {
                                                             <Tooltip title="Cancel">
                                                                 <IconButton size="small" disabled={isLoading}
                                                                     onClick={() => handleCancel(dn.id)}
-                                                                    sx={{ color: T.textSec, '&:hover': { color: T.error } }}>
+                                                                    sx={{ color: T.ink2, '&:hover': { color: STATUS.critical } }}>
                                                                     <Cancel sx={{ fontSize: 16 }} />
                                                                 </IconButton>
                                                             </Tooltip>
@@ -268,7 +237,7 @@ export default function DebitNoteList() {
                         </TableContainer>
                     )}
                 </Paper>
-            </Container>
+            </ModuleBody>
         </Box>
     );
 }

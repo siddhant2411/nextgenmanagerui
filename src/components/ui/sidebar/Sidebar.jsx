@@ -37,6 +37,7 @@ import { useAuth } from "../../../auth/AuthContext";
 import {
     MODULE_KEYS,
 } from "../../../auth/roles";
+import { FEATURES, useServerFeatures } from "../../../config/ServerFeaturesContext";
 
 const EXPANDED_WIDTH = 240;
 const COLLAPSED_WIDTH = 72;
@@ -51,6 +52,7 @@ const Sidebar = ({
     const location = useLocation();
     const navigate = useNavigate();
     const { canModule } = useAuth();
+    const { isFeatureEnabled } = useServerFeatures();
     const [openSubMenus, setOpenSubMenus] = useState({});
     const canManageUsers = canModule(MODULE_KEYS.USER_MANAGEMENT);
     const canAccessSales = canModule(MODULE_KEYS.SALES);
@@ -60,6 +62,9 @@ const Sidebar = ({
     const canAccessPlanning = canModule(MODULE_KEYS.PLANNING);
     const canAccessItemCode = canModule(MODULE_KEYS.ITEM_CODE_MAPPING);
     const canAccessContacts = canModule(MODULE_KEYS.CONTACT);
+    // Not a permission: the AI Lead Agent is a separate service most installations do not run, so
+    // the entry appears only where the server says one is configured (ai-agent.base-url).
+    const aiLeadAgentEnabled = isFeatureEnabled(FEATURES.AI_LEAD_AGENT);
     const productChildren = [
         ...(canAccessItemCode ? [{ text: "Master", path: "/inventory-item" }] : []),
         ...(canAccessProduction ? [{ text: "Bill Of Material", path: "/bom" }] : []),
@@ -148,7 +153,15 @@ const Sidebar = ({
                     text: "Sales",
                     icon: <SellOutlined />,
                     children: [
+                        { text: "Pipeline Desk", path: "/crm/pipeline" },
+                        { text: "Revenue Desk", path: "/crm/revenue" },
                         { text: "Enquiries", path: "/enquiry" },
+                        // Sits under the register it feeds. The queue holds leads the agent
+                        // extracted but would not file unsupervised, so it is a step before
+                        // /enquiry rather than a separate tool.
+                        ...(aiLeadAgentEnabled
+                            ? [{ text: "AI Lead Review", path: "/crm/ai-leads" }]
+                            : []),
                         { text: "Quotations", path: "/quotation" },
                         { text: "Sales Orders", path: "/sales/sales-order" },
                         { text: "Delivery Challans", path: "/sales/sales-order/delivery-notes" },

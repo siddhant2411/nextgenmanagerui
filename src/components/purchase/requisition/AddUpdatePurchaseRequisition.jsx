@@ -21,11 +21,8 @@ import { filterInventoryItems } from '../../../services/inventoryService';
 import { searchWorkCenters } from '../../../services/machineAssetsService';
 import { useAuth } from '../../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../../auth/roles';
+import { T, SHELL, STATUS, heroButtonSx, heroCtaSx } from '../../../theme/moduleTokens';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const HEADER_TEXT = '#075985';
-const SECONDARY = '#64748b';
 
 const PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
 
@@ -69,7 +66,7 @@ function ConfirmDialog({ open, title, body, input, onClose, onConfirm, loading }
                 <Button onClick={onClose} sx={{ textTransform: 'none' }}>Cancel</Button>
                 <Button onClick={() => onConfirm(val)} variant="contained" disableElevation
                     disabled={loading || (!!input && !val.trim())}
-                    sx={{ textTransform: 'none', background: PRIMARY }}>
+                    sx={{ textTransform: 'none', background: T.accent }}>
                     {loading ? <CircularProgress size={20} color="inherit" /> : 'Confirm'}
                 </Button>
             </DialogActions>
@@ -117,7 +114,7 @@ function ConvertToPoDialog({ open, vendors, lines, onClose, onConfirm, loading }
                             InputLabelProps={{ shrink: true }} />
                     </Grid>
                 </Grid>
-                <Typography sx={{ mt: 2, fontWeight: 700, fontSize: '0.8rem', color: HEADER_TEXT }}>
+                <Typography sx={{ mt: 2, fontWeight: 700, fontSize: '0.8rem', color: T.accent }}>
                     Select lines
                 </Typography>
                 <Table size="small" sx={{ mt: 1 }}>
@@ -151,7 +148,7 @@ function ConvertToPoDialog({ open, vendors, lines, onClose, onConfirm, loading }
                 <Button variant="contained" disableElevation
                     disabled={!vendorId || selected.length === 0 || loading}
                     onClick={() => onConfirm({ vendorId, orderDate, expectedDeliveryDate: expectedDeliveryDate || null, requisitionItemIds: selected })}
-                    sx={{ textTransform: 'none', background: PRIMARY }}>
+                    sx={{ textTransform: 'none', background: T.accent }}>
                     {loading ? <CircularProgress size={20} color="inherit" /> : 'Create PO'}
                 </Button>
             </DialogActions>
@@ -357,19 +354,30 @@ export default function AddUpdatePurchaseRequisition() {
     const as = pr ? APPROVAL_STYLE[pr.approvalStatus] : APPROVAL_STYLE.DRAFT;
 
     return (
-        <Box sx={{ background: '#f8fafc', minHeight: '100vh', pb: 6 }}>
-            <Container maxWidth="xl" sx={{ py: 3 }}>
-                {/* Header */}
-                <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
+        <Box sx={{ background: T.ground, minHeight: '100vh', pb: 6 }}>
+            {/* Pinned action bar — the masthead's palette, kept in reach on a long form. */}
+            <Paper elevation={0} sx={{
+                position: 'sticky', top: 0, zIndex: 10, borderRadius: 0,
+                borderBottom: `1px solid ${SHELL.heroLine}`,
+                bgcolor: SHELL.heroBg, backgroundImage: SHELL.heroImage, color: SHELL.heroInk,
+                px: { xs: 2, sm: 4 }, py: 2,
+            }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
                     <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <IconButton onClick={() => navigate('..')} sx={{ border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+                        <IconButton
+                            onClick={() => navigate('..')}
+                            sx={{
+                                color: SHELL.heroInk, border: `1px solid ${SHELL.heroLine}`,
+                                '&:hover': { bgcolor: SHELL.heroFill },
+                            }}
+                        >
                             <ArrowBack />
                         </IconButton>
                         <Box>
-                            <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, fontWeight: 600, textTransform: 'uppercase' }}>
+                            <Typography sx={{ fontSize: '0.7rem', color: SHELL.heroInkDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                                 {isEdit ? 'Edit Requisition' : 'New Requisition'}
                             </Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f2744' }}>
+                            <Typography variant="h5" sx={{ fontWeight: 900, color: SHELL.heroInk, letterSpacing: '-0.02em' }}>
                                 {pr?.prNumber ?? previewNumber ?? '—'}
                             </Typography>
                         </Box>
@@ -382,14 +390,14 @@ export default function AddUpdatePurchaseRequisition() {
                         {isDraft && (
                             <Button variant="contained" disableElevation startIcon={<Save />}
                                 disabled={saving} onClick={handleSave}
-                                sx={{ background: PRIMARY, textTransform: 'none', fontWeight: 700, '&:hover': { background: '#0d47a1' } }}>
+                                sx={{ ...heroCtaSx, px: 3, py: 0.9 }}>
                                 {saving ? <CircularProgress size={20} color="inherit" /> : (isEdit ? 'Save Changes' : 'Save Draft')}
                             </Button>
                         )}
                         {isDraft && isEdit && (
                             <Button variant="outlined" startIcon={<Send />}
                                 onClick={() => setDialog({ type: 'submit' })}
-                                sx={{ textTransform: 'none', fontWeight: 700 }}>
+                                sx={heroButtonSx}>
                                 Submit for Approval
                             </Button>
                         )}
@@ -397,12 +405,12 @@ export default function AddUpdatePurchaseRequisition() {
                             <>
                                 <Button variant="contained" disableElevation startIcon={<CheckCircle />}
                                     onClick={() => setDialog({ type: 'approve' })}
-                                    sx={{ background: '#16a34a', textTransform: 'none', fontWeight: 700 }}>
+                                    sx={{ ...heroCtaSx, bgcolor: STATUS.good, boxShadow: 'none', px: 3, py: 0.9, '&:hover': { bgcolor: '#047857' } }}>
                                     Approve
                                 </Button>
-                                <Button variant="outlined" color="error" startIcon={<Cancel />}
+                                <Button variant="outlined" startIcon={<Cancel />}
                                     onClick={() => setDialog({ type: 'reject' })}
-                                    sx={{ textTransform: 'none', fontWeight: 700 }}>
+                                    sx={{ ...heroButtonSx, color: '#fca5a5', borderColor: 'rgba(252,165,165,0.4)' }}>
                                     Reject
                                 </Button>
                             </>
@@ -410,37 +418,39 @@ export default function AddUpdatePurchaseRequisition() {
                         {isApproved && (
                             <Button variant="contained" disableElevation startIcon={<ShoppingCart />}
                                 onClick={() => setDialog({ type: 'convert' })}
-                                sx={{ background: '#16a34a', textTransform: 'none', fontWeight: 700 }}>
+                                sx={{ ...heroCtaSx, bgcolor: STATUS.good, boxShadow: 'none', px: 3, py: 0.9, '&:hover': { bgcolor: '#047857' } }}>
                                 Convert to PO
                             </Button>
                         )}
                         {isEdit && pr?.status !== 'CANCELLED' && pr?.status !== 'CLOSED' && (
                             <Tooltip title="Cancel Requisition">
-                                <IconButton onClick={() => setDialog({ type: 'cancel' })} sx={{ border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+                                <IconButton onClick={() => setDialog({ type: 'cancel' })} sx={{ color: SHELL.heroInk, border: `1px solid ${SHELL.heroLine}`, '&:hover': { bgcolor: SHELL.heroFill } }}>
                                     <Cancel />
                                 </IconButton>
                             </Tooltip>
                         )}
                         {isDraft && isEdit && (
                             <Tooltip title="Delete">
-                                <IconButton onClick={() => setDialog({ type: 'delete' })} sx={{ border: `1px solid ${BORDER}`, bgcolor: 'white', color: '#dc2626' }}>
+                                <IconButton onClick={() => setDialog({ type: 'delete' })} sx={{ color: '#fca5a5', border: '1px solid rgba(252,165,165,0.4)', '&:hover': { bgcolor: SHELL.heroFill } }}>
                                     <Delete />
                                 </IconButton>
                             </Tooltip>
                         )}
                     </Stack>
                 </Stack>
+            </Paper>
 
+            <Container maxWidth="xl" sx={{ py: 3 }}>
                 {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
                 {pr?.rejectionReason && (
                     <Alert severity="warning" sx={{ mb: 2 }}>Rejection reason: {pr.rejectionReason}</Alert>
                 )}
 
                 {/* Header card */}
-                <Paper elevation={0} sx={{ p: 3, mb: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
+                <Paper elevation={0} sx={{ p: 3, mb: 3, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: 'white' }}>
                     <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-                        <Assignment sx={{ color: PRIMARY, fontSize: 18 }} />
-                        <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        <Assignment sx={{ color: T.accent, fontSize: 18 }} />
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', color: T.accent, textTransform: 'uppercase', letterSpacing: 1 }}>
                             Requisition Details
                         </Typography>
                     </Stack>
@@ -503,9 +513,9 @@ export default function AddUpdatePurchaseRequisition() {
                 </Paper>
 
                 {/* Lines */}
-                <Paper elevation={0} sx={{ p: 3, mb: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
+                <Paper elevation={0} sx={{ p: 3, mb: 3, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: 'white' }}>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                        <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.75rem', color: T.accent, textTransform: 'uppercase', letterSpacing: 1 }}>
                             Line Items ({lines.length})
                         </Typography>
                         {isDraft && (
@@ -517,7 +527,7 @@ export default function AddUpdatePurchaseRequisition() {
                     </Stack>
                     <Table size="small">
                         <TableHead>
-                            <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.75rem', color: HEADER_TEXT, background: '#f8fafc' } }}>
+                            <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.75rem', color: T.accent, background: '#f8fafc' } }}>
                                 <TableCell width={40}>#</TableCell>
                                 <TableCell>Item</TableCell>
                                 <TableCell width={90}>UOM</TableCell>
@@ -532,7 +542,7 @@ export default function AddUpdatePurchaseRequisition() {
                         </TableHead>
                         <TableBody>
                             {lines.length === 0 ? (
-                                <TableRow><TableCell colSpan={isDraft ? 10 : 9} align="center" sx={{ py: 4, color: SECONDARY }}>
+                                <TableRow><TableCell colSpan={isDraft ? 10 : 9} align="center" sx={{ py: 4, color: T.ink2 }}>
                                     No line items. Click "Add Line" to add one.
                                 </TableCell></TableRow>
                             ) : lines.map((l, idx) => {
@@ -615,7 +625,7 @@ export default function AddUpdatePurchaseRequisition() {
 
                     <Divider sx={{ my: 2 }} />
                     <Stack direction="row" justifyContent="flex-end" alignItems="center" spacing={2}>
-                        <Typography sx={{ color: SECONDARY, fontSize: '0.85rem' }}>Total Estimated:</Typography>
+                        <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Total Estimated:</Typography>
                         <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', color: '#0f172a' }}>
                             ₹{totalEstimated.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </Typography>

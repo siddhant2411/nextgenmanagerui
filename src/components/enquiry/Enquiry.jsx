@@ -1,26 +1,36 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Route, Routes, useLocation, useNavigate} from "react-router-dom";
 import apiService from "../../services/apiService";
-import {Alert, Paper, Divider, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip, Container, Avatar, Grid, Tooltip} from "@mui/material";
+import {Alert, Paper, Divider, CircularProgress, Box, Button, Stack, Typography, ToggleButtonGroup, ToggleButton, Chip, Container, Avatar, Tooltip} from "@mui/material";
 import Snackbar from "@mui/material/Snackbar";
-import { ViewList, ViewKanban, AddCircleOutline, FileDownload, FileUpload, TrendingUp, Group, AssignmentTurnedIn, Timer, Download } from "@mui/icons-material";
+import { ViewList, ViewKanban, AddCircleOutline, FileDownload, FileUpload, Download, InsightsOutlined } from "@mui/icons-material";
 import { Dialog, DialogTitle, DialogContent, DialogActions, LinearProgress } from "@mui/material";
 import EnquiryList from "./EnquiryList";
 import AddUpdateEnquiry from "./AddUpdateEnquiry";
 import EnquiryDashboard from "./EnquiryDashboard";
 import EnquiryKanban from "./EnquiryKanban";
 import { useViewState } from "../../commonTools/useViewState";
+import { SHELL } from "../../theme/moduleTokens";
 
 /* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
 const VIEW_STATE_NS = "/enquiry";
 
 const DEFAULT_FILTERS = {
     companyName: '',
-    enqNo: '',
+    // The filter box takes a partial number, so it maps to the substring parameter. `enqNo` on
+    // the API is an exact match now — it is what you use to address one enquiry, not to search.
+    enqNoContains: '',
     lastContactedDate: '',
     enqDate: '',
     closedDate: '',
     daysForNextFollowup: '',
+    // Status and Priority were already offered by the filter bar and were silently dropped by
+    // the API, so picking one changed nothing. They are real query parameters now.
+    status: '',
+    priority: '',
+    enquirySource: '',
+    closeReasonCode: '',
+    outcome: '',
     lastContactedDateComp: '=',
     enqDateComp: '=',
     closedDateComp: '>',
@@ -70,9 +80,14 @@ const Enquiry = () => {
         // Same shape the field reverts to on reset — keep it single-sourced.
         const newParams = { ...DEFAULT_FILTERS };
         filterArray.forEach(f => {
-            if (f.field === 'enqNo') newParams.enqNo = f.value;
+            if (f.field === 'enqNo') newParams.enqNoContains = f.value;
             if (f.field === 'companyName') newParams.companyName = f.value;
             if (f.field === 'daysForNextFollowup') newParams.daysForNextFollowup = f.value;
+            if (f.field === 'status') newParams.status = f.value;
+            if (f.field === 'priority') newParams.priority = f.value;
+            if (f.field === 'enquirySource') newParams.enquirySource = f.value;
+            if (f.field === 'closeReasonCode') newParams.closeReasonCode = f.value;
+            if (f.field === 'outcome') newParams.outcome = f.value;
             if (f.field === 'enqDate') {
                 newParams.enqDate = f.value;
                 newParams.enqDateComp = f.operator;
@@ -122,7 +137,7 @@ const Enquiry = () => {
         setExportLoading(true);
         try {
             const params = {};
-            if (filters.enqNo)            params.enqNo = filters.enqNo;
+            if (filters.enqNoContains)    params.enqNoContains = filters.enqNoContains;
             if (filters.companyName)      params.companyName = filters.companyName;
             if (filters.enqDate)          params.enqDate = filters.enqDate;
             if (filters.lastContactedDate) params.lastContactedDate = filters.lastContactedDate;
@@ -192,7 +207,10 @@ const Enquiry = () => {
     const fetchEnquirySummary = async () => {
         setIsSummaryLoading(true);
         try {
-            const data = await apiService.get('/enquiry/summary');
+            // The register header describes the whole book, so it asks for every row.
+            // The summary endpoint now defaults to THIS_MONTH, which would silently turn
+            // 'Total leads' into 'leads raised since the 1st'.
+            const data = await apiService.get('/enquiry/summary', { preset: 'ALL_TIME' });
             setSummary(data);
         } catch (err) {
             console.error('Failed to fetch summary');
@@ -397,11 +415,13 @@ const Enquiry = () => {
                     path="/"
                     element={
                         <Box>
-                            {/* ── Hero Header ── */}
-                            <Box sx={{ 
-                                bgcolor: '#0f172a', 
-                                backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37, 99, 235, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5, 150, 105, 0.05) 0%, transparent 50%)',
-                                color: 'white', pt: 6, pb: 15
+                            {/* ── Hero Header ── chrome lives in crmTokens.SHELL, so the
+                                Pipeline Desk (components/crm/CrmDashboard.jsx) renders the
+                                same masthead rather than a lookalike of it. */}
+                            <Box sx={{
+                                bgcolor: SHELL.heroBg,
+                                backgroundImage: SHELL.heroImage,
+                                color: SHELL.heroInk, pt: SHELL.heroPadTop, pb: SHELL.heroPadBottom
                             }}>
                                 <Container maxWidth="xl">
                                     <Stack direction="row" justifyContent="space-between" alignItems="center">
@@ -414,6 +434,15 @@ const Enquiry = () => {
                                             </Typography>
                                         </Box>
                                         <Stack direction="row" spacing={2}>
+                                            {/* The period-aware view of this same book, see components/crm/CrmDashboard.jsx.
+                                                The tiles below are all-time; that screen answers "versus last month". */}
+                                            <Button
+                                                variant="outlined" startIcon={<InsightsOutlined />}
+                                                onClick={() => navigate('/crm/pipeline')}
+                                                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 3, textTransform: 'none', fontWeight: 700, px: 3, '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}
+                                            >
+                                                Pipeline Desk
+                                            </Button>
                                             <Button
                                                 variant="outlined" startIcon={<FileDownload />}
                                                 onClick={handleExport}
@@ -441,30 +470,10 @@ const Enquiry = () => {
                                 </Container>
                             </Box>
 
-                            <Container maxWidth="xl" sx={{ mt: -8 }}>
-                                {/* Stats Cards */}
-                                <Grid container spacing={3} sx={{ mb: 5 }}>
-                                    {[
-                                        { label: 'Total Leads', value: summary?.totalLeads ?? 0, color: T.primary, bg: '#eff6ff', icon: <TrendingUp /> },
-                                        { label: 'In Follow-up', value: summary?.followUp ?? 0, color: T.warning, bg: '#fffbeb', icon: <Timer /> },
-                                        { label: 'Overdue Follow-up', value: summary?.overdueFollowups ?? 0, color: T.error, bg: '#fef2f2', icon: <AssignmentTurnedIn /> },
-                                        { label: 'Won', value: summary?.won ?? 0, color: T.success, bg: '#ecfdf5', icon: <Group /> },
-                                    ].map((stat, i) => (
-                                        <Grid item xs={12} sm={6} md={3} key={i}>
-                                            <Paper elevation={0} sx={{ p: 3, borderRadius: 5, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-                                                <Stack direction="row" spacing={2.5} alignItems="center">
-                                                    <Avatar sx={{ bgcolor: stat.bg, color: stat.color, width: 54, height: 54, borderRadius: 3 }}>
-                                                        {React.cloneElement(stat.icon, { fontSize: 'medium' })}
-                                                    </Avatar>
-                                                    <Box>
-                                                        <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{stat.label}</Typography>
-                                                        <Typography variant="h4" sx={{ fontWeight: 900, color: T.text, mt: 0.5 }}>{stat.value}</Typography>
-                                                    </Box>
-                                                </Stack>
-                                            </Paper>
-                                        </Grid>
-                                    ))}
-                                </Grid>
+                            <Container maxWidth="xl" sx={{ mt: SHELL.contentPullUp }}>
+                                {/* Single source for these tiles — see components/enquiry/EnquiryDashboard.jsx.
+                                    An inline copy used to live here and had already drifted from it. */}
+                                <EnquiryDashboard summary={summary} loading={isSummaryLoading} />
 
                                 <Paper
                                     elevation={0}

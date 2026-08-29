@@ -4,18 +4,15 @@ import {
     TableRow, Divider, Chip, Stack, Grid,
 } from '@mui/material';
 import { InfoOutlined, CheckCircleOutline } from '@mui/icons-material';
+import { T } from '../../../theme/moduleTokens';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const HEADER_TEXT = '#075985';
-const BG_SOFT = '#f8fafc';
 
 const fmtAmt = (n) => `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const SummaryRow = ({ label, value, bold = false, color = '#1e293b' }) => (
     <TableRow>
         <TableCell sx={{ fontSize: '0.9rem', color: '#64748b', border: 'none', py: 1.2, pl: 0 }}>{label}</TableCell>
-        <TableCell align="right" sx={{ fontSize: bold ? '1.1rem' : '0.95rem', fontWeight: bold ? 800 : 600, border: 'none', py: 1.2, pr: 0, color: bold ? PRIMARY : color }}>
+        <TableCell align="right" sx={{ fontSize: bold ? '1.1rem' : '0.95rem', fontWeight: bold ? 800 : 600, border: 'none', py: 1.2, pr: 0, color: bold ? T.accent : color }}>
             {value}
         </TableCell>
     </TableRow>
@@ -46,10 +43,10 @@ export default function POTaxSummaryTab({ formik }) {
                 <Grid item xs={12} md={6}>
                     <Stack spacing={3}>
                         <Box>
-                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: T.accent, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
                                 Financial Breakdown
                             </Typography>
-                            <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 3, borderRadius: 2, border: `1px solid ${T.rule}`, bgcolor: 'white' }}>
                                 <Table size="small">
                                     <TableBody>
                                         <SummaryRow label="Items Subtotal" value={fmtAmt(v.subtotal)} />
@@ -83,7 +80,7 @@ export default function POTaxSummaryTab({ formik }) {
                         </Box>
 
                         {v.grandTotalInWords && (
-                            <Box sx={{ p: 2, bgcolor: BG_SOFT, borderRadius: 2, border: `1px solid ${BORDER}` }}>
+                            <Box sx={{ p: 2, bgcolor: T.ground, borderRadius: 2, border: `1px solid ${T.rule}` }}>
                                 <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', mb: 0.5 }}>Amount in Words</Typography>
                                 <Typography sx={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, fontStyle: 'italic' }}>
                                     {v.grandTotalInWords}
@@ -96,10 +93,10 @@ export default function POTaxSummaryTab({ formik }) {
                 <Grid item xs={12} md={6}>
                     <Stack spacing={3}>
                         <Box>
-                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: T.accent, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
                                 Tax Configuration
                             </Typography>
-                            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+                            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: `1px solid ${T.rule}`, bgcolor: 'white' }}>
                                 <Stack spacing={2.5}>
                                     <Box>
                                         <Typography sx={{ fontSize: '0.8rem', color: '#64748b', mb: 1 }}>GST Treatment</Typography>
@@ -136,15 +133,15 @@ export default function POTaxSummaryTab({ formik }) {
                 {/* Line-wise details at bottom */}
                 {lines.length > 0 && (
                     <Grid item xs={12}>
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1, mb: 2, mt: 2 }}>
+                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: T.accent, textTransform: 'uppercase', letterSpacing: 1, mb: 2, mt: 2 }}>
                             Item-wise Tax Analysis
                         </Typography>
-                        <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+                        <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${T.rule}` }}>
                             <Table size="small">
                                 <TableBody>
                                     <TableRow sx={{ background: '#f8fafc' }}>
                                         {['#', 'Item Description', 'Taxable Amt', 'GST%', 'CGST', 'SGST', 'IGST', 'Line Total'].map(h => (
-                                            <TableCell key={h} sx={{ fontSize: '0.65rem', fontWeight: 800, color: HEADER_TEXT, py: 1.5, px: 2, textTransform: 'uppercase' }}>
+                                            <TableCell key={h} sx={{ fontSize: '0.65rem', fontWeight: 800, color: T.accent, py: 1.5, px: 2, textTransform: 'uppercase' }}>
                                                 {h}
                                             </TableCell>
                                         ))}
@@ -167,7 +164,7 @@ export default function POTaxSummaryTab({ formik }) {
                                                 <TableCell sx={{ fontSize: '0.8rem', py: 1.2, px: 2, color: isIntra ? '#0f172a' : '#cbd5e1' }}>{isIntra ? fmtAmt(cgst) : '—'}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.8rem', py: 1.2, px: 2, color: isIntra ? '#0f172a' : '#cbd5e1' }}>{isIntra ? fmtAmt(sgst) : '—'}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.8rem', py: 1.2, px: 2, color: isInter ? '#0f172a' : '#cbd5e1' }}>{isInter ? fmtAmt(igst) : '—'}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, py: 1.2, px: 2, color: PRIMARY }}>{fmtAmt(taxable + cgst + sgst + igst)}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.85rem', fontWeight: 800, py: 1.2, px: 2, color: T.accent }}>{fmtAmt(taxable + cgst + sgst + igst)}</TableCell>
                                             </TableRow>
                                         );
                                     })}

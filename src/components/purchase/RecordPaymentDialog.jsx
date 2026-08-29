@@ -8,11 +8,8 @@ import {
 import { Add, DeleteOutline, Payments } from '@mui/icons-material';
 import { getPaymentsForInvoice, getPaymentSummary, recordVendorPayment, deleteVendorPayment } from '../../services/vendorPaymentService';
 import { listTdsSections } from '../../services/accounting/tdsService';
+import { T, STATUS } from '../../theme/moduleTokens';
 
-const T = {
-    primary: '#2563eb', success: '#059669', error: '#dc2626',
-    bg: '#f8fafc', border: '#e2e8f0', text: '#0f172a', textSec: '#64748b',
-};
 
 const PAYMENT_MODES = [
     { value: 'CASH',   label: 'Cash' },
@@ -121,7 +118,7 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth
             PaperProps={{ sx: { borderRadius: 4, p: 0 } }}>
             <DialogTitle sx={{ fontWeight: 900, fontSize: '1.1rem', pb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Payments sx={{ color: T.primary }} />
+                <Payments sx={{ color: T.accent }} />
                 Record Payment — {invoice?.invoiceNumber}
             </DialogTitle>
             <Divider />
@@ -129,19 +126,19 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                 {/* Summary */}
                 <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
                     {[
-                        { label: 'Invoice Total', value: totalPayable, color: T.text },
-                        { label: 'Total Paid',    value: totalPaid,    color: T.success },
-                        { label: 'Balance Due',   value: balanceDue,   color: balanceDue > 0 ? T.error : T.success },
+                        { label: 'Invoice Total', value: totalPayable, color: T.ink },
+                        { label: 'Total Paid',    value: totalPaid,    color: STATUS.good },
+                        { label: 'Balance Due',   value: balanceDue,   color: balanceDue > 0 ? STATUS.critical : STATUS.good },
                     ].map(({ label, value, color }) => (
                         <Stack key={label} alignItems="center" flex={1}
-                            sx={{ p: 1.5, borderRadius: 3, bgcolor: T.bg, border: `1px solid ${T.border}` }}>
-                            <Typography sx={{ fontSize: '0.65rem', color: T.textSec, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>{label}</Typography>
+                            sx={{ p: 1.5, borderRadius: 3, bgcolor: T.ground, border: `1px solid ${T.rule}` }}>
+                            <Typography sx={{ fontSize: '0.65rem', color: T.ink2, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>{label}</Typography>
                             <Typography sx={{ fontWeight: 900, fontSize: '1rem', color }}>₹{fmt(value)}</Typography>
                         </Stack>
                     ))}
                 </Stack>
 
-                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', mb: 1.5, letterSpacing: '0.05em' }}>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', mb: 1.5, letterSpacing: '0.05em' }}>
                     Add New Payment
                 </Typography>
                 {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>{error}</Alert>}
@@ -181,11 +178,11 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                             </Select>
                         </FormControl>
                         {tds.section ? (
-                            <Stack flex={1} sx={{ p: 1.25, borderRadius: 2.5, bgcolor: T.bg, border: `1px solid ${T.border}` }}>
-                                <Typography sx={{ fontSize: '0.62rem', color: T.textSec, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+                            <Stack flex={1} sx={{ p: 1.25, borderRadius: 2.5, bgcolor: T.ground, border: `1px solid ${T.rule}` }}>
+                                <Typography sx={{ fontSize: '0.62rem', color: T.ink2, textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
                                     TDS ₹{fmt(tds.amount)} · Net to vendor
                                 </Typography>
-                                <Typography sx={{ fontWeight: 900, fontSize: '0.95rem', color: T.text }}>₹{fmt(tds.net)}</Typography>
+                                <Typography sx={{ fontWeight: 900, fontSize: '0.95rem', color: T.ink }}>₹{fmt(tds.net)}</Typography>
                             </Stack>
                         ) : <Box flex={1} />}
                     </Stack>
@@ -198,12 +195,12 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                 ) : payments.length > 0 && (
                     <>
                         <Divider sx={{ my: 2.5 }} />
-                        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', mb: 1.5, letterSpacing: '0.05em' }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', mb: 1.5, letterSpacing: '0.05em' }}>
                             Payment History
                         </Typography>
                         <Table size="small">
                             <TableHead>
-                                <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', color: T.textSec, bgcolor: T.bg } }}>
+                                <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', color: T.ink2, bgcolor: T.ground } }}>
                                     <TableCell>Date</TableCell>
                                     <TableCell>Mode</TableCell>
                                     <TableCell>Reference</TableCell>
@@ -219,12 +216,12 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                                             <Chip label={p.paymentMode} size="small"
                                                 sx={{ fontSize: '0.65rem', fontWeight: 700, height: 18, borderRadius: 1 }} />
                                         </TableCell>
-                                        <TableCell sx={{ color: T.textSec }}>{p.referenceNumber || '—'}</TableCell>
+                                        <TableCell sx={{ color: T.ink2 }}>{p.referenceNumber || '—'}</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 700 }}>₹{fmt(p.amount)}</TableCell>
                                         <TableCell align="right">
                                             <IconButton size="small" disabled={deleting === p.id}
                                                 onClick={() => handleDelete(p.id)}
-                                                sx={{ color: '#94a3b8', '&:hover': { color: T.error } }}>
+                                                sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
                                                 {deleting === p.id
                                                     ? <CircularProgress size={12} />
                                                     : <DeleteOutline sx={{ fontSize: 15 }} />}
@@ -243,7 +240,7 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
                 <Button variant="contained" disableElevation disabled={saving}
                     startIcon={saving ? <CircularProgress size={15} color="inherit" /> : <Add />}
                     onClick={handleSubmit}
-                    sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800, bgcolor: T.primary, '&:hover': { bgcolor: '#1d4ed8' } }}>
+                    sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 800, bgcolor: T.accent, '&:hover': { bgcolor: '#1d4ed8' } }}>
                     {saving ? 'Saving...' : 'Record Payment'}
                 </Button>
             </DialogActions>

@@ -6,11 +6,8 @@ import {
 } from '@mui/material';
 import { Add, Delete, Inventory, ShoppingCart, NoteAlt } from '@mui/icons-material';
 import apiService from '../../../services/apiService';
+import { T } from '../../../theme/moduleTokens';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const PRIMARY_LIGHT = '#f0f7ff';
-const HEADER_TEXT = '#075985';
 
 const BLANK_LINE = {
     itemId: null, description: '', hsnCode: '', uom: '',
@@ -18,13 +15,13 @@ const BLANK_LINE = {
     requiredByDate: '', remarks: '',
 };
 
-const cellStyle = { fontSize: '0.8rem', py: 1.5, px: 1, borderBottom: `1px solid ${BORDER}` };
+const cellStyle = { fontSize: '0.8rem', py: 1.5, px: 1, borderBottom: `1px solid ${T.rule}` };
 const headerCellStyle = { 
     ...cellStyle, 
     fontWeight: 700, 
-    color: HEADER_TEXT, 
+    color: T.accent, 
     whiteSpace: 'nowrap', 
-    background: PRIMARY_LIGHT,
+    background: T.accentDim,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     fontSize: '0.65rem'
@@ -87,21 +84,21 @@ export default function POLineItemsTab({ formik, readOnly }) {
         <Box>
             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
                 <Stack direction="row" spacing={1} alignItems="center">
-                    <ShoppingCart sx={{ fontSize: 20, color: PRIMARY }} />
-                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1 }}>
+                    <ShoppingCart sx={{ fontSize: 20, color: T.accent }} />
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: T.accent, textTransform: 'uppercase', letterSpacing: 1 }}>
                         Line Items ({lines.length})
                     </Typography>
                 </Stack>
                 {!readOnly && (
                     <Button size="small" startIcon={<Add />} variant="contained" disableElevation
-                        sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.8rem', background: PRIMARY, fontWeight: 700, px: 2, '&:hover': { background: '#0d47a1' } }}
+                        sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.8rem', background: T.accent, fontWeight: 700, px: 2, '&:hover': { background: T.accentHover } }}
                         onClick={addLine}>
                         Add New Item
                     </Button>
                 )}
             </Stack>
 
-            <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${BORDER}` }}>
+            <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: `1px solid ${T.rule}` }}>
                 <TableContainer sx={{ maxHeight: 500 }}>
                     <Table size="small" stickyHeader>
                         <TableHead>
@@ -222,7 +219,7 @@ export default function POLineItemsTab({ formik, readOnly }) {
                 </TableContainer>
 
                 {lines.length > 0 && (
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 3, borderTop: `1px solid ${BORDER}`, bgcolor: '#fcfcfd' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 3, borderTop: `1px solid ${T.rule}`, bgcolor: '#fcfcfd' }}>
                         <Stack spacing={1} sx={{ minWidth: 200 }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography sx={{ fontSize: '0.85rem', color: '#64748b' }}>Item Taxable Value</Typography>
@@ -235,7 +232,7 @@ export default function POLineItemsTab({ formik, readOnly }) {
                             <Divider sx={{ my: 1 }} />
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Subtotal</Typography>
-                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: PRIMARY }}>₹{num2(totals.total)}</Typography>
+                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: T.accent }}>₹{num2(totals.total)}</Typography>
                             </Stack>
                         </Stack>
                     </Box>

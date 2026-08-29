@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import apiService from '../../services/apiService';
 import { downloadPOPdf, markEmailSent } from '../../services/purchaseOrderService';
+import { T } from '../../theme/moduleTokens';
 
 const MERGE_FIELDS = [
     { key: '{{contactPerson}}',     label: 'Contact Person' },
@@ -155,7 +156,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                     {isEmail
                         ? <Email sx={{ color: channelColor, fontSize: 20 }} />
                         : <WhatsApp sx={{ color: channelColor, fontSize: 20 }} />}
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: T.ink }}>
                         Send PO via {isEmail ? 'Email' : 'WhatsApp'}
                     </Typography>
                     <Chip label={po?.purchaseOrderNumber} size="small"

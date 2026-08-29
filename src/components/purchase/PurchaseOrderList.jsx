@@ -1,165 +1,96 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Box, Paper, Typography, Button, Grid, TablePagination, Chip,
-    TextField, MenuItem, IconButton, Tooltip, CircularProgress, Stack,
-    Card, CardContent, InputAdornment, Divider,
+    Box, Paper, Typography, Button, TablePagination, Chip, Stack,
+    TextField, MenuItem, IconButton, Tooltip, CircularProgress, InputAdornment,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TableSortLabel,
 } from '@mui/material';
 import {
-    Add, FileDownload, Refresh, Visibility, Search,
-    FilterList, Event, Storefront, LocalAtm, ChevronRight,
-    BarChart, Warning, Receipt,
+    Add, FileDownload, Refresh, Search, BarChart, Warning, Receipt,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { listPurchaseOrders, downloadPOPdf } from '../../services/purchaseOrderService';
 import { useViewState } from '../../commonTools/useViewState';
+import {
+    T, STATUS, TABLE, chipSx, heroButtonSx, heroCtaSx, panelSx,
+    fmtAmount, fmtDate, fmtNum, humanize,
+} from '../../theme/moduleTokens';
+import ModuleHero from '../ui/moduleshell/ModuleHero';
+import ModuleBody from '../ui/moduleshell/ModuleBody';
+import { StatTile, StatStrip } from '../ui/moduleshell/StatTile';
 
-// ── Design tokens (Aligned with Inventory/BOM) ────────────────────────────────
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0'; // Platform standard blue
-const PRIMARY_LIGHT = '#f0f7ff'; // Platform header background
-const HEADER_TEXT = '#075985'; // Platform header text
+/* ============================================================================
+   Purchase order register.
 
+   This was a grid of cards, four to a row. A card per order reads well at ten
+   orders and stops working entirely at two hundred: you cannot scan a column of
+   amounts that never line up, cannot compare two vendors without holding one in
+   your head, and cannot sort at all. Every other register in the product is a
+   table, so this one is too — same masthead, same slate ground, same header
+   treatment as the enquiry register.
+   ========================================================================= */
+
+/** Lifecycle. Mapped onto the shared severity palette rather than a local set of blues. */
 const STATUS_STYLE = {
-    DRAFT:              { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' },
-    SENT:               { bg: '#eaf0f9', color: '#1c4f87', border: '#bad0ec' },
-    PARTIALLY_RECEIVED: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
-    RECEIVED:           { bg: '#d1fae5', color: '#065f46', border: '#6ee7b7' },
-    COMPLETED:          { bg: '#eef6f0', color: '#2a6640', border: '#b8d8bf' },
-    CANCELLED:          { bg: '#fef2f2', color: '#991b1b', border: '#fca5a5' },
+    DRAFT:              { color: T.ink2,          bg: T.ruleSoft },
+    SENT:               { color: T.accent,        bg: T.accentDim },
+    PARTIALLY_RECEIVED: { color: STATUS.warningInk, bg: STATUS.warningBg },
+    RECEIVED:           { color: STATUS.good,     bg: STATUS.goodBg },
+    COMPLETED:          { color: STATUS.good,     bg: STATUS.goodBg },
+    CANCELLED:          { color: STATUS.critical, bg: STATUS.criticalBg },
 };
 
+/** Approval is a separate axis from lifecycle — an order can be SENT and still be REJECTED. */
 const APPROVAL_STYLE = {
-    DRAFT:            { bg: '#f4f6f8', color: '#5a6474' },
-    PENDING_APPROVAL: { bg: '#fff7ed', color: '#c2410c' },
-    APPROVED:         { bg: '#eef6f0', color: '#2a6640' },
-    REJECTED:         { bg: '#fef2f2', color: '#991b1b' },
+    DRAFT:            { color: T.ink2,           bg: T.ruleSoft },
+    PENDING_APPROVAL: { color: STATUS.serious,   bg: STATUS.seriousBg },
+    APPROVED:         { color: STATUS.good,      bg: STATUS.goodBg },
+    REJECTED:         { color: STATUS.critical,  bg: STATUS.criticalBg },
 };
 
-const StatCard = ({ title, value, accent, icon: Icon }) => (
-    <Paper elevation={0} sx={{
-        p: 2, border: `1px solid ${BORDER}`, borderRadius: 2.5,
-        flex: 1, minWidth: 160, background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
-        borderLeft: accent ? `4px solid ${accent}` : `4px solid ${PRIMARY}`,
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
-    }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box>
-                <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
-                    {title}
-                </Typography>
-                <Typography sx={{ fontSize: '1.75rem', fontWeight: 700, color: '#1e293b', lineHeight: 1 }}>
-                    {value}
-                </Typography>
-            </Box>
-            {Icon && (
-                <Box sx={{ p: 1, borderRadius: 2, background: PRIMARY_LIGHT, color: PRIMARY }}>
-                    <Icon sx={{ fontSize: 20 }} />
-                </Box>
-            )}
-        </Stack>
-    </Paper>
-);
-
-const POCard = ({ row, onClick, onDownload, onInvoices }) => {
-    const ss = STATUS_STYLE[row.status] ?? STATUS_STYLE.DRAFT;
-    const as = APPROVAL_STYLE[row.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
-    const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-    const fmtAmount = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
-
-    return (
-        <Card elevation={0} sx={{
-            border: `1px solid ${BORDER}`, borderRadius: 2.5,
-            transition: 'all 0.2s ease-in-out',
-            cursor: 'pointer',
-            position: 'relative',
-            overflow: 'visible',
-            height: '100%',
-            '&:hover': {
-                borderColor: PRIMARY,
-                boxShadow: '0 8px 24px rgba(21, 101, 192, 0.08)',
-                '& .go-icon': { transform: 'translateX(4px)', color: PRIMARY }
-            }
-        }} onClick={onClick}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Box>
-                        <Typography sx={{ fontSize: '0.9rem', fontWeight: 800, color: HEADER_TEXT, mb: 0.2 }}>
-                            {row.purchaseOrderNumber}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Event sx={{ fontSize: 14 }} /> {fmtDate(row.orderDate)}
-                        </Typography>
-                    </Box>
-                    <Stack direction="column" alignItems="flex-end" spacing={0.5}>
-                        <Chip label={row.status?.replace(/_/g, ' ')} size="small"
-                            sx={{ fontSize: '0.65rem', fontWeight: 700, borderRadius: 1, height: 20,
-                                background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }} />
-                        <Chip label={row.approvalStatus?.replace(/_/g, ' ')} size="small"
-                            sx={{ fontSize: '0.65rem', fontWeight: 700, borderRadius: 1, height: 20,
-                                background: as.bg, color: as.color }} />
-                    </Stack>
-                </Stack>
-
-                <Divider sx={{ mb: 2, borderStyle: 'dashed' }} />
-
-                <Stack spacing={1.5}>
-                    <Box>
-                        <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-                            Vendor
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {row.vendorName ?? '—'}
-                        </Typography>
-                    </Box>
-
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-end">
-                        <Box>
-                            <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.5 }}>
-                                Total Amount
-                            </Typography>
-                            <Typography sx={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
-                                {fmtAmount(row.grandTotal)}
-                            </Typography>
-                        </Box>
-                        <Stack direction="row" spacing={0.5}>
-                            <Tooltip title="Vendor Invoices">
-                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onInvoices(); }}
-                                    sx={{ color: '#64748b', '&:hover': { color: '#7c3aed', background: '#f5f3ff' } }}>
-                                    <Receipt sx={{ fontSize: 18 }} />
-                                </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Download PDF">
-                                <IconButton size="small" onClick={(e) => { e.stopPropagation(); onDownload(); }}
-                                    sx={{ color: '#64748b', '&:hover': { color: PRIMARY, background: PRIMARY_LIGHT } }}>
-                                    <FileDownload sx={{ fontSize: 18 }} />
-                                </IconButton>
-                            </Tooltip>
-                            <IconButton size="small" className="go-icon" sx={{ transition: 'all 0.2s', color: '#cbd5e1' }}>
-                                <ChevronRight />
-                            </IconButton>
-                        </Stack>
-                    </Stack>
-                </Stack>
-            </CardContent>
-        </Card>
-    );
-};
+const STATUSES  = ['DRAFT', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'COMPLETED', 'CANCELLED'];
+const APPROVALS = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
 
 /* Route namespace for preserved filters/page — see commonTools/useViewState.
    Clearing "/purchase" from the nav also clears the sections beneath it. */
 const VIEW_STATE_NS = '/purchase';
+
+/** Sortable column head. Only entity columns are offered — vendor is a join and would 500. */
+const SortTh = ({ column, label, sortBy, sortDir, onSort, align = 'left', width }) => (
+    <TableCell align={align} sortDirection={sortBy === column ? sortDir : false} sx={{ ...TABLE.head, width }}>
+        <TableSortLabel
+            active={sortBy === column}
+            direction={sortBy === column ? sortDir : 'asc'}
+            onClick={() => onSort(column)}
+            sx={{
+                '&.Mui-active': { color: T.ink },
+                '& .MuiTableSortLabel-icon': { fontSize: 16 },
+            }}
+        >
+            {label}
+        </TableSortLabel>
+    </TableCell>
+);
+
+/** Keeps a remembered page size valid against the current options rather than discarding it. */
+const pageSizeOptions = (current) =>
+    [...new Set([25, 50, 100, current])].sort((a, b) => a - b);
+
+const Th = ({ label, align = 'left', width }) => (
+    <TableCell align={align} sx={{ ...TABLE.head, width }}>{label}</TableCell>
+);
 
 export default function PurchaseOrderList() {
     const navigate = useNavigate();
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
-    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 12);
+    const [pageSize, setPageSize] = useViewState(VIEW_STATE_NS, 'pageSize', 25);
     const [loading, setLoading] = useState(false);
     const [filterStatus, setFilterStatus] = useViewState(VIEW_STATE_NS, 'status', '');
     const [filterApproval, setFilterApproval] = useViewState(VIEW_STATE_NS, 'approval', '');
     const [searchTerm, setSearchTerm] = useViewState(VIEW_STATE_NS, 'search', '');
+    const [sortBy, setSortBy] = useViewState(VIEW_STATE_NS, 'sortBy', 'createdDate');
+    const [sortDir, setSortDir] = useViewState(VIEW_STATE_NS, 'sortDir', 'desc');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -167,7 +98,7 @@ export default function PurchaseOrderList() {
             const params = {
                 page,
                 size: pageSize,
-                sort: 'createdDate,desc',
+                sort: `${sortBy},${sortDir}`,
                 ...(filterStatus ? { status: filterStatus } : {}),
                 ...(filterApproval ? { approvalStatus: filterApproval } : {}),
                 ...(searchTerm ? { query: searchTerm } : {}),
@@ -180,148 +111,260 @@ export default function PurchaseOrderList() {
         } finally {
             setLoading(false);
         }
-    }, [page, pageSize, filterStatus, filterApproval, searchTerm]);
+    }, [page, pageSize, sortBy, sortDir, filterStatus, filterApproval, searchTerm]);
 
     useEffect(() => { load(); }, [load]);
 
-    // Stats derived from rows on current page (rough)
-    const stats = {
-        total,
-        pending: rows.filter(r => r.approvalStatus === 'PENDING_APPROVAL').length,
-        approved: rows.filter(r => r.approvalStatus === 'APPROVED').length,
-        draft: rows.filter(r => r.approvalStatus === 'DRAFT').length,
+    const handleSort = (column) => {
+        const nextDir = sortBy === column && sortDir === 'asc' ? 'desc' : 'asc';
+        setSortBy(column);
+        setSortDir(nextDir);
+        setPage(0);
     };
 
+    const resetFilters = () => {
+        setFilterStatus('');
+        setFilterApproval('');
+        setSearchTerm('');
+        setPage(0);
+    };
+
+    /* These three count the rows on screen, not the book. The list endpoint is paginated and
+       returns no aggregates, so the honest thing is to say which they are rather than let a
+       page-local 4 read as "4 orders await approval in the company". */
+    const onPage = {
+        pending:  rows.filter(r => r.approvalStatus === 'PENDING_APPROVAL').length,
+        approved: rows.filter(r => r.approvalStatus === 'APPROVED').length,
+        overdue:  rows.filter(r => r.daysOverdue > 0).length,
+    };
+    const pageHint = loading ? 'loading' : `of ${fmtNum(rows.length)} on this page`;
+
     return (
-        <Box sx={{ p: { xs: 2, sm: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
-            {/* Header section */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={4}>
-                <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f2744', letterSpacing: '-0.02em', mb: 0.5 }}>
-                        Purchase Orders
-                    </Typography>
-                    <Typography sx={{ color: '#64748b', fontSize: '0.95rem' }}>
-                        Create and manage your procurement pipeline with vendors
-                    </Typography>
-                </Box>
-                <Stack direction="row" spacing={1.5} flexWrap="wrap">
-                    <Tooltip title="Refresh data">
-                        <IconButton onClick={load} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                            <Refresh />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Overdue POs">
-                        <IconButton onClick={() => navigate('overdue')}
-                            sx={{ border: `1px solid #fca5a5`, borderRadius: 2, bgcolor: 'white', color: '#dc2626',
-                                '&:hover': { bgcolor: '#fef2f2' } }}>
-                            <Warning />
-                        </IconButton>
-                    </Tooltip>
-                    <Button variant="outlined" startIcon={<BarChart />}
-                        sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: BORDER, color: '#475569',
-                            '&:hover': { bgcolor: PRIMARY_LIGHT, borderColor: PRIMARY, color: PRIMARY } }}
-                        onClick={() => navigate('analytics')}>
-                        Analytics
-                    </Button>
-                    <Button variant="contained" disableElevation startIcon={<Add />}
-                        sx={{ background: PRIMARY, borderRadius: 2, px: 3, py: 1, textTransform: 'none', fontWeight: 700, fontSize: '0.9rem',
-                            boxShadow: '0 4px 12px rgba(21, 101, 192, 0.2)', '&:hover': { background: '#0d47a1' } }}
-                        onClick={() => navigate('new')}>
-                        New Purchase Order
-                    </Button>
-                </Stack>
-            </Stack>
-
-            {/* Analytics overview */}
-            <Grid container spacing={2.5} mb={4}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Total Volume" value={total} icon={LocalAtm} accent={PRIMARY} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Pending Review" value={stats.pending} accent="#e65100" icon={Visibility} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Approved" value={stats.approved} accent="#2e7d32" icon={FilterList} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <StatCard title="Drafts" value={stats.draft} accent="#475569" icon={Storefront} />
-                </Grid>
-            </Grid>
-
-            {/* Filters and search */}
-            <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} md={4}>
-                        <TextField fullWidth size="small" placeholder="Search by PO# or Vendor..."
-                            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                            InputProps={{
-                                startAdornment: <InputAdornment position="start"><Search sx={{ color: '#94a3b8' }} /></InputAdornment>,
-                                sx: { borderRadius: 1.5, bgcolor: '#f8fafc' }
-                            }} />
-                    </Grid>
-                    <Grid item xs={6} md={2.5}>
-                        <TextField select fullWidth size="small" label="Status" value={filterStatus}
-                            onChange={e => { setFilterStatus(e.target.value); setPage(0); }}
-                            InputProps={{ sx: { borderRadius: 1.5 } }}>
-                            <MenuItem value="">All Statuses</MenuItem>
-                            {['DRAFT','SENT','PARTIALLY_RECEIVED','RECEIVED','COMPLETED','CANCELLED'].map(s =>
-                                <MenuItem key={s} value={s}>{s.replace(/_/g, ' ')}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={6} md={2.5}>
-                        <TextField select fullWidth size="small" label="Approval" value={filterApproval}
-                            onChange={e => { setFilterApproval(e.target.value); setPage(0); }}
-                            InputProps={{ sx: { borderRadius: 1.5 } }}>
-                            <MenuItem value="">All Approvals</MenuItem>
-                            {['DRAFT','PENDING_APPROVAL','APPROVED','REJECTED'].map(s =>
-                                <MenuItem key={s} value={s}>{s.replace(/_/g, ' ')}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <Button fullWidth variant="outlined" sx={{ borderRadius: 1.5, textTransform: 'none', fontWeight: 600, height: 40, borderColor: BORDER, color: '#475569' }}
-                            onClick={() => { setFilterStatus(''); setFilterApproval(''); setSearchTerm(''); setPage(0); }}>
-                            Reset Filters
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh' }}>
+            <ModuleHero
+                title="Purchase Orders"
+                subtitle="Raise, approve and track orders to vendors through to receipt."
+                actions={
+                    <>
+                        <Button variant="outlined" startIcon={<Refresh />} onClick={load} disabled={loading} sx={heroButtonSx}>
+                            Refresh
                         </Button>
-                    </Grid>
-                </Grid>
-            </Paper>
+                        <Button variant="outlined" startIcon={<Warning />} onClick={() => navigate('overdue')} sx={heroButtonSx}>
+                            Overdue
+                        </Button>
+                        <Button variant="outlined" startIcon={<BarChart />} onClick={() => navigate('analytics')} sx={heroButtonSx}>
+                            Analytics
+                        </Button>
+                        <Button variant="contained" disableElevation startIcon={<Add />} onClick={() => navigate('new')} sx={heroCtaSx}>
+                            New Purchase Order
+                        </Button>
+                    </>
+                }
+            />
 
-            {/* Content grid */}
-            {loading ? (
-                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 12, gap: 2 }}>
-                    <CircularProgress thickness={5} size={48} sx={{ color: PRIMARY }} />
-                    <Typography sx={{ color: '#64748b', fontWeight: 500 }}>Fetching purchase orders...</Typography>
-                </Box>
-            ) : rows.length === 0 ? (
-                <Paper elevation={0} sx={{ py: 12, border: `1px dashed ${BORDER}`, borderRadius: 3, bgcolor: 'white', textAlign: 'center' }}>
-                    <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 700, mb: 1 }}>No results found</Typography>
-                    <Typography sx={{ color: '#64748b' }}>Try adjusting your filters or search term</Typography>
+            <ModuleBody>
+                <StatStrip>
+                    <StatTile label="Total orders" value={fmtNum(total)} hint="matching the current filter" loading={loading} />
+                    <StatTile
+                        label="Awaiting approval" value={fmtNum(onPage.pending)} hint={pageHint}
+                        severity={onPage.pending > 0 ? STATUS.serious : STATUS.good} loading={loading}
+                    />
+                    <StatTile label="Approved" value={fmtNum(onPage.approved)} hint={pageHint} loading={loading} />
+                    <StatTile
+                        label="Past due" value={fmtNum(onPage.overdue)} hint={pageHint}
+                        severity={onPage.overdue > 0 ? STATUS.critical : STATUS.good} loading={loading}
+                    />
+                </StatStrip>
+
+                <Paper elevation={0} sx={panelSx}>
+                    {/* ── filters ── */}
+                    <Stack
+                        direction={{ xs: 'column', md: 'row' }} gap={1.5} alignItems={{ md: 'center' }}
+                        sx={{ mb: 3 }}
+                    >
+                        <TextField
+                            size="small" placeholder="Search by PO number or vendor..."
+                            value={searchTerm}
+                            onChange={e => { setSearchTerm(e.target.value); setPage(0); }}
+                            sx={{ flex: '1 1 280px' }}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Search sx={{ color: T.ink3 }} /></InputAdornment>,
+                                sx: { borderRadius: 2.5, bgcolor: T.ground, fontSize: '0.875rem' },
+                            }}
+                        />
+                        <TextField
+                            select size="small" label="Status" value={filterStatus}
+                            onChange={e => { setFilterStatus(e.target.value); setPage(0); }}
+                            sx={{ minWidth: 180 }} InputProps={{ sx: { borderRadius: 2.5, fontSize: '0.875rem' } }}
+                        >
+                            <MenuItem value="">All statuses</MenuItem>
+                            {STATUSES.map(s => <MenuItem key={s} value={s}>{humanize(s)}</MenuItem>)}
+                        </TextField>
+                        <TextField
+                            select size="small" label="Approval" value={filterApproval}
+                            onChange={e => { setFilterApproval(e.target.value); setPage(0); }}
+                            sx={{ minWidth: 180 }} InputProps={{ sx: { borderRadius: 2.5, fontSize: '0.875rem' } }}
+                        >
+                            <MenuItem value="">All approvals</MenuItem>
+                            {APPROVALS.map(s => <MenuItem key={s} value={s}>{humanize(s)}</MenuItem>)}
+                        </TextField>
+                        <Button
+                            variant="text" onClick={resetFilters}
+                            disabled={!filterStatus && !filterApproval && !searchTerm}
+                            sx={{ textTransform: 'none', fontWeight: 700, color: T.ink2, borderRadius: 2.5, whiteSpace: 'nowrap' }}
+                        >
+                            Reset
+                        </Button>
+                    </Stack>
+
+                    <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.5 }}>
+                        <Typography sx={{ fontWeight: 900, color: T.ink, fontSize: '1.05rem' }}>
+                            Purchase Order Registry
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: T.ink2, fontWeight: 700 }}>
+                            {loading ? 'Loading...' : `${fmtNum(total)} order${total === 1 ? '' : 's'}`}
+                        </Typography>
+                    </Stack>
+
+                    {/* ── table ── */}
+                    <TableContainer component={Box} sx={{ ...TABLE.container, overflowX: 'auto' }}>
+                        <Table size="small" sx={{ minWidth: 1080 }}>
+                            <TableHead>
+                                <TableRow>
+                                    <SortTh column="purchaseOrderNumber" label="PO Number" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <Th label="Vendor" />
+                                    <SortTh column="orderDate" label="Ordered" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <SortTh column="expectedDeliveryDate" label="Expected" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
+                                    <Th label="Items" align="right" width={72} />
+                                    <SortTh column="status" label="Status" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="center" />
+                                    <SortTh column="approvalStatus" label="Approval" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="center" />
+                                    <SortTh column="grandTotal" label="Total" sortBy={sortBy} sortDir={sortDir} onSort={handleSort} align="right" />
+                                    <Th label="Actions" align="center" width={104} />
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" sx={{ py: 10, borderBottom: 0 }}>
+                                            <CircularProgress size={40} thickness={4} sx={{ color: T.accent }} />
+                                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.ink2 }}>
+                                                Fetching purchase orders...
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : rows.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={9} align="center" sx={{ py: 10, borderBottom: 0 }}>
+                                            <Typography sx={{ fontWeight: 800, color: T.ink, mb: 0.5 }}>No purchase orders found</Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.875rem' }}>
+                                                Try adjusting the filters, or raise a new order.
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : rows.map(row => {
+                                    const ss = STATUS_STYLE[row.status] ?? STATUS_STYLE.DRAFT;
+                                    const as = APPROVAL_STYLE[row.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
+                                    const late = row.daysOverdue > 0;
+
+                                    return (
+                                        <TableRow
+                                            key={row.id}
+                                            hover
+                                            onClick={() => navigate(`${row.id}`)}
+                                            sx={{
+                                                ...TABLE.row,
+                                                // A late order is the one fact worth seeing without reading the row.
+                                                ...(late && { borderLeft: `3px solid ${STATUS.critical}` }),
+                                            }}
+                                        >
+                                            <TableCell sx={TABLE.cell}>
+                                                <Typography sx={{ fontWeight: 800, color: T.accent, fontSize: '0.8125rem', letterSpacing: '0.02em' }}>
+                                                    {row.purchaseOrderNumber}
+                                                </Typography>
+                                                {row.reference && (
+                                                    <Typography sx={{ color: T.ink3, fontSize: '0.72rem', mt: 0.2 }}>
+                                                        {row.reference}
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, maxWidth: 260 }}>
+                                                <Typography sx={{
+                                                    fontWeight: 600, color: T.ink, fontSize: '0.8125rem',
+                                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                }}>
+                                                    {row.vendorName ?? '\u2014'}
+                                                </Typography>
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>{fmtDate(row.orderDate)}</TableCell>
+
+                                            <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>
+                                                <Typography sx={{
+                                                    fontSize: '0.8125rem',
+                                                    color: late ? STATUS.critical : '#334155',
+                                                    fontWeight: late ? 700 : 500,
+                                                }}>
+                                                    {fmtDate(row.expectedDeliveryDate)}
+                                                </Typography>
+                                                {late && (
+                                                    <Typography sx={{ fontSize: '0.7rem', color: STATUS.critical, fontWeight: 700 }}>
+                                                        {row.daysOverdue}d late
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+
+                                            <TableCell sx={TABLE.num}>{fmtNum(row.itemCount)}</TableCell>
+
+                                            <TableCell align="center">
+                                                <Chip label={humanize(row.status)} size="small" sx={chipSx(ss.color, ss.bg)} />
+                                            </TableCell>
+
+                                            <TableCell align="center">
+                                                <Chip label={humanize(row.approvalStatus)} size="small" sx={chipSx(as.color, as.bg)} />
+                                            </TableCell>
+
+                                            <TableCell sx={{ ...TABLE.num, fontWeight: 700 }}>{fmtAmount(row.grandTotal)}</TableCell>
+
+                                            <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                                                <Tooltip title="Vendor invoices">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`${row.id}/invoices`); }}
+                                                        sx={{ color: T.ink3, '&:hover': { color: T.accent, bgcolor: T.accentDim } }}
+                                                    >
+                                                        <Receipt sx={{ fontSize: 18 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                                <Tooltip title="Download PDF">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => { e.stopPropagation(); downloadPOPdf(row.id); }}
+                                                        sx={{ color: T.ink3, '&:hover': { color: T.accent, bgcolor: T.accentDim } }}
+                                                    >
+                                                        <FileDownload sx={{ fontSize: 18 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+
+                    <TablePagination
+                        component="div"
+                        count={total}
+                        page={page}
+                        onPageChange={(_, p) => setPage(p)}
+                        rowsPerPage={pageSize}
+                        onRowsPerPageChange={e => { setPageSize(parseInt(e.target.value, 10)); setPage(0); }}
+                        rowsPerPageOptions={pageSizeOptions(pageSize)}
+                        sx={{ mt: 1, '& .MuiTablePagination-toolbar': { px: 0 }, color: T.ink2 }}
+                    />
                 </Paper>
-            ) : (
-                <>
-                    <Grid container spacing={3}>
-                        {rows.map(row => (
-                            <Grid item xs={12} sm={6} md={4} lg={3} key={row.id}>
-                                <POCard row={row} onClick={() => navigate(`${row.id}`)} onDownload={() => downloadPOPdf(row.id)} onInvoices={() => navigate(`${row.id}/invoices`)} />
-                            </Grid>
-                        ))}
-                    </Grid>
-
-                    <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                        <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, overflow: 'hidden' }}>
-                            <TablePagination
-                                component="div"
-                                count={total}
-                                page={page}
-                                onPageChange={(_, p) => setPage(p)}
-                                rowsPerPage={pageSize}
-                                onRowsPerPageChange={e => { setPageSize(parseInt(e.target.value)); setPage(0); }}
-                                rowsPerPageOptions={[12, 24, 48]}
-                            />
-                        </Paper>
-                    </Box>
-                </>
-            )}
+            </ModuleBody>
         </Box>
     );
 }

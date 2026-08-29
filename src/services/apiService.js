@@ -47,6 +47,9 @@ export const resolveApiErrorMessage = (
     const messageCandidate =
         payload?.message ||
         payload?.error ||
+        // FastAPI's HTTPException shape, relayed verbatim by the AI Lead Agent proxy — the
+        // backend passes the agent's own error body through rather than re-wrapping it.
+        payload?.detail ||
         (typeof payload === "string" ? payload : "");
     if (typeof messageCandidate === "string" && messageCandidate.trim()) {
         return messageCandidate;

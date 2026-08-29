@@ -10,17 +10,15 @@ import {
 } from '@mui/icons-material';
 import apiService from '../../../services/apiService';
 import { searchContacts } from '../../../services/commonAPI';
+import { T } from '../../../theme/moduleTokens';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const HEADER_TEXT = '#075985';
 const PO_TYPES = ['STANDARD', 'BLANKET', 'SUBCONTRACT', 'SERVICE', 'IMPORT'];
 
 const SectionCard = ({ title, icon: Icon, children }) => (
-    <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 3, borderRadius: 2, border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+    <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 3, borderRadius: 2, border: `1px solid ${T.rule}`, bgcolor: 'white' }}>
         <Stack direction="row" spacing={1} alignItems="center" mb={2.5}>
-            {Icon && <Icon sx={{ fontSize: 18, color: PRIMARY }} />}
-            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: HEADER_TEXT, textTransform: 'uppercase', letterSpacing: 1 }}>
+            {Icon && <Icon sx={{ fontSize: 18, color: T.accent }} />}
+            <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: T.accent, textTransform: 'uppercase', letterSpacing: 1 }}>
                 {title}
             </Typography>
         </Stack>

@@ -12,17 +12,9 @@ import { listPurchaseOrders } from '../../services/purchaseOrderService';
 import { getGRNsByPO } from '../../services/grnService';
 import { createDebitNote, getNextDebitNoteNumber } from '../../services/debitNoteService';
 import { searchInventoryItems } from '../../services/inventoryService';
+import { T, STATUS, SHELL } from '../../theme/moduleTokens';
 
 /* ── Design Tokens (matches Sales UI) ── */
-const T = {
-    primary: '#2563eb',
-    success: '#059669',
-    error:   '#dc2626',
-    bg:      '#f8fafc',
-    border:  '#e2e8f0',
-    text:    '#0f172a',
-    textSec: '#64748b',
-};
 
 const bd = (v) => parseFloat(v) || 0;
 
@@ -38,8 +30,8 @@ const RETURN_REASONS = [
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2.5 } };
 
 const SectionCard = ({ title, children }) => (
-    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
+    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
             {title}
         </Typography>
         {children}
@@ -158,10 +150,10 @@ export default function AddDebitNote() {
     };
 
     return (
-        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh', pb: 10 }}>
             {/* Dark hero header */}
             <Box sx={{
-                bgcolor: '#0f172a',
+                bgcolor: SHELL.heroBg,
                 backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(5,150,105,0.05) 0%, transparent 50%)',
                 color: 'white', pt: 6, pb: 15,
             }}>
@@ -189,7 +181,7 @@ export default function AddDebitNote() {
                         <Button variant="contained" disableElevation disabled={saving}
                             startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                             onClick={handleSubmit}
-                            sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: T.primary, px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}>
+                            sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: T.accent, px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}>
                             {saving ? 'Saving...' : 'Save Debit Note'}
                         </Button>
                     </Stack>
@@ -270,14 +262,14 @@ export default function AddDebitNote() {
                         </SectionCard>
 
                         {/* Line items */}
-                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                             <Box sx={{ p: 3, pb: 0 }}>
                                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                                    <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         Return Items
                                     </Typography>
                                     <Button size="small" startIcon={<Add />} variant="outlined" onClick={addLine}
-                                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, borderColor: T.border, color: T.textSec }}>
+                                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, borderColor: T.rule, color: T.ink2 }}>
                                         Add Line
                                     </Button>
                                 </Stack>
@@ -288,9 +280,9 @@ export default function AddDebitNote() {
                                         <TableRow>
                                             {['Item', 'Qty', 'Rate (₹)', 'GST %', 'GST Amt', 'Line Total', 'Warehouse', ''].map(h => (
                                                 <TableCell key={h} sx={{
-                                                    fontWeight: 700, fontSize: '0.65rem', color: T.textSec,
-                                                    bgcolor: T.bg, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                                    borderBottom: `1px solid ${T.border}`, py: 1.5,
+                                                    fontWeight: 700, fontSize: '0.65rem', color: T.ink2,
+                                                    bgcolor: T.ground, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                                    borderBottom: `1px solid ${T.rule}`, py: 1.5,
                                                 }}>
                                                     {h}
                                                 </TableCell>
@@ -333,10 +325,10 @@ export default function AddDebitNote() {
                                                             onChange={e => setLineField(idx, 'gstRate', e.target.value)}
                                                             sx={{ width: 65, '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                                                     </TableCell>
-                                                    <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>
+                                                    <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>
                                                         {gstAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                                     </TableCell>
-                                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem', color: T.text }}>
+                                                    <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem', color: T.ink }}>
                                                         {lineTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                     <TableCell sx={{ py: 1 }}>
@@ -349,7 +341,7 @@ export default function AddDebitNote() {
                                                         <Tooltip title="Remove line">
                                                             <IconButton size="small" onClick={() => removeLine(idx)}
                                                                 disabled={lines.length === 1}
-                                                                sx={{ color: '#94a3b8', '&:hover': { color: T.error } }}>
+                                                                sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
                                                                 <Delete sx={{ fontSize: 16 }} />
                                                             </IconButton>
                                                         </Tooltip>
@@ -362,7 +354,7 @@ export default function AddDebitNote() {
                             </TableContainer>
 
                             {/* Totals footer */}
-                            <Box sx={{ p: 3, bgcolor: T.bg, borderTop: `1px solid ${T.border}` }}>
+                            <Box sx={{ p: 3, bgcolor: T.ground, borderTop: `1px solid ${T.rule}` }}>
                                 <Stack direction="row" spacing={5} justifyContent="flex-end">
                                     {[
                                         { label: 'Subtotal', value: subtotal },
@@ -370,10 +362,10 @@ export default function AddDebitNote() {
                                         { label: 'Total',    value: totalAmount, bold: true },
                                     ].map(c => (
                                         <Box key={c.label} sx={{ textAlign: 'right' }}>
-                                            <Typography sx={{ fontSize: '0.65rem', color: T.textSec, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            <Typography sx={{ fontSize: '0.65rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                 {c.label}
                                             </Typography>
-                                            <Typography sx={{ fontWeight: c.bold ? 900 : 600, fontSize: c.bold ? '1.15rem' : '0.95rem', color: c.bold ? T.text : '#334155' }}>
+                                            <Typography sx={{ fontWeight: c.bold ? 900 : 600, fontSize: c.bold ? '1.15rem' : '0.95rem', color: c.bold ? T.ink : '#334155' }}>
                                                 ₹{c.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                             </Typography>
                                         </Box>

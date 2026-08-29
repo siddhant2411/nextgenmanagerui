@@ -147,6 +147,12 @@ const EnquiryList = ({
     { field: 'city', headerName: 'City', type: 'string' },
     { field: 'expectedRevenue', headerName: 'Value', type: 'number' },
     { field: 'status', headerName: 'Status', type: 'enum', options: Object.keys(STATUS_CONFIG) },
+    { field: 'enquirySource', headerName: 'Source', type: 'string' },
+    { field: 'closeReasonCode', headerName: 'Close Reason', type: 'string' },
+    // Why the enquiry ended, grouped so a win rate is computable: LOST is a competitive defeat,
+    // DECLINED_BY_US and NO_ENGAGEMENT are not.
+    { field: 'outcome', headerName: 'Outcome', type: 'enum',
+      options: ['WON', 'LOST', 'NO_ENGAGEMENT', 'DECLINED_BY_US', 'DEFERRED', 'INVALID'] },
     { field: 'lastContactedDate', headerName: 'Last Contact', type: 'date' },
     { field: 'enqDate', headerName: 'Enquiry Date', type: 'date' },
     { field: 'daysForNextFollowup', headerName: 'Days for Followup', type: 'number' },
