@@ -15,6 +15,9 @@ import PlanningPage from "./pages/PlanningPage";
 import PlanningDeskPage from "./components/planning/PlanningDeskPage";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
+import CrmDashboard from "./components/crm/CrmDashboard";
+import RevenueDashboard from "./components/crm/RevenueDashboard";
+import AiLeadReview from "./components/crm/AiLeadReview";
 import QuotationPage from "./pages/QuotationPage";
 import WorkOrderPage from "./pages/WorkOrderPage";
 import ProductionJobPage from "./pages/ProductionJobPage";
@@ -33,6 +36,7 @@ import JobWorkChallanPage from "./pages/JobWorkChallanPage";
 import LoginPage from "./pages/LoginPage";
 import MaterialRequestDashboard from "./components/inventory/MaterialRequestDashboard";
 import { AuthProvider } from "./auth/AuthContext";
+import { FEATURES, ServerFeaturesProvider, useServerFeatures } from "./config/ServerFeaturesContext";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import PublicOnlyRoute from "./auth/PublicOnlyRoute";
 import RoleProtectedRoute from "./auth/RoleProtectedRoute";
@@ -67,6 +71,8 @@ function AppShell() {
     const isPlanningRoute = location.pathname.startsWith("/planning");
     const moduleShellRoute = isAccountingRoute || isPlanningRoute;
     const activeModuleKey = isPlanningRoute ? "planning" : "accounting";
+    const { isFeatureEnabled } = useServerFeatures();
+    const aiLeadAgentEnabled = isFeatureEnabled(FEATURES.AI_LEAD_AGENT);
 
     const handleToggleSidebar = () => {
         if (isSmallScreen) {
@@ -191,6 +197,54 @@ function AppShell() {
                             </RoleProtectedRoute>
                         }
                     />
+                    {/* Period-aware pipeline analytics. The register at /enquiry keeps its own
+                        all-time tile strip; this is the view that answers "versus last month". */}
+                    <Route
+                        path="/crm/pipeline"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for the sales pipeline."
+                            >
+                                <CrmDashboard />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    {/* The money half of the same dashboard: what was ordered rather than what
+                        might be won. Same period rail, same shell, one click apart. */}
+                    <Route
+                        path="/crm/revenue"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={SALES_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for sales analytics."
+                            >
+                                <RevenueDashboard />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    {/* Adjudication desk for the AI Lead Agent. Same sales roles as the rest of
+                        the CRM: approving a lead here files an enquiry into the register, so it is
+                        a sales action, not an administrative one.
+
+                        Registered only where the server reports an agent configured, so on a
+                        deployment without one the path falls through to the catch-all redirect
+                        below rather than opening a desk with no service behind it. The role gate
+                        still applies on top: having the agent installed is not permission to
+                        adjudicate leads. */}
+                    {aiLeadAgentEnabled && (
+                        <Route
+                            path="/crm/ai-leads"
+                            element={
+                                <RoleProtectedRoute
+                                    allowedRoles={SALES_ACCESS_ROLES}
+                                    deniedMessage="You are not authorized to review AI leads."
+                                >
+                                    <AiLeadReview />
+                                </RoleProtectedRoute>
+                            }
+                        />
+                    )}
                     <Route
                         path="/quotation/*"
                         element={
@@ -457,32 +511,34 @@ function App() {
         >
             <Router>
                 <AuthProvider>
-                    <Routes>
-                        <Route
-                            path="/login"
-                            element={
-                                <PublicOnlyRoute>
-                                    <LoginPage />
-                                </PublicOnlyRoute>
-                            }
-                        />
-                        <Route
-                            path="/apps"
-                            element={
-                                <ProtectedRoute>
-                                    <AppLauncherPage />
-                                </ProtectedRoute>
-                            }
-                        />
-                        <Route
-                            path="*"
-                            element={
-                                <ProtectedRoute>
-                                    <AppShell />
-                                </ProtectedRoute>
-                            }
-                        />
-                    </Routes>
+                    <ServerFeaturesProvider>
+                        <Routes>
+                            <Route
+                                path="/login"
+                                element={
+                                    <PublicOnlyRoute>
+                                        <LoginPage />
+                                    </PublicOnlyRoute>
+                                }
+                            />
+                            <Route
+                                path="/apps"
+                                element={
+                                    <ProtectedRoute>
+                                        <AppLauncherPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="*"
+                                element={
+                                    <ProtectedRoute>
+                                        <AppShell />
+                                    </ProtectedRoute>
+                                }
+                            />
+                        </Routes>
+                    </ServerFeaturesProvider>
                 </AuthProvider>
             </Router>
         </div>

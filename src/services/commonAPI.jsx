@@ -40,10 +40,38 @@ export const searchEnquiry = async (search='') => {
             size: 10,
             sortBy: 'enqNo',
             sortDir: 'asc',
-            enqNo:search
+            // enqNo is an exact match on the API; a type-ahead wants the substring variant.
+            // Sending a partial number as enqNo would now return nothing at all.
+            enqNoContains:search
         };
         const response = await apiService.get('/enquiry', params);
         return response.content;
+    } catch (error) {
+        throw error;
+    }
+};
+
+/**
+ * Enquiry lookup for the AI Lead Review merge picker, where a reviewer might search by the
+ * customer's name (all they have from the extracted mail) or by an enquiry number they already
+ * know. Two independent calls, not one request with both filters set — the backend ANDs every
+ * filter it's given, so companyName + enqNoContains together would only return rows matching
+ * both at once, which is wrong for "either of these might be what they typed". Results are
+ * merged and de-duplicated by id, most recent first: a merge target is almost always a
+ * recently-opened enquiry, not an old closed one.
+ */
+export const searchEnquiryForMerge = async (search = '') => {
+    try {
+        const params = { page: 0, size: 10, sortBy: 'enqDate', sortDir: 'desc' };
+        const [byCompany, byNumber] = await Promise.all([
+            apiService.get('/enquiry', { ...params, companyName: search }),
+            apiService.get('/enquiry', { ...params, enqNoContains: search }),
+        ]);
+        const merged = new Map();
+        for (const row of [...(byCompany?.content ?? []), ...(byNumber?.content ?? [])]) {
+            merged.set(row.id, row);
+        }
+        return Array.from(merged.values());
     } catch (error) {
         throw error;
     }

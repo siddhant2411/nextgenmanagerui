@@ -1,22 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Paper, Typography, Stack, Chip, CircularProgress, IconButton,
-    Tooltip, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Box, Paper, Typography, Stack, Chip, CircularProgress, Button,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material';
-import { ArrowBack, Refresh, Warning } from '@mui/icons-material';
+import { Refresh, Warning } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { getOverduePOs } from '../../services/purchaseOrderService';
+import {
+    T, STATUS, TABLE, chipSx, heroButtonSx, panelSx,
+    fmtAmount, fmtDate, fmtNum, humanize,
+} from '../../theme/moduleTokens';
+import ModuleHero from '../ui/moduleshell/ModuleHero';
+import ModuleBody from '../ui/moduleshell/ModuleBody';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const fmtAmount = (n) => n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
+/**
+ * Purchase orders past their expected delivery date.
+ *
+ * Sorted worst-first by the server. The row severity splits at a fortnight: under two weeks is a
+ * chase, over two weeks is a problem, and the two should not look the same in a list you scan.
+ */
 
 const STATUS_STYLE = {
-    SENT:               { bg: '#eaf0f9', color: '#1c4f87', border: '#bad0ec' },
-    PARTIALLY_RECEIVED: { bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+    SENT:               { color: T.accent,          bg: T.accentDim },
+    PARTIALLY_RECEIVED: { color: STATUS.warningInk, bg: STATUS.warningBg },
 };
+
+const SERIOUS_AFTER_DAYS = 14;
+
+const Th = ({ label, align = 'left', width }) => (
+    <TableCell align={align} sx={{ ...TABLE.head, width }}>{label}</TableCell>
+);
 
 export default function OverduePOList() {
     const navigate = useNavigate();
@@ -33,114 +46,131 @@ export default function OverduePOList() {
 
     useEffect(() => { load(); }, []);
 
-    return (
-        <Box sx={{ p: { xs: 2, sm: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
-            {/* Header */}
-            <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={4}>
-                <Stack direction="row" alignItems="center" spacing={1.5}>
-                    <Tooltip title="Back to Purchase Orders">
-                        <IconButton onClick={() => navigate('/purchase')}
-                            sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                            <ArrowBack />
-                        </IconButton>
-                    </Tooltip>
-                    <Box>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f2744', letterSpacing: '-0.02em' }}>
-                                Overdue POs
-                            </Typography>
-                            {!loading && rows.length > 0 && (
-                                <Chip label={rows.length} size="small"
-                                    sx={{ bgcolor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', fontWeight: 700 }} />
-                            )}
-                        </Stack>
-                        <Typography sx={{ color: '#64748b', fontSize: '0.9rem' }}>
-                            Purchase orders past their expected delivery date
-                        </Typography>
-                    </Box>
-                </Stack>
-                <Tooltip title="Refresh">
-                    <IconButton onClick={load} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                        <Refresh />
-                    </IconButton>
-                </Tooltip>
-            </Stack>
+    const worst = rows.filter(r => r.daysOverdue > SERIOUS_AFTER_DAYS).length;
+    const value = rows.reduce((sum, r) => sum + Number(r.grandTotal ?? 0), 0);
 
-            {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
-                    <CircularProgress thickness={5} sx={{ color: PRIMARY }} />
-                </Box>
-            ) : rows.length === 0 ? (
-                <Paper elevation={0} sx={{ py: 12, border: `1px dashed ${BORDER}`, borderRadius: 3, bgcolor: 'white', textAlign: 'center' }}>
-                    <Box sx={{ fontSize: 48, mb: 2 }}>✅</Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mb: 0.5 }}>All POs are on time</Typography>
-                    <Typography sx={{ color: '#64748b' }}>No purchase orders are past their expected delivery date.</Typography>
-                </Paper>
-            ) : (
-                <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2.5, overflow: 'hidden' }}>
-                    <TableContainer>
-                        <Table>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                                    {['PO Number', 'Vendor', 'Order Date', 'Expected Delivery', 'Days Late', 'Status', 'Amount', ''].map(h => (
-                                        <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, py: 1.8, borderBottom: `1px solid ${BORDER}` }}>
-                                            {h}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {rows.map(row => {
-                                    const ss = STATUS_STYLE[row.status] ?? { bg: '#f4f6f8', color: '#5a6474', border: '#dde3ec' };
-                                    return (
-                                        <TableRow key={row.id} hover
-                                            sx={{ cursor: 'pointer', '&:last-child td': { border: 0 }, '&:hover': { bgcolor: '#f0f7ff' } }}
-                                            onClick={() => navigate(`/purchase/${row.id}`)}>
-                                            <TableCell sx={{ fontWeight: 700, color: '#0f2744', fontSize: '0.88rem', py: 2 }}>
-                                                {row.purchaseOrderNumber}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '0.88rem', color: '#475569', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {row.vendorName ?? '—'}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '0.85rem', color: '#64748b' }}>
-                                                {fmtDate(row.orderDate)}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '0.85rem', color: '#64748b' }}>
-                                                {fmtDate(row.expectedDeliveryDate)}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Stack direction="row" alignItems="center" spacing={0.8}>
-                                                    <Warning sx={{ fontSize: 15, color: row.daysOverdue > 14 ? '#dc2626' : '#f59e0b' }} />
-                                                    <Chip
-                                                        label={`${row.daysOverdue} day${row.daysOverdue !== 1 ? 's' : ''}`}
-                                                        size="small"
-                                                        sx={{
-                                                            bgcolor: row.daysOverdue > 14 ? '#fef2f2' : '#fff7ed',
-                                                            color: row.daysOverdue > 14 ? '#dc2626' : '#c2410c',
-                                                            border: `1px solid ${row.daysOverdue > 14 ? '#fca5a5' : '#fdba74'}`,
-                                                            fontWeight: 700, height: 22, fontSize: '0.75rem',
-                                                        }}
-                                                    />
-                                                </Stack>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Chip label={row.status?.replace(/_/g, ' ')} size="small"
-                                                    sx={{ bgcolor: ss.bg, color: ss.color, border: `1px solid ${ss.border}`, fontWeight: 600, fontSize: '0.7rem', height: 22 }} />
-                                            </TableCell>
-                                            <TableCell sx={{ fontWeight: 700, color: '#0f172a', fontSize: '0.88rem' }}>
-                                                {fmtAmount(row.grandTotal)}
-                                            </TableCell>
-                                            <TableCell sx={{ color: '#94a3b8', fontSize: '0.8rem' }}>
-                                                View →
-                                            </TableCell>
+    return (
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh' }}>
+            <ModuleHero
+                title="Overdue Purchase Orders"
+                subtitle={loading ? 'Checking which orders have slipped...'
+                    : rows.length === 0 ? 'Nothing is past its expected delivery date.'
+                    : `${fmtNum(rows.length)} order${rows.length === 1 ? '' : 's'} past the expected delivery date, worth ${fmtAmount(value)}.`}
+                onBack={() => navigate('/purchase')}
+                backLabel="Back to purchase orders"
+                badge={!loading && rows.length > 0 && (
+                    <Chip
+                        label={`${fmtNum(rows.length)} late`}
+                        size="small"
+                        sx={{
+                            bgcolor: STATUS.criticalBg, color: STATUS.critical,
+                            fontWeight: 800, borderRadius: 1.5, height: 24,
+                        }}
+                    />
+                )}
+                actions={
+                    <Button variant="outlined" startIcon={<Refresh />} onClick={load} disabled={loading} sx={heroButtonSx}>
+                        Refresh
+                    </Button>
+                }
+            />
+
+            <ModuleBody>
+                <Paper elevation={0} sx={panelSx}>
+                    {loading ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 10 }}>
+                            <CircularProgress size={40} thickness={4} sx={{ color: T.accent }} />
+                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.ink2 }}>Checking delivery dates...</Typography>
+                        </Box>
+                    ) : rows.length === 0 ? (
+                        <Box sx={{ py: 10, textAlign: 'center' }}>
+                            <Typography sx={{ fontWeight: 800, color: STATUS.good, fontSize: '1.05rem', mb: 0.5 }}>
+                                Every order is on time
+                            </Typography>
+                            <Typography sx={{ color: T.ink2, fontSize: '0.875rem' }}>
+                                No purchase order is past its expected delivery date.
+                            </Typography>
+                        </Box>
+                    ) : (
+                        <>
+                            <Stack direction="row" justifyContent="space-between" alignItems="baseline" sx={{ mb: 1.5 }}>
+                                <Typography sx={{ fontWeight: 900, color: T.ink, fontSize: '1.05rem' }}>
+                                    Past Expected Delivery
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: T.ink2, fontWeight: 700 }}>
+                                    {worst > 0 ? `${fmtNum(worst)} over ${SERIOUS_AFTER_DAYS} days` : 'all within a fortnight'}
+                                </Typography>
+                            </Stack>
+
+                            <TableContainer component={Box} sx={{ ...TABLE.container, overflowX: 'auto' }}>
+                                <Table size="small" sx={{ minWidth: 900 }}>
+                                    <TableHead>
+                                        <TableRow>
+                                            <Th label="PO Number" />
+                                            <Th label="Vendor" />
+                                            <Th label="Ordered" />
+                                            <Th label="Expected" />
+                                            <Th label="Days late" align="right" width={110} />
+                                            <Th label="Status" align="center" />
+                                            <Th label="Amount" align="right" />
                                         </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                    </TableHead>
+                                    <TableBody>
+                                        {rows.map(row => {
+                                            const ss = STATUS_STYLE[row.status] ?? { color: T.ink2, bg: T.ruleSoft };
+                                            const serious = row.daysOverdue > SERIOUS_AFTER_DAYS;
+                                            const severity = serious ? STATUS.critical : STATUS.warning;
+
+                                            return (
+                                                <TableRow
+                                                    key={row.id} hover
+                                                    onClick={() => navigate(`/purchase/${row.id}`)}
+                                                    sx={{ ...TABLE.row, borderLeft: `3px solid ${severity}` }}
+                                                >
+                                                    <TableCell sx={TABLE.cell}>
+                                                        <Typography sx={{ fontWeight: 800, color: T.accent, fontSize: '0.8125rem', letterSpacing: '0.02em' }}>
+                                                            {row.purchaseOrderNumber}
+                                                        </Typography>
+                                                    </TableCell>
+
+                                                    <TableCell sx={{ ...TABLE.cell, maxWidth: 240 }}>
+                                                        <Typography sx={{
+                                                            fontWeight: 600, color: T.ink, fontSize: '0.8125rem',
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {row.vendorName ?? '\u2014'}
+                                                        </Typography>
+                                                    </TableCell>
+
+                                                    <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>{fmtDate(row.orderDate)}</TableCell>
+                                                    <TableCell sx={{ ...TABLE.cell, whiteSpace: 'nowrap' }}>{fmtDate(row.expectedDeliveryDate)}</TableCell>
+
+                                                    <TableCell align="right">
+                                                        <Stack direction="row" alignItems="center" justifyContent="flex-end" gap={0.7}>
+                                                            <Warning sx={{ fontSize: 15, color: severity }} />
+                                                            <Chip
+                                                                label={`${row.daysOverdue}d`}
+                                                                size="small"
+                                                                sx={chipSx(severity, serious ? STATUS.criticalBg : STATUS.warningBg)}
+                                                            />
+                                                        </Stack>
+                                                    </TableCell>
+
+                                                    <TableCell align="center">
+                                                        <Chip label={humanize(row.status)} size="small" sx={chipSx(ss.color, ss.bg)} />
+                                                    </TableCell>
+
+                                                    <TableCell sx={{ ...TABLE.num, fontWeight: 700 }}>{fmtAmount(row.grandTotal)}</TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </>
+                    )}
                 </Paper>
-            )}
+            </ModuleBody>
         </Box>
     );
 }

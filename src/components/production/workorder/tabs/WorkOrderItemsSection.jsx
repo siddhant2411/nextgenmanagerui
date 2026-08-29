@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box, Paper, Typography, Grid, TextField, Autocomplete, IconButton, Button,
   Tooltip, Chip, Alert, Divider,
@@ -28,6 +28,15 @@ export default function WorkOrderItemsSection({ formik, setError, workOrderId, i
 
   const extras = formik.values.additionalLines || [];
   const editable = !workOrderId && isPlanningEditable;
+
+  // Row 1's item can land after this component has mounted - a saved work order finishing its
+  // fetch, or the BOM page's "Create Work Order" link dropping the item into form state a render
+  // later. The input is controlled, so it has to follow rather than keep the value it was seeded
+  // with. Keyed on the name so a user mid-typing is left alone.
+  const primaryName = formik.values.selectedItem?.name || '';
+  useEffect(() => {
+    setPrimaryInput(primaryName);
+  }, [primaryName]);
 
   const searchItems = async (value = '') => {
     try {

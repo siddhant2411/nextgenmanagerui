@@ -1,58 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Paper, Typography, Grid, Stack, Chip, CircularProgress,
+    Box, Paper, Typography, Stack, Chip, CircularProgress,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    IconButton, Tooltip,
 } from '@mui/material';
-import { ArrowBack, TrendingUp, Warning, Business, Receipt } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
     ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { getPurchaseAnalytics } from '../../services/purchaseOrderService';
+import {
+    T, SHELL, STATUS, TABLE, MONO, chipSx, panelSx,
+    fmtRupees, fmtNum, humanize,
+} from '../../theme/moduleTokens';
+import ModuleHero from '../ui/moduleshell/ModuleHero';
+import ModuleBody from '../ui/moduleshell/ModuleBody';
+import { StatTile, StatStrip } from '../ui/moduleshell/StatTile';
 
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0';
-const PRIMARY_LIGHT = '#f0f7ff';
+/* ============================================================================
+   Purchase analytics.
 
+   Same shell and same palette as the purchase register it is one click from.
+   ========================================================================= */
+
+/**
+ * Donut fills for the status breakdown.
+ *
+ * These follow the status chips in the register — a SENT slice and a SENT chip have to be the same
+ * blue or the two screens are describing different things. RECEIVED and COMPLETED are both "good"
+ * and would collide as one green, so they are separated by lightness rather than by hue.
+ */
 const STATUS_COLORS = {
-    DRAFT: '#94a3b8',
-    SENT: '#3b82f6',
-    PARTIALLY_RECEIVED: '#f59e0b',
-    RECEIVED: '#22c55e',
-    COMPLETED: '#10b981',
-    CANCELLED: '#ef4444',
+    DRAFT: T.ink3,
+    SENT: T.accent,
+    PARTIALLY_RECEIVED: STATUS.warning,
+    RECEIVED: '#34d399',
+    COMPLETED: STATUS.good,
+    CANCELLED: STATUS.critical,
 };
 
-const fmtAmount = (n) =>
-    n != null ? `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 0 })}` : '₹0';
+const SERIOUS_AFTER_DAYS = 14;
 
-const SummaryCard = ({ title, value, sub, accent, icon: Icon }) => (
-    <Paper elevation={0} sx={{
-        p: 2.5, border: `1px solid ${BORDER}`, borderRadius: 2.5,
-        borderLeft: `4px solid ${accent}`,
-        background: 'linear-gradient(135deg,#ffffff 0%,#f8fafc 100%)',
-    }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Box>
-                <Typography sx={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
-                    {title}
-                </Typography>
-                <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>
-                    {value}
-                </Typography>
-                {sub && <Typography sx={{ fontSize: '0.75rem', color: '#94a3b8', mt: 0.5 }}>{sub}</Typography>}
-            </Box>
-            <Box sx={{ p: 1.2, borderRadius: 2, background: PRIMARY_LIGHT, color: accent }}>
-                <Icon sx={{ fontSize: 22 }} />
-            </Box>
+/** Rounded bar cap — recharts has no radius prop on Bar itself. */
+const CustomBar = ({ x, y, width, height, fill }) => (
+    <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
+);
+
+const Panel = ({ title, sub, right, children, sx }) => (
+    <Paper elevation={0} sx={{ ...panelSx, ...sx }}>
+        <Stack direction="row" alignItems="baseline" justifyContent="space-between" gap={1.5}>
+            <Typography sx={{ fontSize: 16, fontWeight: 800, letterSpacing: '-.015em', color: T.ink }}>
+                {title}
+            </Typography>
+            {right}
         </Stack>
+        {sub && <Typography sx={{ fontSize: 12.5, color: T.ink2, mt: 0.5, mb: 2, fontWeight: 500 }}>{sub}</Typography>}
+        {children}
     </Paper>
 );
 
-const CustomBar = ({ x, y, width, height, fill }) => (
-    <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
+const Th = ({ label, align = 'left', width }) => (
+    <TableCell align={align} sx={{ ...TABLE.head, width }}>{label}</TableCell>
 );
 
 export default function PurchaseAnalytics() {
@@ -67,23 +75,15 @@ export default function PurchaseAnalytics() {
             .finally(() => setLoading(false));
     }, []);
 
-    if (loading) {
-        return (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                <CircularProgress thickness={5} sx={{ color: PRIMARY }} />
-            </Box>
-        );
-    }
-
     const monthlyData = (data?.monthlySpend ?? []).map(d => ({
         month: d.yearMonth,
         amount: parseFloat(d.total ?? 0),
     }));
 
     const statusData = Object.entries(data?.statusCounts ?? {}).map(([status, count]) => ({
-        name: status.replace(/_/g, ' '),
+        name: humanize(status),
         value: Number(count),
-        color: STATUS_COLORS[status] ?? '#94a3b8',
+        color: STATUS_COLORS[status] ?? T.ink3,
     }));
 
     const vendorRows = Object.entries(data?.spendByVendor ?? {}).map(([name, total]) => ({
@@ -92,194 +92,201 @@ export default function PurchaseAnalytics() {
     }));
 
     const overduePOs = data?.overduePOs ?? [];
-
-    const totalSpend = vendorRows.reduce((s, r) => s + r.total, 0);
     const overdueCount = overduePOs.length;
+
+    /* This is the sum of the top ten vendors the endpoint returns, not company spend. The tile
+       says so, because a number labelled "total spend" that is not the total is worse than no
+       number at all. */
+    const topVendorSpend = vendorRows.reduce((s, r) => s + r.total, 0);
+
     const thisMonth = (() => {
         const ym = new Date().toISOString().slice(0, 7);
         return monthlyData.find(d => d.month === ym)?.amount ?? 0;
     })();
 
     return (
-        <Box sx={{ p: { xs: 2, sm: 3 }, background: '#f8fafc', minHeight: '100vh' }}>
-            {/* Header */}
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={4}>
-                <Tooltip title="Back to Purchase Orders">
-                    <IconButton onClick={() => navigate('/purchase')}
-                        sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                        <ArrowBack />
-                    </IconButton>
-                </Tooltip>
-                <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f2744', letterSpacing: '-0.02em', mb: 0.3 }}>
-                        Purchase Analytics
-                    </Typography>
-                    <Typography sx={{ color: '#64748b', fontSize: '0.9rem' }}>
-                        Spend trends, vendor breakdown and delivery health
-                    </Typography>
-                </Box>
-            </Stack>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh' }}>
+            <ModuleHero
+                title="Purchase Analytics"
+                subtitle="Spend trend, vendor concentration and delivery health."
+                onBack={() => navigate('/purchase')}
+                backLabel="Back to purchase orders"
+            />
 
-            {/* Summary cards */}
-            <Grid container spacing={2.5} mb={4}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <SummaryCard title="Total Spend (Top 10 Vendors)" value={fmtAmount(totalSpend)} accent={PRIMARY} icon={TrendingUp} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <SummaryCard title="This Month" value={fmtAmount(thisMonth)} accent="#0891b2" icon={Receipt} sub="Current calendar month" />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <SummaryCard title="Overdue POs" value={overdueCount} accent={overdueCount > 0 ? '#dc2626' : '#22c55e'} icon={Warning}
-                        sub={overdueCount > 0 ? 'Past expected delivery' : 'All on time'} />
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <SummaryCard title="Active Vendors" value={vendorRows.length} accent="#7c3aed" icon={Business} sub="With purchase spend" />
-                </Grid>
-            </Grid>
+            <ModuleBody>
+                <StatStrip>
+                    <StatTile
+                        label="Top-10 vendor spend" value={fmtRupees(topVendorSpend)}
+                        hint="the ten largest vendors only" loading={loading}
+                    />
+                    <StatTile
+                        label="This month" value={fmtRupees(thisMonth)}
+                        hint="current calendar month" loading={loading}
+                    />
+                    <StatTile
+                        label="Overdue POs" value={fmtNum(overdueCount)}
+                        hint={overdueCount > 0 ? 'past expected delivery' : 'all on time'}
+                        severity={overdueCount > 0 ? STATUS.critical : STATUS.good}
+                        loading={loading}
+                    />
+                    <StatTile
+                        label="Active vendors" value={fmtNum(vendorRows.length)}
+                        hint="with purchase spend" loading={loading}
+                    />
+                </StatStrip>
 
-            <Grid container spacing={3} mb={3}>
-                {/* Monthly spend bar chart */}
-                <Grid item xs={12} md={8}>
-                    <Paper elevation={0} sx={{ p: 3, border: `1px solid ${BORDER}`, borderRadius: 2.5 }}>
-                        <Typography sx={{ fontWeight: 700, color: '#1e293b', mb: 0.5 }}>Monthly Spend Trend</Typography>
-                        <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8', mb: 2.5 }}>Total PO value by month</Typography>
-                        {monthlyData.length === 0 ? (
-                            <Box sx={{ py: 6, textAlign: 'center' }}>
-                                <Typography sx={{ color: '#94a3b8' }}>No monthly data available</Typography>
-                            </Box>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={260}>
-                                <BarChart data={monthlyData} barSize={32}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false}
-                                        tickFormatter={v => `₹${(v / 1000).toFixed(0)}K`} />
-                                    <RTooltip formatter={(v) => [fmtAmount(v), 'Spend']}
-                                        contentStyle={{ borderRadius: 8, border: `1px solid ${BORDER}`, fontSize: 12 }} />
-                                    <Bar dataKey="amount" fill={PRIMARY} shape={<CustomBar />} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </Paper>
-                </Grid>
-
-                {/* Status donut */}
-                <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ p: 3, border: `1px solid ${BORDER}`, borderRadius: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <Typography sx={{ fontWeight: 700, color: '#1e293b', mb: 0.5 }}>PO Status Breakdown</Typography>
-                        <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8', mb: 2 }}>Count by status</Typography>
-                        {statusData.length === 0 ? (
-                            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Typography sx={{ color: '#94a3b8' }}>No data</Typography>
-                            </Box>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={220}>
-                                <PieChart>
-                                    <Pie data={statusData} cx="50%" cy="45%" innerRadius={55} outerRadius={80}
-                                        dataKey="value" paddingAngle={3}>
-                                        {statusData.map((entry, i) => (
-                                            <Cell key={i} fill={entry.color} />
-                                        ))}
-                                    </Pie>
-                                    <Legend iconSize={10} wrapperStyle={{ fontSize: 11 }} />
-                                    <RTooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        )}
-                    </Paper>
-                </Grid>
-            </Grid>
-
-            <Grid container spacing={3}>
-                {/* Vendor spend table */}
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2.5, overflow: 'hidden' }}>
-                        <Box sx={{ p: 2.5, borderBottom: `1px solid ${BORDER}` }}>
-                            <Typography sx={{ fontWeight: 700, color: '#1e293b' }}>Top Vendors by Spend</Typography>
-                            <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>Top 10 by total PO value</Typography>
+                {loading ? (
+                    <Paper elevation={0} sx={panelSx}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 10 }}>
+                            <CircularProgress size={40} thickness={4} sx={{ color: T.accent }} />
+                            <Typography sx={{ mt: 2, fontWeight: 700, color: T.ink2 }}>Crunching purchase data...</Typography>
                         </Box>
-                        <TableContainer>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', py: 1.5 }}>#</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>Vendor</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>Total Spend</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {vendorRows.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8' }}>No data</TableCell>
-                                        </TableRow>
-                                    ) : vendorRows.map((r, i) => (
-                                        <TableRow key={r.name} hover sx={{ '&:last-child td': { border: 0 } }}>
-                                            <TableCell sx={{ color: '#94a3b8', fontSize: '0.8rem', py: 1.2 }}>{i + 1}</TableCell>
-                                            <TableCell sx={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b', py: 1.2 }}>{r.name}</TableCell>
-                                            <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: PRIMARY, py: 1.2 }}>
-                                                {fmtAmount(r.total)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
                     </Paper>
-                </Grid>
-
-                {/* Overdue POs table */}
-                <Grid item xs={12} md={6}>
-                    <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2.5, overflow: 'hidden' }}>
-                        <Box sx={{ p: 2.5, borderBottom: `1px solid ${BORDER}` }}>
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography sx={{ fontWeight: 700, color: '#1e293b' }}>Overdue POs</Typography>
-                                {overdueCount > 0 && (
-                                    <Chip label={overdueCount} size="small"
-                                        sx={{ bgcolor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', fontWeight: 700, height: 20, fontSize: '0.7rem' }} />
+                ) : (
+                    <>
+                        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '1.6fr 1fr' } }}>
+                            <Panel title="Monthly spend" sub="Total purchase order value by month.">
+                                {monthlyData.length === 0 ? (
+                                    <Box sx={{ py: 6, textAlign: 'center' }}>
+                                        <Typography sx={{ color: T.ink3, fontWeight: 600 }}>No monthly data yet.</Typography>
+                                    </Box>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height={260}>
+                                        <BarChart data={monthlyData} barSize={32}>
+                                            <CartesianGrid strokeDasharray="2 4" stroke={T.rule} vertical={false} />
+                                            <XAxis
+                                                dataKey="month" axisLine={false} tickLine={false}
+                                                tick={{ fontSize: 10, fill: T.ink3, fontFamily: MONO }}
+                                            />
+                                            <YAxis
+                                                axisLine={false} tickLine={false}
+                                                tick={{ fontSize: 10, fill: T.ink3, fontFamily: MONO }}
+                                                tickFormatter={v => v >= 1e5 ? `\u20B9${(v / 1e5).toFixed(1)}L` : `\u20B9${(v / 1000).toFixed(0)}K`}
+                                            />
+                                            <RTooltip
+                                                formatter={(v) => [fmtRupees(v), 'Spend']}
+                                                cursor={{ fill: T.ruleSoft }}
+                                                contentStyle={{
+                                                    borderRadius: 8, border: `1px solid ${T.rule}`,
+                                                    fontSize: 12, boxShadow: SHELL.cardShadow,
+                                                }}
+                                            />
+                                            <Bar dataKey="amount" fill={T.accent} shape={<CustomBar />} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
                                 )}
-                            </Stack>
-                            <Typography sx={{ fontSize: '0.8rem', color: '#94a3b8' }}>Past expected delivery date</Typography>
+                            </Panel>
+
+                            <Panel title="Status breakdown" sub="Purchase orders by state, counted today.">
+                                {statusData.length === 0 ? (
+                                    <Box sx={{ py: 6, textAlign: 'center' }}>
+                                        <Typography sx={{ color: T.ink3, fontWeight: 600 }}>No data.</Typography>
+                                    </Box>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height={260}>
+                                        <PieChart>
+                                            <Pie
+                                                data={statusData} cx="50%" cy="45%" innerRadius={55} outerRadius={82}
+                                                dataKey="value" paddingAngle={3}
+                                            >
+                                                {statusData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                                            </Pie>
+                                            <Legend iconSize={9} iconType="square" wrapperStyle={{ fontSize: 11.5, color: T.ink2, fontWeight: 600 }} />
+                                            <RTooltip contentStyle={{ borderRadius: 8, border: `1px solid ${T.rule}`, fontSize: 12 }} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </Panel>
                         </Box>
-                        <TableContainer sx={{ maxHeight: 320, overflowY: 'auto' }}>
-                            <Table size="small" stickyHeader>
-                                <TableHead>
-                                    <TableRow>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', bgcolor: '#f8fafc', py: 1.5 }}>PO #</TableCell>
-                                        <TableCell sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', bgcolor: '#f8fafc' }}>Vendor</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', bgcolor: '#f8fafc' }}>Days Late</TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {overduePOs.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#22c55e', fontWeight: 600, fontSize: '0.85rem' }}>
-                                                All POs are on time
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : overduePOs.map(po => (
-                                        <TableRow key={po.id} hover sx={{ cursor: 'pointer', '&:last-child td': { border: 0 } }}
-                                            onClick={() => navigate(`/purchase/${po.id}`)}>
-                                            <TableCell sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f2744', py: 1.2 }}>
-                                                {po.purchaseOrderNumber}
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '0.82rem', color: '#475569', py: 1.2, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                {po.vendorName ?? '—'}
-                                            </TableCell>
-                                            <TableCell align="right" sx={{ py: 1.2 }}>
-                                                <Chip label={`${po.daysOverdue}d`} size="small"
-                                                    sx={{ bgcolor: po.daysOverdue > 14 ? '#fef2f2' : '#fff7ed',
-                                                        color: po.daysOverdue > 14 ? '#dc2626' : '#c2410c',
-                                                        border: `1px solid ${po.daysOverdue > 14 ? '#fca5a5' : '#fdba74'}`,
-                                                        fontWeight: 700, height: 20, fontSize: '0.7rem' }} />
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
-                    </Paper>
-                </Grid>
-            </Grid>
+
+                        <Box sx={{ display: 'grid', gap: 2, mt: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+                            <Panel title="Top vendors by spend" sub="The ten largest by total purchase order value.">
+                                <TableContainer component={Box} sx={{ ...TABLE.container, overflowX: 'auto' }}>
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow>
+                                                <Th label="#" width={48} />
+                                                <Th label="Vendor" />
+                                                <Th label="Total spend" align="right" />
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {vendorRows.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} align="center" sx={{ py: 5, color: T.ink3, borderBottom: 0 }}>
+                                                        No vendor spend recorded.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : vendorRows.map((r, i) => (
+                                                <TableRow key={r.name} hover>
+                                                    <TableCell sx={{ ...TABLE.cell, color: T.ink3, fontFamily: MONO }}>{i + 1}</TableCell>
+                                                    <TableCell sx={{ ...TABLE.cell, fontWeight: 600, color: T.ink }}>{r.name}</TableCell>
+                                                    <TableCell sx={{ ...TABLE.num, fontWeight: 700 }}>{fmtRupees(r.total)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Panel>
+
+                            <Panel
+                                title="Overdue orders"
+                                sub="Past the expected delivery date, worst first."
+                                right={overdueCount > 0 && (
+                                    <Chip label={fmtNum(overdueCount)} size="small" sx={chipSx(STATUS.critical, STATUS.criticalBg)} />
+                                )}
+                            >
+                                <TableContainer component={Box} sx={{ ...TABLE.container, maxHeight: 320, overflowY: 'auto' }}>
+                                    <Table size="small" stickyHeader>
+                                        <TableHead>
+                                            <TableRow>
+                                                <Th label="PO Number" />
+                                                <Th label="Vendor" />
+                                                <Th label="Days late" align="right" width={96} />
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {overduePOs.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} align="center" sx={{ py: 5, borderBottom: 0, color: STATUS.good, fontWeight: 700 }}>
+                                                        Every order is on time.
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : overduePOs.map(po => {
+                                                const serious = po.daysOverdue > SERIOUS_AFTER_DAYS;
+                                                const severity = serious ? STATUS.critical : STATUS.warning;
+                                                return (
+                                                    <TableRow
+                                                        key={po.id} hover
+                                                        onClick={() => navigate(`/purchase/${po.id}`)}
+                                                        sx={TABLE.row}
+                                                    >
+                                                        <TableCell sx={{ ...TABLE.cell, fontWeight: 800, color: T.accent }}>
+                                                            {po.purchaseOrderNumber}
+                                                        </TableCell>
+                                                        <TableCell sx={{
+                                                            ...TABLE.cell, maxWidth: 160,
+                                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {po.vendorName ?? '\u2014'}
+                                                        </TableCell>
+                                                        <TableCell align="right" sx={{ py: 1.2 }}>
+                                                            <Chip
+                                                                label={`${po.daysOverdue}d`} size="small"
+                                                                sx={chipSx(severity, serious ? STATUS.criticalBg : STATUS.warningBg)}
+                                                            />
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Panel>
+                        </Box>
+                    </>
+                )}
+            </ModuleBody>
         </Box>
     );
 }

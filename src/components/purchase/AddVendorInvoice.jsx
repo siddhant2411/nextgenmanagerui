@@ -10,25 +10,17 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getPurchaseOrder } from '../../services/purchaseOrderService';
 import { getGRNsByPO } from '../../services/grnService';
 import { createVendorInvoice } from '../../services/vendorInvoiceService';
+import { T, STATUS, SHELL } from '../../theme/moduleTokens';
 
 /* ── Design Tokens (matches Sales UI) ── */
-const T = {
-    primary: '#2563eb',
-    success: '#059669',
-    error:   '#dc2626',
-    bg:      '#f8fafc',
-    border:  '#e2e8f0',
-    text:    '#0f172a',
-    textSec: '#64748b',
-};
 
 const bd = (v) => parseFloat(v) || 0;
 const fmtAmount = (n) => `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 const fieldSx = { '& .MuiOutlinedInput-root': { borderRadius: 2.5 } };
 
 const SectionCard = ({ title, children }) => (
-    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
+    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+        <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2.5 }}>
             {title}
         </Typography>
         {children}
@@ -150,10 +142,10 @@ export default function AddVendorInvoice() {
     }
 
     return (
-        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh', pb: 10 }}>
             {/* Dark hero header */}
             <Box sx={{
-                bgcolor: '#0f172a',
+                bgcolor: SHELL.heroBg,
                 backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.15) 0%, transparent 50%)',
                 color: 'white', pt: 6, pb: 15,
             }}>
@@ -181,7 +173,7 @@ export default function AddVendorInvoice() {
                         <Button variant="contained" disableElevation disabled={saving}
                             startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                             onClick={handleSubmit}
-                            sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: T.primary, px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}>
+                            sx={{ textTransform: 'none', fontWeight: 900, borderRadius: 3, bgcolor: T.accent, px: 4, '&:hover': { bgcolor: '#1d4ed8' } }}>
                             {saving ? 'Saving...' : 'Save Invoice'}
                         </Button>
                     </Stack>
@@ -236,14 +228,14 @@ export default function AddVendorInvoice() {
                         </SectionCard>
 
                         {/* Line items */}
-                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                             <Box sx={{ p: 3, pb: 0 }}>
                                 <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                                    <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                         Line Items
                                     </Typography>
                                     <Button size="small" startIcon={<Add />} variant="outlined" onClick={addItem}
-                                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, borderColor: T.border, color: T.textSec }}>
+                                        sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, borderColor: T.rule, color: T.ink2 }}>
                                         Add Line
                                     </Button>
                                 </Stack>
@@ -254,9 +246,9 @@ export default function AddVendorInvoice() {
                                         <TableRow>
                                             {['Item Name', 'HSN', 'UOM', 'Qty', 'Unit Price', 'Taxable', 'CGST', 'SGST', 'IGST', 'Line Total', ''].map(h => (
                                                 <TableCell key={h} sx={{
-                                                    fontWeight: 700, fontSize: '0.65rem', color: T.textSec,
-                                                    bgcolor: T.bg, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                                    borderBottom: `1px solid ${T.border}`, py: 1.5,
+                                                    fontWeight: 700, fontSize: '0.65rem', color: T.ink2,
+                                                    bgcolor: T.ground, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                                    borderBottom: `1px solid ${T.rule}`, py: 1.5,
                                                 }}>
                                                     {h}
                                                 </TableCell>
@@ -283,7 +275,7 @@ export default function AddVendorInvoice() {
                                                     <Tooltip title="Remove">
                                                         <IconButton size="small" onClick={() => removeItem(idx)}
                                                             disabled={items.length === 1}
-                                                            sx={{ color: '#94a3b8', '&:hover': { color: T.error } }}>
+                                                            sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
                                                             <Delete sx={{ fontSize: 16 }} />
                                                         </IconButton>
                                                     </Tooltip>
@@ -325,7 +317,7 @@ export default function AddVendorInvoice() {
                                     <Typography sx={{ fontSize: '0.82rem', color: '#1e40af', fontWeight: 500 }}>
                                         PO Grand Total: <strong>{fmtAmount(po.grandTotal)}</strong>
                                         {form.grandTotal && Math.abs(bd(form.grandTotal) - bd(po.grandTotal)) > 1 && (
-                                            <span style={{ color: T.warning ?? '#d97706', marginLeft: 12, fontWeight: 700 }}>
+                                            <span style={{ color: STATUS.warning ?? '#d97706', marginLeft: 12, fontWeight: 700 }}>
                                                 ⚠ Amount differs from PO — will be flagged as mismatch
                                             </span>
                                         )}

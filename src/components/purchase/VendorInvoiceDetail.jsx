@@ -15,12 +15,9 @@ import {
 } from '../../services/vendorInvoiceService';
 import { getPaymentsForInvoice, getPaymentSummary, recordVendorPayment, deleteVendorPayment } from '../../services/vendorPaymentService';
 import RecordPaymentDialog from './RecordPaymentDialog';
+import { T, STATUS, SHELL } from '../../theme/moduleTokens';
 
 /* ── Design Tokens ── */
-const T = {
-    primary: '#2563eb', success: '#059669', error: '#dc2626', warning: '#d97706',
-    bg: '#f8fafc', border: '#e2e8f0', text: '#0f172a', textSec: '#64748b',
-};
 
 const STATUS_STYLE = {
     DRAFT:     { color: '#64748b', bg: '#f1f5f9' },
@@ -39,9 +36,9 @@ const fileIcon = (name = '') => {
 };
 
 const SectionCard = ({ title, children, action }) => (
-    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+    <Paper elevation={0} sx={{ p: 3, borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2.5}>
-            <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {title}
             </Typography>
             {action}
@@ -153,7 +150,7 @@ export default function VendorInvoiceDetail() {
 
     if (!invoice) {
         return (
-            <Box sx={{ bgcolor: T.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Box sx={{ bgcolor: T.ground, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Box sx={{ textAlign: 'center', maxWidth: 400 }}>
                     {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 3 }}>{error}</Alert>}
                     <Button startIcon={<ArrowBack />} onClick={() => navigate(`/purchase/${poId}/invoices`)}
@@ -170,10 +167,10 @@ export default function VendorInvoiceDetail() {
     const balanceDue = Math.max(0, Number(invoice.grandTotal ?? 0) - totalPaid);
 
     return (
-        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 10 }}>
+        <Box sx={{ bgcolor: T.ground, minHeight: '100vh', pb: 10 }}>
             {/* Dark hero header */}
             <Box sx={{
-                bgcolor: '#0f172a',
+                bgcolor: SHELL.heroBg,
                 backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(37,99,235,0.15) 0%, transparent 50%)',
                 color: 'white', pt: 6, pb: 15,
             }}>
@@ -212,7 +209,7 @@ export default function VendorInvoiceDetail() {
                                 <Button variant="contained" disableElevation
                                     startIcon={actionLoading === 'post' ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutline />}
                                     disabled={!!actionLoading} onClick={handlePost}
-                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: T.success, px: 3,
+                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: STATUS.good, px: 3,
                                         '&:hover': { bgcolor: '#047857' } }}>
                                     Post Invoice
                                 </Button>
@@ -220,7 +217,7 @@ export default function VendorInvoiceDetail() {
                             {invoice.status === 'POSTED' && (
                                 <Button variant="contained" disableElevation startIcon={<Payments />}
                                     onClick={() => setShowPaymentDialog(true)}
-                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: T.primary, px: 3,
+                                    sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: T.accent, px: 3,
                                         '&:hover': { bgcolor: '#1d4ed8' } }}>
                                     Record Payment
                                 </Button>
@@ -260,18 +257,18 @@ export default function VendorInvoiceDetail() {
                                         { label: 'Created By',      value: invoice.createdBy ?? '—' },
                                     ].map(({ label, value }) => (
                                         <Grid item xs={6} key={label}>
-                                            <Typography sx={{ fontSize: '0.7rem', color: T.textSec, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
+                                            <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
                                                 {label}
                                             </Typography>
-                                            <Typography sx={{ fontWeight: 600, color: T.text, fontSize: '0.88rem' }}>{value}</Typography>
+                                            <Typography sx={{ fontWeight: 600, color: T.ink, fontSize: '0.88rem' }}>{value}</Typography>
                                         </Grid>
                                     ))}
                                     {invoice.remarks && (
                                         <Grid item xs={12}>
-                                            <Typography sx={{ fontSize: '0.7rem', color: T.textSec, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
+                                            <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', mb: 0.3 }}>
                                                 Remarks
                                             </Typography>
-                                            <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>{invoice.remarks}</Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>{invoice.remarks}</Typography>
                                         </Grid>
                                     )}
                                 </Grid>
@@ -288,25 +285,25 @@ export default function VendorInvoiceDetail() {
                                         { label: 'Cess',       value: invoice.cessAmount },
                                     ].map(({ label, value }) => (
                                         <Stack key={label} direction="row" justifyContent="space-between">
-                                            <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>{label}</Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>{label}</Typography>
                                             <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>₹{fmt(value)}</Typography>
                                         </Stack>
                                     ))}
                                     <Divider />
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: T.text }}>Grand Total</Typography>
-                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: T.text }}>₹{fmt(invoice.grandTotal)}</Typography>
+                                        <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: T.ink }}>Grand Total</Typography>
+                                        <Typography sx={{ fontWeight: 900, fontSize: '1rem', color: T.ink }}>₹{fmt(invoice.grandTotal)}</Typography>
                                     </Stack>
                                     <Divider />
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: T.success, fontWeight: 700, fontSize: '0.88rem' }}>Total Paid</Typography>
-                                        <Typography sx={{ color: T.success, fontWeight: 800, fontSize: '0.88rem' }}>₹{fmt(totalPaid)}</Typography>
+                                        <Typography sx={{ color: STATUS.good, fontWeight: 700, fontSize: '0.88rem' }}>Total Paid</Typography>
+                                        <Typography sx={{ color: STATUS.good, fontWeight: 800, fontSize: '0.88rem' }}>₹{fmt(totalPaid)}</Typography>
                                     </Stack>
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: balanceDue > 0 ? T.error : T.success, fontWeight: 700, fontSize: '0.88rem' }}>
+                                        <Typography sx={{ color: balanceDue > 0 ? STATUS.critical : STATUS.good, fontWeight: 700, fontSize: '0.88rem' }}>
                                             Balance Due
                                         </Typography>
-                                        <Typography sx={{ color: balanceDue > 0 ? T.error : T.success, fontWeight: 800, fontSize: '0.88rem' }}>
+                                        <Typography sx={{ color: balanceDue > 0 ? STATUS.critical : STATUS.good, fontWeight: 800, fontSize: '0.88rem' }}>
                                             ₹{fmt(balanceDue)}
                                         </Typography>
                                     </Stack>
@@ -317,9 +314,9 @@ export default function VendorInvoiceDetail() {
 
                     {/* Line items */}
                     {invoice.items?.length > 0 && (
-                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.border}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
+                        <Paper elevation={0} sx={{ borderRadius: 4, border: `1px solid ${T.rule}`, bgcolor: 'white', overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                             <Box sx={{ p: 3, pb: 0 }}>
-                                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2 }}>
+                                <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: T.ink2, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 2 }}>
                                     Line Items
                                 </Typography>
                             </Box>
@@ -329,9 +326,9 @@ export default function VendorInvoiceDetail() {
                                         <TableRow>
                                             {['#', 'Item', 'HSN', 'UOM', 'Qty', 'Unit Price', 'Taxable', 'CGST', 'SGST', 'IGST', 'Cess', 'Line Total'].map(h => (
                                                 <TableCell key={h} sx={{
-                                                    fontWeight: 700, fontSize: '0.65rem', color: T.textSec,
-                                                    bgcolor: T.bg, textTransform: 'uppercase', letterSpacing: '0.05em',
-                                                    borderBottom: `1px solid ${T.border}`, py: 1.5, whiteSpace: 'nowrap',
+                                                    fontWeight: 700, fontSize: '0.65rem', color: T.ink2,
+                                                    bgcolor: T.ground, textTransform: 'uppercase', letterSpacing: '0.05em',
+                                                    borderBottom: `1px solid ${T.rule}`, py: 1.5, whiteSpace: 'nowrap',
                                                 }}>
                                                     {h}
                                                 </TableCell>
@@ -342,17 +339,17 @@ export default function VendorInvoiceDetail() {
                                         {invoice.items.map((it, idx) => (
                                             <TableRow key={it.id ?? idx}
                                                 sx={{ '&:hover': { bgcolor: '#f8fafc' }, '&:last-child td': { border: 0 } }}>
-                                                <TableCell sx={{ color: T.textSec, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
+                                                <TableCell sx={{ color: T.ink2, fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                                                 <TableCell>
-                                                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.text }}>
+                                                    <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.ink }}>
                                                         {it.itemName ?? '—'}
                                                     </Typography>
                                                     {it.itemCode && (
-                                                        <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{it.itemCode}</Typography>
+                                                        <Typography sx={{ fontSize: '0.7rem', color: T.ink2 }}>{it.itemCode}</Typography>
                                                     )}
                                                 </TableCell>
-                                                <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>{it.hsnCode ?? '—'}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.78rem', color: T.textSec }}>{it.uom ?? '—'}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>{it.hsnCode ?? '—'}</TableCell>
+                                                <TableCell sx={{ fontSize: '0.78rem', color: T.ink2 }}>{it.uom ?? '—'}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{it.invoicedQty}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.unitPrice)}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.taxableValue)}</TableCell>
@@ -360,7 +357,7 @@ export default function VendorInvoiceDetail() {
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.sgstAmount)}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.igstAmount)}</TableCell>
                                                 <TableCell sx={{ fontSize: '0.78rem' }}>₹{fmt(it.cessAmount)}</TableCell>
-                                                <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.text }}>
+                                                <TableCell sx={{ fontSize: '0.82rem', fontWeight: 700, color: T.ink }}>
                                                     ₹{fmt(it.lineTotal)}
                                                 </TableCell>
                                             </TableRow>
@@ -378,8 +375,8 @@ export default function VendorInvoiceDetail() {
                                 <input ref={fileInputRef} type="file" hidden onChange={handleUpload} />
                                 <Button size="small" variant="outlined" startIcon={uploadLoading ? <CircularProgress size={14} /> : <CloudUpload />}
                                     disabled={uploadLoading} onClick={() => fileInputRef.current?.click()}
-                                    sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5, borderColor: T.border, color: T.textSec,
-                                        '&:hover': { borderColor: T.primary, color: T.primary } }}>
+                                    sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2.5, borderColor: T.rule, color: T.ink2,
+                                        '&:hover': { borderColor: T.accent, color: T.accent } }}>
                                     {uploadLoading ? 'Uploading…' : 'Attach File'}
                                 </Button>
                             </>
@@ -387,7 +384,7 @@ export default function VendorInvoiceDetail() {
                         {attachments.length === 0 ? (
                             <Box sx={{ py: 4, textAlign: 'center' }}>
                                 <AttachFile sx={{ fontSize: 36, color: '#cbd5e1', mb: 1 }} />
-                                <Typography sx={{ color: T.textSec, fontSize: '0.85rem' }}>
+                                <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>
                                     No attachments yet. Attach the vendor's invoice PDF or any supporting document.
                                 </Typography>
                             </Box>
@@ -395,15 +392,15 @@ export default function VendorInvoiceDetail() {
                             <Stack spacing={1}>
                                 {attachments.map(att => (
                                     <Stack key={att.id} direction="row" alignItems="center" justifyContent="space-between"
-                                        sx={{ p: 1.5, borderRadius: 2.5, border: `1px solid ${T.border}`, bgcolor: T.bg,
+                                        sx={{ p: 1.5, borderRadius: 2.5, border: `1px solid ${T.rule}`, bgcolor: T.ground,
                                             '&:hover': { borderColor: '#cbd5e1', bgcolor: '#f1f5f9' }, transition: 'all 0.1s' }}>
                                         <Stack direction="row" spacing={1.5} alignItems="center">
                                             <Typography sx={{ fontSize: '1.2rem' }}>{fileIcon(att.originalName ?? att.fileName)}</Typography>
                                             <Box>
-                                                <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.text }}>
+                                                <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: T.ink }}>
                                                     {att.originalName ?? att.fileName}
                                                 </Typography>
-                                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>
+                                                <Typography sx={{ fontSize: '0.7rem', color: T.ink2 }}>
                                                     {att.size ? `${(att.size / 1024).toFixed(1)} KB` : ''}{att.uploadedBy ? ` · ${att.uploadedBy}` : ''}
                                                 </Typography>
                                             </Box>
@@ -411,13 +408,13 @@ export default function VendorInvoiceDetail() {
                                         <Stack direction="row" spacing={0.5}>
                                             <Tooltip title="Download">
                                                 <IconButton size="small" onClick={() => handleDownload(att)}
-                                                    sx={{ color: T.textSec, '&:hover': { color: T.primary } }}>
+                                                    sx={{ color: T.ink2, '&:hover': { color: T.accent } }}>
                                                     <Download sx={{ fontSize: 16 }} />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="Delete">
                                                 <IconButton size="small" onClick={() => handleDeleteAttachment(att.id)}
-                                                    sx={{ color: T.textSec, '&:hover': { color: T.error } }}>
+                                                    sx={{ color: T.ink2, '&:hover': { color: STATUS.critical } }}>
                                                     <DeleteOutline sx={{ fontSize: 16 }} />
                                                 </IconButton>
                                             </Tooltip>
@@ -435,7 +432,7 @@ export default function VendorInvoiceDetail() {
                                 <TableHead>
                                     <TableRow>
                                         {['Date', 'Mode', 'Reference', 'Notes', 'Amount', ''].map(h => (
-                                            <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.65rem', color: T.textSec, bgcolor: T.bg, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            <TableCell key={h} sx={{ fontWeight: 700, fontSize: '0.65rem', color: T.ink2, bgcolor: T.ground, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                                 {h}
                                             </TableCell>
                                         ))}
@@ -449,13 +446,13 @@ export default function VendorInvoiceDetail() {
                                                 <Chip label={p.paymentMode} size="small"
                                                     sx={{ fontSize: '0.65rem', fontWeight: 700, height: 18, borderRadius: 1 }} />
                                             </TableCell>
-                                            <TableCell sx={{ fontSize: '0.8rem', color: T.textSec }}>{p.referenceNumber || '—'}</TableCell>
-                                            <TableCell sx={{ fontSize: '0.8rem', color: T.textSec }}>{p.notes || '—'}</TableCell>
+                                            <TableCell sx={{ fontSize: '0.8rem', color: T.ink2 }}>{p.referenceNumber || '—'}</TableCell>
+                                            <TableCell sx={{ fontSize: '0.8rem', color: T.ink2 }}>{p.notes || '—'}</TableCell>
                                             <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem' }}>₹{fmt(p.amount)}</TableCell>
                                             <TableCell align="right">
                                                 <Tooltip title="Delete payment">
                                                     <IconButton size="small" onClick={() => handleDeletePayment(p.id)}
-                                                        sx={{ color: '#94a3b8', '&:hover': { color: T.error } }}>
+                                                        sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
                                                         <DeleteOutline sx={{ fontSize: 15 }} />
                                                     </IconButton>
                                                 </Tooltip>

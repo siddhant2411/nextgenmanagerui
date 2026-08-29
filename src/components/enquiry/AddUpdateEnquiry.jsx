@@ -32,6 +32,8 @@ const T = {
 };
 
 const SOURCES = ['IndiaMart', 'TradeIndia', 'Website', 'Exhibition', 'Referral', 'Phone', 'Direct', 'Social Media'];
+// Stages that finish an enquiry — these are the only ones that ask for a close reason.
+const TERMINAL_STATUSES = ['CLOSED', 'CONVERTED', 'LOST', 'JUNK'];
 const PRIORITIES = [
   { value: 'HOT', label: 'Hot', icon: <LocalFireDepartment sx={{fontSize: 16}} />, color: '#ef4444' },
   { value: 'WARM', label: 'Warm', icon: <Thermostat sx={{fontSize: 16}} />, color: '#f59e0b' },
@@ -58,6 +60,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
   const [linkSearchList, setLinkSearchList] = useState([]);
   const [linkSearchContact, setLinkSearchContact] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [closeReasons, setCloseReasons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [linkedQuotations, setLinkedQuotations] = useState([]);
@@ -69,6 +72,13 @@ const AddUpdateEnquiry = ({ onSave }) => {
       fetchLinkedQuotations(enquiryId);
     }
   }, [enquiryId]);
+
+  useEffect(() => {
+    // Active reasons only — deactivated ones stay readable on old enquiries but are not offerable.
+    apiService.get('/enquiry-close-reason')
+      .then(res => setCloseReasons(Array.isArray(res) ? res : []))
+      .catch(() => setCloseReasons([]));
+  }, []);
 
   const fetchLinkedQuotations = async (id) => {
     try {
@@ -117,6 +127,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
       status: initialData.status || 'NEW',
       closedDate: initialData.closedDate || '',
       closeReason: initialData.closeReason || '',
+      closeReasonCode: initialData.closeReasonCode || null,
       enquiryConversationRecords: initialData.enquiryConversationRecords || [],
       expectedRevenue: initialData.expectedRevenue || 0,
       probability: initialData.probability || 0,
@@ -172,7 +183,15 @@ const AddUpdateEnquiry = ({ onSave }) => {
 
   const addConversation = () => {
     formik.setFieldValue('enquiryConversationRecords', [
-      { conversation: '', conversationType: 'NOTE', creationDate: new Date() },
+      {
+        conversation: '',
+        conversationType: 'NOTE',
+        // The date the contact happened, which is not always today — a call logged on Monday
+        // may have taken place on Friday. lastContactedDate is derived from this, so it has to
+        // be editable rather than stamped from the save.
+        conversationDate: new Date().toISOString().slice(0, 10),
+        creationDate: new Date(),
+      },
       ...formik.values.enquiryConversationRecords
     ]);
     setActiveTab(1);
@@ -569,9 +588,21 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                                         </Tooltip>
                                                                     ))}
                                                                 </ToggleButtonGroup>
-                                                                <Typography variant="caption" sx={{ fontWeight: 700, color: T.textSec }}>
-                                                                    {item.creationDate ? new Date(item.creationDate).toLocaleString() : 'Just Now'}
-                                                                </Typography>
+                                                                <TextField
+                                                                    type="date"
+                                                                    size="small"
+                                                                    label="Contacted on"
+                                                                    InputLabelProps={{ shrink: true }}
+                                                                    name={`enquiryConversationRecords[${index}].conversationDate`}
+                                                                    value={item.conversationDate || ''}
+                                                                    onChange={formik.handleChange}
+                                                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'white' } }}
+                                                                />
+                                                                <Tooltip title="When this note was saved">
+                                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: T.textSec }}>
+                                                                        {item.creationDate ? new Date(item.creationDate).toLocaleString() : 'Just Now'}
+                                                                    </Typography>
+                                                                </Tooltip>
                                                             </Stack>
                                                             <IconButton color="error" size="small" onClick={() => {
                                                                 const updated = [...formik.values.enquiryConversationRecords];
@@ -610,7 +641,38 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                 >
                                     {['NEW', 'QUALIFIED', 'CONTACTED', 'FOLLOW_UP', 'QUOTED', 'NEGOTIATION', 'CONVERTED', 'LOST', 'JUNK', 'CLOSED'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                                 </TextField>
-                                
+
+                                {TERMINAL_STATUSES.includes(formik.values.status) && (
+                                    <>
+                                        <TextField
+                                            select label="Close Reason" name="closeReasonCode" fullWidth
+                                            value={formik.values.closeReasonCode?.id ?? ''}
+                                            onChange={(e) => formik.setFieldValue(
+                                                'closeReasonCode',
+                                                closeReasons.find(r => r.id === e.target.value) || null
+                                            )}
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: T.bg } }}
+                                        >
+                                            <MenuItem value=""><em>Not specified</em></MenuItem>
+                                            {closeReasons.map(r => (
+                                                <MenuItem key={r.id} value={r.id}>{r.description || r.code}</MenuItem>
+                                            ))}
+                                        </TextField>
+                                        <TextField
+                                            label="Close Notes" name="closeReason" fullWidth multiline minRows={2}
+                                            placeholder="What actually happened, in your own words"
+                                            value={formik.values.closeReason} onChange={formik.handleChange}
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                                        />
+                                        <TextField
+                                            label="Closed On" type="date" name="closedDate" fullWidth
+                                            InputLabelProps={{ shrink: true }}
+                                            value={formik.values.closedDate} onChange={formik.handleChange}
+                                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+                                        />
+                                    </>
+                                )}
+
                                 <Box>
                                     <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 900, textTransform: 'uppercase', display: 'block', mb: 1.5 }}>Lead Priority</Typography>
                                     <ToggleButtonGroup

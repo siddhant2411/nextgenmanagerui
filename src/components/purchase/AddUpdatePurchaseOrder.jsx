@@ -26,28 +26,21 @@ import SendPODialog from './SendPODialog';
 import { useAuth } from '../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../auth/roles';
 import { resolveApiErrorMessage } from '../../services/apiService';
-
-// ── Design tokens (Aligned with Inventory/BOM) ────────────────────────────────
-const BORDER = '#e2e8f0';
-const PRIMARY = '#1565c0'; 
-const PRIMARY_LIGHT = '#f0f7ff';
-const HEADER_TEXT = '#075985';
-const SECONDARY = '#64748b';
-const BG_SOFT = '#f8fafc';
+import { T, SHELL, STATUS, heroButtonSx, heroCtaSx } from '../../theme/moduleTokens';
 
 const APPROVAL_STYLE = {
-    DRAFT:            { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' },
-    PENDING_APPROVAL: { bg: '#fff7ed', color: '#c2410c', border: '#ffedd5' },
-    APPROVED:         { bg: '#f0fdf4', color: '#16a34a', border: '#dcfce7' },
-    REJECTED:         { bg: '#fef2f2', color: '#dc2626', border: '#fee2e2' },
+    DRAFT:            { bg: T.ruleSoft,        color: T.ink2,         border: T.rule },
+    PENDING_APPROVAL: { bg: STATUS.seriousBg,  color: STATUS.serious, border: STATUS.seriousBg },
+    APPROVED:         { bg: STATUS.goodBg,     color: STATUS.good,    border: STATUS.goodBg },
+    REJECTED:         { bg: STATUS.criticalBg, color: STATUS.critical, border: STATUS.criticalBg },
 };
 const STATUS_STYLE = {
-    DRAFT:              { bg: '#f1f5f9', color: '#475569' },
-    SENT:               { bg: '#eff6ff', color: '#2563eb' },
-    PARTIALLY_RECEIVED: { bg: '#fffbeb', color: '#d97706' },
-    RECEIVED:           { bg: '#f0fdf4', color: '#16a34a' },
-    COMPLETED:          { bg: '#f0fdf4', color: '#16a34a' },
-    CANCELLED:          { bg: '#fef2f2', color: '#dc2626' },
+    DRAFT:              { bg: T.ruleSoft,        color: T.ink2 },
+    SENT:               { bg: T.accentDim,       color: T.accent },
+    PARTIALLY_RECEIVED: { bg: STATUS.warningBg,  color: STATUS.warningInk },
+    RECEIVED:           { bg: STATUS.goodBg,     color: STATUS.good },
+    COMPLETED:          { bg: STATUS.goodBg,     color: STATUS.good },
+    CANCELLED:          { bg: STATUS.criticalBg, color: STATUS.critical },
 };
 
 const validationSchema = Yup.object({
@@ -91,10 +84,10 @@ function ConfirmDialog({ open, title, body, input, onClose, onConfirm, loading }
                 )}
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 3 }}>
-                <Button onClick={onClose} sx={{ textTransform: 'none', fontWeight: 600, color: SECONDARY }}>Cancel</Button>
+                <Button onClick={onClose} sx={{ textTransform: 'none', fontWeight: 600, color: T.ink2 }}>Cancel</Button>
                 <Button onClick={() => onConfirm(val)} variant="contained" disableElevation
                     disabled={loading || (!!input && !val.trim())}
-                    sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, background: PRIMARY, px: 3, '&:hover': { background: '#0d47a1' } }}>
+                    sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, background: T.accent, px: 3, '&:hover': { background: T.accentHover } }}>
                     {loading ? <CircularProgress size={20} color="inherit" /> : 'Confirm Action'}
                 </Button>
             </DialogActions>
@@ -275,28 +268,35 @@ export default function AddUpdatePurchaseOrder() {
 
     if (loading) return (
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 12, gap: 2 }}>
-            <CircularProgress thickness={5} size={48} sx={{ color: PRIMARY }} />
+            <CircularProgress thickness={5} size={48} sx={{ color: T.accent }} />
             <Typography sx={{ color: '#64748b', fontWeight: 500 }}>Loading Purchase Order...</Typography>
         </Box>
     );
 
     return (
-        <Box sx={{ background: BG_SOFT, minHeight: '100vh', pb: 8 }}>
-            {/* Top sticky bar */}
+        <Box sx={{ background: T.ground, minHeight: '100vh', pb: 8 }}>
+            {/* Pinned action bar — the masthead's palette, kept in reach on a long form. */}
             <Paper elevation={0} sx={{
                 position: 'sticky', top: 0, zIndex: 10,
-                borderBottom: `1px solid ${BORDER}`, bgcolor: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(8px)', px: { xs: 2, sm: 4 }, py: 1.5
+                borderBottom: `1px solid ${SHELL.heroLine}`,
+                bgcolor: SHELL.heroBg, backgroundImage: SHELL.heroImage, color: SHELL.heroInk,
+                px: { xs: 2, sm: 4 }, py: 2, borderRadius: 0,
             }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Stack direction="row" spacing={2} alignItems="center">
                         <Tooltip title="Back to list">
-                            <IconButton onClick={() => navigate('..')} sx={{ border: `1px solid ${BORDER}`, bgcolor: 'white' }}>
+                            <IconButton
+                                onClick={() => navigate('..')}
+                                sx={{
+                                    color: SHELL.heroInk, border: `1px solid ${SHELL.heroLine}`,
+                                    '&:hover': { bgcolor: SHELL.heroFill },
+                                }}
+                            >
                                 <ArrowBack />
                             </IconButton>
                         </Tooltip>
                         <Box>
-                            <Typography variant="h6" sx={{ fontWeight: 800, color: '#0f2744', lineHeight: 1.2 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 900, color: SHELL.heroInk, lineHeight: 1.2, letterSpacing: '-0.02em' }}>
                                 {isEdit ? formik.values.purchaseOrderNumber : 'New Purchase Order'}
                             </Typography>
                             <Stack direction="row" spacing={1} alignItems="center">
@@ -309,7 +309,7 @@ export default function AddUpdatePurchaseOrder() {
                                     </>
                                 )}
                                 {isEdit && formik.values.revisionNo > 0 && (
-                                    <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                                    <Typography sx={{ fontSize: '0.7rem', color: SHELL.heroInkDim, display: 'flex', alignItems: 'center', gap: 0.3 }}>
                                         <History sx={{ fontSize: 12 }} /> Rev {formik.values.revisionNo}
                                     </Typography>
                                 )}
@@ -320,7 +320,7 @@ export default function AddUpdatePurchaseOrder() {
                     <Stack direction="row" spacing={1.5}>
                         {isEdit && (
                             <Button variant="outlined" size="small" startIcon={<Download />}
-                                sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 600, borderColor: BORDER, color: '#475569', bgcolor: 'white' }}
+                                sx={{ ...heroButtonSx, px: 2 }}
                                 onClick={() => downloadPOPdf(id)}>
                                 PDF
                             </Button>
@@ -328,7 +328,7 @@ export default function AddUpdatePurchaseOrder() {
                         {isDraft && !isCancelled && (
                             <Button variant="contained" disableElevation startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <Save />}
                                 disabled={saving}
-                                sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, background: PRIMARY, px: 3, '&:hover': { background: '#0d47a1' } }}
+                                sx={{ ...heroCtaSx, px: 3, py: 0.8 }}
                                 onClick={() => formik.submitForm()}>
                                 {saving ? 'Saving...' : 'Save Draft'}
                             </Button>
@@ -342,11 +342,11 @@ export default function AddUpdatePurchaseOrder() {
 
                 {/* Workflow actions */}
                 {isEdit && !isCancelled && !isCompleted && (
-                    <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
+                    <Paper elevation={0} sx={{ p: 2, mb: 3, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: 'white' }}>
                         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap gap={1.5}>
                             {isDraft && (
                                 <Button variant="outlined" size="small" startIcon={<HourglassTop />}
-                                    sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 600, borderColor: PRIMARY, color: PRIMARY }}
+                                    sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 600, borderColor: T.accent, color: T.accent }}
                                     onClick={() => setDialog({ type: 'submit', title: 'Submit for Approval', body: 'This will lock the PO and send it for management review. Proceed?' })}>
                                     Submit for Approval
                                 </Button>
@@ -408,7 +408,7 @@ export default function AddUpdatePurchaseOrder() {
                                 <Tooltip title="Refresh GST and re-calculate all taxes">
                                     <Button variant="outlined" size="small" startIcon={<Refresh />}
                                         disabled={actionLoading}
-                                        sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 600, borderColor: BORDER, color: SECONDARY }}
+                                        sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 600, borderColor: T.rule, color: T.ink2 }}
                                         onClick={handleRecalculate}>
                                         Recalculate Taxes
                                     </Button>
@@ -439,14 +439,14 @@ export default function AddUpdatePurchaseOrder() {
                 {/* Main content area */}
                 <Grid container spacing={3}>
                     <Grid item xs={12} lg={9}>
-                        <Paper elevation={0} sx={{ border: `1px solid ${BORDER}`, borderRadius: 2, overflow: 'hidden', bgcolor: 'white' }}>
+                        <Paper elevation={0} sx={{ border: `1px solid ${T.rule}`, borderRadius: 2, overflow: 'hidden', bgcolor: 'white' }}>
                             <Tabs value={tab} onChange={(_, v) => setTab(v)}
-                                sx={{ borderBottom: `1px solid ${BORDER}`, bgcolor: PRIMARY_LIGHT, minHeight: 48 }}
-                                TabIndicatorProps={{ style: { background: PRIMARY, height: 3 } }}>
-                                <Tab label="Basic Details" sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: HEADER_TEXT }} />
+                                sx={{ borderBottom: `1px solid ${T.rule}`, bgcolor: T.accentDim, minHeight: 48 }}
+                                TabIndicatorProps={{ style: { background: T.accent, height: 3 } }}>
+                                <Tab label="Basic Details" sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: T.accent }} />
                                 <Tab label={`Items & Quantities (${formik.values.items?.length ?? 0})`}
-                                    sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: HEADER_TEXT }} />
-                                <Tab label="GST & Financials" sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: HEADER_TEXT }} />
+                                    sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: T.accent }} />
+                                <Tab label="GST & Financials" sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: T.accent }} />
                                 {isEdit && ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'COMPLETED'].includes(formik.values.status) && (
                                     <Tab label={
                                         <Stack direction="row" alignItems="center" spacing={0.5}>
@@ -456,7 +456,7 @@ export default function AddUpdatePurchaseOrder() {
                                                     sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: '#fef3c7', color: '#92400e', ml: 0.5 }} />
                                             )}
                                         </Stack>
-                                    } sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: HEADER_TEXT }} />
+                                    } sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: T.accent }} />
                                 )}
                                 {isEdit && (
                                     <Tab label={
@@ -467,7 +467,7 @@ export default function AddUpdatePurchaseOrder() {
                                                     sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, bgcolor: '#fef3c7', color: '#92400e', ml: 0.5 }} />
                                             )}
                                         </Stack>
-                                    } sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: HEADER_TEXT }} />
+                                    } sx={{ textTransform: 'none', fontSize: '0.85rem', fontWeight: 600, minHeight: 48, color: T.accent }} />
                                 )}
                             </Tabs>
 
@@ -508,37 +508,37 @@ export default function AddUpdatePurchaseOrder() {
                     {/* Summary Sidebar */}
                     <Grid item xs={12} lg={3}>
                         <Stack spacing={3}>
-                            <Paper elevation={0} sx={{ p: 3, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                                <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
+                            <Paper elevation={0} sx={{ p: 3, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: 'white' }}>
+                                <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, mb: 2 }}>
                                     Order Summary
                                 </Typography>
                                 <Stack spacing={2}>
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: SECONDARY, fontSize: '0.85rem' }}>Subtotal</Typography>
+                                        <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Subtotal</Typography>
                                         <Typography sx={{ fontWeight: 600 }}>₹{formik.values.subtotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
                                     </Stack>
                                     <Stack direction="row" justifyContent="space-between">
-                                        <Typography sx={{ color: SECONDARY, fontSize: '0.85rem' }}>Total Tax</Typography>
+                                        <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Total Tax</Typography>
                                         <Typography sx={{ fontWeight: 600 }}>₹{(formik.values.cgstAmount + formik.values.sgstAmount + formik.values.igstAmount)?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
                                     </Stack>
                                     {formik.values.roundOff !== 0 && (
                                         <Stack direction="row" justifyContent="space-between">
-                                            <Typography sx={{ color: SECONDARY, fontSize: '0.85rem' }}>Round Off</Typography>
+                                            <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Round Off</Typography>
                                             <Typography sx={{ fontWeight: 600 }}>₹{formik.values.roundOff?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
                                         </Stack>
                                     )}
                                     <Divider sx={{ my: 1 }} />
                                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                                         <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>Grand Total</Typography>
-                                        <Typography variant="h6" sx={{ fontWeight: 800, color: PRIMARY }}>
+                                        <Typography variant="h6" sx={{ fontWeight: 800, color: T.accent }}>
                                             ₹{formik.values.grandTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                         </Typography>
                                     </Stack>
                                 </Stack>
                             </Paper>
 
-                            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: '#f8fafc' }}>
-                                <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
+                            <Paper elevation={0} sx={{ p: 2, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: '#f8fafc' }}>
+                                <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
                                     Notes & Remarks
                                 </Typography>
                                 <Typography sx={{ fontSize: '0.8rem', color: '#1e293b', fontStyle: 'italic' }}>
@@ -547,19 +547,19 @@ export default function AddUpdatePurchaseOrder() {
                             </Paper>
 
                             {isEdit && (
-                                <Paper elevation={0} sx={{ p: 2, border: `1px solid ${BORDER}`, borderRadius: 2, bgcolor: 'white' }}>
-                                    <Typography sx={{ fontSize: '0.7rem', color: SECONDARY, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
+                                <Paper elevation={0} sx={{ p: 2, border: `1px solid ${T.rule}`, borderRadius: 2, bgcolor: 'white' }}>
+                                    <Typography sx={{ fontSize: '0.7rem', color: T.ink2, fontWeight: 700, textTransform: 'uppercase', mb: 1.5 }}>
                                         Related Documents
                                     </Typography>
                                     <Stack spacing={1}>
                                         <Button fullWidth variant="outlined" size="small" disableElevation
                                             onClick={() => navigate(`/purchase/${id}/invoices`)}
-                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: BORDER, color: '#0f2744', justifyContent: 'flex-start', fontSize: '0.82rem' }}>
+                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: T.rule, color: T.ink, justifyContent: 'flex-start', fontSize: '0.82rem' }}>
                                             Vendor Invoices
                                         </Button>
                                         <Button fullWidth variant="outlined" size="small" disableElevation
                                             onClick={() => navigate('/purchase/debit-notes')}
-                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: BORDER, color: '#0f2744', justifyContent: 'flex-start', fontSize: '0.82rem' }}>
+                                            sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5, borderColor: T.rule, color: T.ink, justifyContent: 'flex-start', fontSize: '0.82rem' }}>
                                             Debit Notes
                                         </Button>
                                     </Stack>
@@ -573,13 +573,13 @@ export default function AddUpdatePurchaseOrder() {
                                     </Typography>
                                     {formik.values.quotationNumber && (
                                         <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                                            <Typography sx={{ fontSize: '0.78rem', color: SECONDARY }}>Quotation No.</Typography>
+                                            <Typography sx={{ fontSize: '0.78rem', color: T.ink2 }}>Quotation No.</Typography>
                                             <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>{formik.values.quotationNumber}</Typography>
                                         </Stack>
                                     )}
                                     {formik.values.quotationDate && (
                                         <Stack direction="row" justifyContent="space-between">
-                                            <Typography sx={{ fontSize: '0.78rem', color: SECONDARY }}>Quotation Date</Typography>
+                                            <Typography sx={{ fontSize: '0.78rem', color: T.ink2 }}>Quotation Date</Typography>
                                             <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>
                                                 {new Date(formik.values.quotationDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                             </Typography>
@@ -594,14 +594,14 @@ export default function AddUpdatePurchaseOrder() {
                                         Email History
                                     </Typography>
                                     <Stack direction="row" justifyContent="space-between" mb={0.5}>
-                                        <Typography sx={{ fontSize: '0.78rem', color: SECONDARY }}>Last Sent</Typography>
+                                        <Typography sx={{ fontSize: '0.78rem', color: T.ink2 }}>Last Sent</Typography>
                                         <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>
                                             {new Date(formik.values.sentToVendorAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                         </Typography>
                                     </Stack>
                                     {formik.values.sentToVendorEmail && (
                                         <Stack direction="row" justifyContent="space-between">
-                                            <Typography sx={{ fontSize: '0.78rem', color: SECONDARY }}>To</Typography>
+                                            <Typography sx={{ fontSize: '0.78rem', color: T.ink2 }}>To</Typography>
                                             <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, wordBreak: 'break-all', textAlign: 'right', maxWidth: '65%' }}>
                                                 {formik.values.sentToVendorEmail}
                                             </Typography>
