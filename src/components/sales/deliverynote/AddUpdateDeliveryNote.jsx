@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-    Alert, Avatar, Box, Button, CircularProgress,
-    Container, Grid, IconButton, Paper, Stack, Table,
+    Alert, AlertTitle, Avatar, Box, Button, Checkbox, CircularProgress,
+    Container, FormControlLabel, Grid, IconButton, Paper, Stack, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     TextField, Typography, Chip
 } from '@mui/material';
@@ -12,6 +12,7 @@ import {
 import {
     getSalesOrder, getDeliveryNote, createDeliveryNote, downloadDeliveryNotePdf,
 } from '../../../services/salesOrderService';
+import { getPickList, listPickLists } from '../../../services/pickListService';
 import StockAllocationModal from './StockAllocationModal';
 
 
@@ -44,6 +45,7 @@ export default function AddUpdateDeliveryNote() {
     const { dnId } = useParams();
     const [searchParams] = useSearchParams();
     const soId = searchParams.get('soId');
+    const pickListId = searchParams.get('pickListId');
 
     const isView = Boolean(dnId);
 
@@ -60,6 +62,14 @@ export default function AddUpdateDeliveryNote() {
     const [modalOpen, setModalOpen] = useState(false);
     const [activeItem, setActiveItem] = useState(null);
     const [allocatedInstances, setAllocatedInstances] = useState({});
+
+    // The pick being shipped, if this challan is one. Its quantities and its units are the
+    // challan's — they were settled on the floor by whoever picked them.
+    const [pick, setPick] = useState(null);
+    // Picks already confirmed and waiting on this order. Dispatching around one would allocate a
+    // second set of units for stock that is already on a trolley, so the server refuses it.
+    const [waitingPicks, setWaitingPicks] = useState([]);
+    const [shipWithoutPick, setShipWithoutPick] = useState(false);
 
     const [form, setForm] = useState({
         deliveryDate: today(),
@@ -114,6 +124,42 @@ export default function AddUpdateDeliveryNote() {
         }
     }, [dnId, soId, isView]);
 
+    // Shipping a pick: the quantities and the units come from it, so they overwrite whatever the
+    // order-based defaults above worked out. Loaded after them for exactly that reason.
+    useEffect(() => {
+        if (isView || !pickListId) return;
+        getPickList(pickListId)
+            .then(data => {
+                setPick(data);
+                const qtys = {};
+                const instances = {};
+                (data.lines ?? []).forEach(line => {
+                    const picked = Number(line.quantityPicked ?? 0);
+                    if (picked <= 0) return;
+                    qtys[line.inventoryItemId] = (qtys[line.inventoryItemId] ?? 0) + picked;
+                    instances[line.inventoryItemId] = [
+                        ...(instances[line.inventoryItemId] ?? []),
+                        ...(line.allocatedInstanceIds ?? []),
+                    ];
+                });
+                setDispatchQtys(qtys);
+                setAllocatedInstances(instances);
+                // A pick knows its own order, so the link does not have to carry both.
+                if (!soId && data.salesOrderId) {
+                    getSalesOrder(data.salesOrderId).then(setSo).catch(() => {});
+                }
+            })
+            .catch(() => setError('Could not load the pick list this challan is shipping.'));
+    }, [pickListId, isView, soId]);
+
+    // Nothing to warn about when a pick is already being shipped.
+    useEffect(() => {
+        if (isView || pickListId || !soId) return;
+        listPickLists({ salesOrderId: soId, status: 'PICKED' })
+            .then(rows => setWaitingPicks(Array.isArray(rows) ? rows : []))
+            .catch(() => setWaitingPicks([]));
+    }, [soId, pickListId, isView]);
+
     const soItems = so?.items ?? [];
 
     const handleSubmit = async () => {
@@ -135,6 +181,10 @@ export default function AddUpdateDeliveryNote() {
 
         const payload = {
             salesOrderId: so?.id ?? parseInt(soId, 10),
+            // With a pick, the server rebuilds the lines from it and ignores the ones above; they
+            // are sent anyway so the two can be compared if they ever disagree.
+            pickListId: pick?.id ?? null,
+            directDispatch: !pick && shipWithoutPick,
             deliveryDate: form.deliveryDate || null,
             lrNumber: form.lrNumber || null,
             transporter: form.transporter || null,
@@ -258,6 +308,55 @@ export default function AddUpdateDeliveryNote() {
                 {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 3, fontWeight: 600 }}>{error}</Alert>}
                 {success && <Alert severity="success" sx={{ mb: 3, borderRadius: 3, fontWeight: 600 }}>Dispatch successful! Returning to order...</Alert>}
 
+                {pick && (
+                    <Alert severity="info" sx={{ mb: 3, borderRadius: 3 }}>
+                        <AlertTitle sx={{ fontWeight: 800 }}>Shipping {pick.pickNumber}</AlertTitle>
+                        Quantities and the exact batch or serial units come from the pick, taken from{' '}
+                        {pick.warehouseCode}
+                        {pick.pickedBy ? ` by ${pick.pickedBy}` : ''}. Issuing this challan marks the pick
+                        as dispatched.
+                    </Alert>
+                )}
+
+                {!pick && waitingPicks.length > 0 && (
+                    <Alert severity="warning" sx={{ mb: 3, borderRadius: 3 }}>
+                        <AlertTitle sx={{ fontWeight: 800 }}>
+                            {waitingPicks.length === 1 ? 'A pick is' : 'Picks are'} waiting to ship
+                        </AlertTitle>
+                        The stock is already off the shelf. Dispatching around it would allocate a
+                        second set of units for goods that are on a trolley.
+                        <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 1.5, flexWrap: 'wrap' }}>
+                            {waitingPicks.map(p => (
+                                <Button
+                                    key={p.id}
+                                    size="small"
+                                    variant="contained"
+                                    disableElevation
+                                    onClick={() =>
+                                        navigate(
+                                            `/sales/sales-order/delivery-notes/add?soId=${p.salesOrderId}&pickListId=${p.id}`
+                                        )
+                                    }
+                                    sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                                >
+                                    Ship {p.pickNumber}
+                                </Button>
+                            ))}
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        size="small"
+                                        checked={shipWithoutPick}
+                                        onChange={e => setShipWithoutPick(e.target.checked)}
+                                    />
+                                }
+                                label="Dispatch without a pick (counter sale or sample)"
+                                sx={{ '& .MuiFormControlLabel-label': { fontSize: '0.8rem', fontWeight: 600 } }}
+                            />
+                        </Stack>
+                    </Alert>
+                )}
+
                 <Grid container spacing={4}>
                     {/* ── Left Column: Items ── */}
                     <Grid item xs={12} lg={8}>
@@ -338,6 +437,7 @@ export default function AddUpdateDeliveryNote() {
                                                                 <TextField
                                                                     size="small" type="number"
                                                                     value={currentDispatch}
+                                                                    disabled={Boolean(pick)}
                                                                     onChange={e => setDispatchQtys(prev => ({
                                                                         ...prev,
                                                                         [id]: Math.max(0, parseInt(e.target.value, 10) || 0),
@@ -345,18 +445,31 @@ export default function AddUpdateDeliveryNote() {
                                                                     inputProps={{ min: 0, max: orderedQty, style: { textAlign: 'right', fontWeight: 800, color: T.primary } }}
                                                                     sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: T.bg } }}
                                                                 />
-                                                                <Button 
-                                                                    size="small" 
+                                                                {pick ? (
+                                                                    // Choosing stock again here would undo the pick.
+                                                                    <Chip
+                                                                        size="small"
+                                                                        label={
+                                                                            allocatedInstances[id]?.length > 0
+                                                                                ? `${allocatedInstances[id].length} unit(s) picked`
+                                                                                : 'From the pick'
+                                                                        }
+                                                                        sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700, bgcolor: '#e0f2fe', color: '#0369a1' }}
+                                                                    />
+                                                                ) : (
+                                                                <Button
+                                                                    size="small"
                                                                     variant={allocatedInstances[id]?.length > 0 ? "contained" : "outlined"}
                                                                     color={allocatedInstances[id]?.length > 0 ? "success" : "primary"}
-                                                                    onClick={() => { 
-                                                                        setActiveItem({ ...item, allocatedInstanceIds: allocatedInstances[id] }); 
-                                                                        setModalOpen(true); 
+                                                                    onClick={() => {
+                                                                        setActiveItem({ ...item, allocatedInstanceIds: allocatedInstances[id] });
+                                                                        setModalOpen(true);
                                                                     }}
                                                                     sx={{ fontSize: '0.7rem', py: 0.2, borderRadius: 1.5, textTransform: 'none' }}
                                                                 >
                                                                     {allocatedInstances[id]?.length > 0 ? `Allocated (${allocatedInstances[id].length})` : 'Select Stock'}
                                                                 </Button>
+                                                                )}
                                                             </Stack>
                                                         </TableCell>
                                                     </TableRow>
