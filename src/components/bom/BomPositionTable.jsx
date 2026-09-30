@@ -2,7 +2,7 @@ import React from "react";
 import apiService from "../../services/apiService";
 import {
     Table, Grid, Autocomplete, IconButton, Paper, TableBody, TableCell,
-    TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, Box, MenuItem
+    TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, Box, MenuItem, Chip
 } from "@mui/material";
 import { ArrowDownward, ArrowUpward, DeleteOutline, ExpandLess, ExpandMore, SubdirectoryArrowRightRounded } from "@mui/icons-material";
 
@@ -221,6 +221,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                             <TableCell sx={headerCellSx}>Component</TableCell>
                             <TableCell sx={headerCellSx}>Item Code</TableCell>
                             <TableCell sx={headerCellSx}>Drawing No.</TableCell>
+                            <TableCell sx={{ ...headerCellSx, width: 70 }}>Rev</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 80 }}>Qty</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 80 }}>Scrap %</TableCell>
                             <TableCell sx={{ ...headerCellSx, width: 60 }}>UOM</TableCell>
@@ -232,7 +233,7 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                     <TableBody>
                         {formik.values.components?.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
+                                <TableCell colSpan={11} align="center" sx={{ py: 4 }}>
                                     <Typography variant="body2" color="text.secondary">No components added. Search and add components above.</Typography>
                                 </TableCell>
                             </TableRow>
@@ -283,6 +284,21 @@ const BomPositionTable = ({ searchedItemList, searchQuery, handleSearchChange, f
                                 <TableCell sx={{ fontWeight: 500 }}>{c?.itemName ?? c?.name}</TableCell>
                                 <TableCell sx={{ color: '#1565c0', fontWeight: 500 }}>{c?.itemCode}</TableCell>
                                 <TableCell>{c?.drawingNumber}</TableCell>
+
+                                {/* Engineering revision the component was resolved against at add/edit time */}
+                                <TableCell>
+                                    {c?.childItemRevisionCode ? (
+                                        <Tooltip title={c?.childItemRevisionStatus === 'RELEASED' ? 'Released — locked' : c?.childItemRevisionStatus || ''}>
+                                            <Chip
+                                                size="small"
+                                                label={c.childItemRevisionCode}
+                                                color={c?.childItemRevisionStatus === 'RELEASED' ? 'success' : 'warning'}
+                                                variant="outlined"
+                                                sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }}
+                                            />
+                                        </Tooltip>
+                                    ) : '-'}
+                                </TableCell>
 
                                 {/* Quantity — child rows show the exploded total, not the per-unit figure */}
                                 <TableCell>

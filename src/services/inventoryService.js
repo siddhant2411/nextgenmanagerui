@@ -25,6 +25,25 @@ export const createInventoryItemWithFiles = (payload, attachments = []) =>
 export const updateInventoryItemWithFiles = (id, payload, attachments = []) =>
     putWithFile(`/inventory_item/${id}`, payload, attachments);
 
+// ── Item revision control ────────────────────────────────────────────────────
+export const getItemRevisionHistory = (itemId) =>
+    apiService.get(`/inventory_item/${itemId}/revisions`);
+
+export const reviseItem = (itemId, payload = {}) =>
+    apiService.post(`/inventory_item/${itemId}/revisions/revise`, payload);
+
+export const updateDraftRevision = (revisionId, payload) =>
+    apiService.put(`/inventory_item/revisions/${revisionId}`, payload);
+
+export const submitRevisionForApproval = (revisionId) =>
+    apiService.post(`/inventory_item/revisions/${revisionId}/submit`, {});
+
+export const releaseRevision = (revisionId, payload = {}) =>
+    apiService.post(`/inventory_item/revisions/${revisionId}/release`, payload);
+
+export const obsoleteRevision = (revisionId) =>
+    apiService.post(`/inventory_item/revisions/${revisionId}/obsolete`, {});
+
 export const receiveStock = (payload) =>
     apiService.post('/inventory/add-instances', payload);
 
