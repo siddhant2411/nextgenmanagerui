@@ -740,7 +740,16 @@ const PackingSlipDetailPage = () => {
                                                             >
                                                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                                                                     <Chip label={m.label} size="small" sx={chipSx(m)} />
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: INK }}>
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        onClick={() => navigate(`/quality/inspections/${lot.id}`)}
+                                                                        sx={{
+                                                                            fontWeight: 600,
+                                                                            color: T.primary,
+                                                                            cursor: "pointer",
+                                                                            "&:hover": { textDecoration: "underline" },
+                                                                        }}
+                                                                    >
                                                                         {lot.lotNumber}
                                                                     </Typography>
                                                                     <Typography variant="caption" sx={{ color: MUTED }}>
