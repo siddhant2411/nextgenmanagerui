@@ -29,6 +29,7 @@ import {
     ChevronRight,
     ShoppingCart,
     AppsOutlined,
+    FactCheckOutlined,
 } from "@mui/icons-material";
 import { Contact } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -198,6 +199,17 @@ const Sidebar = ({
                         { text: "Packing Slips", path: "/inventory/packing-slips" },
                         { text: "Material Requests", path: "/inventory/material-requests" },
                     ],
+                },
+            ]
+            : []),
+        // Inspection spans receiving, the shop floor and dispatch, so it sits beside them
+        // rather than under any one of them.
+        ...(canAccessInventory || canAccessProduction
+            ? [
+                {
+                    text: "Quality",
+                    icon: <FactCheckOutlined />,
+                    children: [{ text: "Inspections", path: "/quality/inspections" }],
                 },
             ]
             : []),

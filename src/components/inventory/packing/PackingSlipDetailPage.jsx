@@ -34,6 +34,7 @@ import {
     BlockOutlined,
     DoneAll,
     Inventory2Outlined,
+    LocalShippingOutlined,
     LockOutlined,
     PictureAsPdfOutlined,
     Refresh,
@@ -310,6 +311,8 @@ const PackingSlipDetailPage = () => {
     const isPacked = slip.status === "PACKED";
     const qcOpen = isDraft || isPacked;
     const canCancel = isDraft || isPacked;
+    // A closed slip with no delivery note is packed and waiting for a lorry.
+    const canShip = slip.status === "CLOSED" && !slip.deliveryNoteId;
     const closeBlocked = blocking.length > 0;
 
     return (
@@ -356,6 +359,7 @@ const PackingSlipDetailPage = () => {
                                 </Box>
                                 {pick?.warehouseCode ? ` from ${pick.warehouseCode}` : ""}
                                 {slip.closedBy ? ` · closed by ${slip.closedBy}` : slip.packedBy ? ` · packed by ${slip.packedBy}` : ""}
+                                {slip.deliveryNoteNumber ? ` · shipped on ${slip.deliveryNoteNumber}` : ""}
                             </Typography>
                             {slip.remarks && (
                                 <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.45)" }}>
@@ -397,7 +401,7 @@ const PackingSlipDetailPage = () => {
                                         !boxes.length
                                             ? "Add at least one box first"
                                             : totals.unpacked > 0
-                                            ? `${fmtNum(totals.unpacked)} picked units are not in a box yet — they will not be on this slip`
+                                            ? `${fmtNum(totals.unpacked)} picked units are not in a box yet. Box the rest, or cancel the slip.`
                                             : ""
                                     }
                                 >
@@ -406,18 +410,8 @@ const PackingSlipDetailPage = () => {
                                             variant="contained"
                                             disableElevation
                                             startIcon={<DoneAll />}
-                                            disabled={busy || !boxes.length}
-                                            onClick={() =>
-                                                totals.unpacked > 0
-                                                    ? setAsk({
-                                                          title: `Mark ${slip.slipNumber} packed?`,
-                                                          body: `${fmtNum(totals.unpacked)} picked units are still not in any box. Once packed, no more boxes can be added to this slip.`,
-                                                          confirm: "Mark packed",
-                                                          danger: false,
-                                                          onConfirm: () => run(() => packPackingSlip(id), "packed"),
-                                                      })
-                                                    : run(() => packPackingSlip(id), "packed")
-                                            }
+                                            disabled={busy || !boxes.length || totals.unpacked > 0}
+                                            onClick={() => run(() => packPackingSlip(id), "packed")}
                                             sx={primaryButtonSx}
                                         >
                                             Mark Packed
@@ -440,6 +434,17 @@ const PackingSlipDetailPage = () => {
                                         </Button>
                                     </span>
                                 </Tooltip>
+                            )}
+                            {canShip && (
+                                <Button
+                                    variant="contained"
+                                    disableElevation
+                                    startIcon={<LocalShippingOutlined />}
+                                    onClick={() => navigate(`/sales/sales-order/delivery-notes/add?soId=${slip.salesOrderId}&pickListId=${slip.pickListId}`)}
+                                    sx={primaryButtonSx}
+                                >
+                                    Create Delivery Note
+                                </Button>
                             )}
                             {canCancel && (
                                 <Tooltip title="Abandon this slip and release its boxes' units">
@@ -735,7 +740,16 @@ const PackingSlipDetailPage = () => {
                                                             >
                                                                 <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                                                                     <Chip label={m.label} size="small" sx={chipSx(m)} />
-                                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: INK }}>
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        onClick={() => navigate(`/quality/inspections/${lot.id}`)}
+                                                                        sx={{
+                                                                            fontWeight: 600,
+                                                                            color: T.primary,
+                                                                            cursor: "pointer",
+                                                                            "&:hover": { textDecoration: "underline" },
+                                                                        }}
+                                                                    >
                                                                         {lot.lotNumber}
                                                                     </Typography>
                                                                     <Typography variant="caption" sx={{ color: MUTED }}>

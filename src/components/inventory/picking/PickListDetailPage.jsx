@@ -218,6 +218,9 @@ const PickListDetailPage = () => {
     const canRelease = pick.status === "DRAFT";
     const canConfirm = pick.status === "DRAFT" || pick.status === "RELEASED";
     const canShip = pick.status === "PICKED";
+    // Once boxing has started, the pick ships only when that slip is closed. The server refuses
+    // otherwise, so the button says why rather than letting the delivery note fail on save.
+    const heldBySlip = Boolean(liveSlip) && liveSlip.status !== "CLOSED";
     // A dispatched pick is spent: its units are on a lorry, and releasing the allocation would
     // put them back on the shelf while the delivery note still says they left.
     const canCancel = pick.status !== "CANCELLED" && pick.status !== "DISPATCHED";
@@ -358,11 +361,19 @@ const PickListDetailPage = () => {
                                 )
                             )}
                             {canShip && (
+                                <Tooltip
+                                    title={
+                                        heldBySlip
+                                            ? `Being packed on ${liveSlip.slipNumber} — close that slip first, or cancel it to ship unpacked`
+                                            : ""
+                                    }
+                                >
+                                <span>
                                 <Button
                                     variant="contained"
                                     disableElevation
                                     startIcon={<LocalShippingOutlined />}
-                                    disabled={busy}
+                                    disabled={busy || heldBySlip}
                                     onClick={() =>
                                         navigate(
                                             `/sales/sales-order/delivery-notes/add?soId=${pick.salesOrderId}&pickListId=${pick.id}`
@@ -372,6 +383,8 @@ const PickListDetailPage = () => {
                                 >
                                     Create Delivery Note
                                 </Button>
+                                </span>
+                                </Tooltip>
                             )}
                             {canCancel && (
                                 <Tooltip title="Release every allocation and abandon this pick">

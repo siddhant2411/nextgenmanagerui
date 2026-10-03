@@ -19,6 +19,8 @@ import WarehouseDetailPage from "./components/inventory/warehouse/WarehouseDetai
 import PickListDetailPage from "./components/inventory/picking/PickListDetailPage";
 import PackingSlipPage from "./components/inventory/packing/PackingSlipPage";
 import PackingSlipDetailPage from "./components/inventory/packing/PackingSlipDetailPage";
+import QualityDeskPage from "./components/quality/QualityDeskPage";
+import InspectionLotDetailPage from "./components/quality/InspectionLotDetailPage";
 import StockTransferPage from "./components/inventory/transfer/StockTransferPage";
 import StockTransferDetailPage from "./components/inventory/transfer/StockTransferDetailPage";
 import Contact from "./components/contact/Contact";
@@ -224,6 +226,28 @@ function AppShell() {
                                 deniedMessage="You are not authorized for pick lists."
                             >
                                 <PickListDetailPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/quality/inspections"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={[...new Set([...INVENTORY_ACCESS_ROLES, ...PRODUCTION_ACCESS_ROLES])]}
+                                deniedMessage="You are not authorized for quality inspections."
+                            >
+                                <QualityDeskPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/quality/inspections/:id"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={[...new Set([...INVENTORY_ACCESS_ROLES, ...PRODUCTION_ACCESS_ROLES])]}
+                                deniedMessage="You are not authorized for quality inspections."
+                            >
+                                <InspectionLotDetailPage />
                             </RoleProtectedRoute>
                         }
                     />
