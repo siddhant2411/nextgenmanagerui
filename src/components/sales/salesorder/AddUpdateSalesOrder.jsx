@@ -6,7 +6,7 @@ import {
     Container, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
     Divider, Grid, IconButton, Paper, Stack, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TextField, Tooltip, Typography, Alert,
-    Avatar, MenuItem, Menu,
+    Avatar, MenuItem, Menu, Checkbox, FormControlLabel,
 } from '@mui/material';
 import {
     Add, ArrowBack, Save, ShoppingCart, Business, AccountBalance,
@@ -122,7 +122,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             remarks: '',
             discountPercentage: 0,
             freightAndForwardingCharges: 0,
-            includeFreightCharges: false,
+            includeFreightCharges: true,
             subTotal: 0,
             taxableValue: 0,
             cgstAmount: 0,
@@ -186,9 +186,25 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         });
 
         const gDiscAmt = sub * (gDisc / 100);
-        const taxable  = sub - gDiscAmt;
+        const preFreightTaxable = sub - gDiscAmt;
         const freight  = parseNum(formik.values.freightAndForwardingCharges);
-        const before   = taxable + cgst + sgst + igst + freight;
+
+        // Freight & forwarding charges are always taxable, at the order's blended
+        // effective GST rate (line items may carry different rates) — mirrors SalesOrderTaxCalculator.
+        if (freight > 0 && preFreightTaxable > 0) {
+            const lineTax = cgst + sgst + igst;
+            const effectiveRate = lineTax / preFreightTaxable;
+            const freightTax = freight * effectiveRate;
+            if (isIntra) {
+                cgst += freightTax / 2;
+                sgst += freightTax / 2;
+            } else {
+                igst += freightTax;
+            }
+        }
+
+        const taxable  = preFreightTaxable + freight;
+        const before   = taxable + cgst + sgst + igst;
         const rounded  = Math.round(before);
         const roundOff = rounded - before;
 
@@ -197,7 +213,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             Math.abs(formik.values.cgstAmount - cgst) > 0.01 ||
             Math.abs(formik.values.sgstAmount - sgst) > 0.01 ||
             Math.abs(formik.values.igstAmount - igst) > 0.01 ||
-            Math.abs(formik.values.discountAmount - gDiscAmt) > 0.01
+            Math.abs(formik.values.discountAmount - gDiscAmt) > 0.01 ||
+            Math.abs(formik.values.taxableValue - taxable) > 0.01
         ) {
             formik.setFieldValue('subTotal',           sub,      false);
             formik.setFieldValue('discountAmount',      gDiscAmt, false);
@@ -247,7 +264,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             remarks:     data.remarks ?? '',
             discountPercentage:     data.discountPercentage ?? 0,
             freightAndForwardingCharges: data.freightAndForwardingCharges ?? 0,
-            includeFreightCharges:  data.includeFreightCharges ?? false,
+            includeFreightCharges:  data.includeFreightCharges ?? true,
             subTotal:    data.subTotal    ?? 0,
             taxableValue: data.taxableValue ?? 0,
             cgstAmount:  data.cgstAmount  ?? 0,
@@ -333,7 +350,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         discountPercentage:  parseFloat(v.discountPercentage) || 0,
         taxPercentage:       0,
         freightAndForwardingCharges: parseFloat(v.freightAndForwardingCharges) || 0,
-        includeFreightCharges: v.includeFreightCharges,
+        includeFreightCharges: true,
         items: (v.items ?? []).map(i => ({
             inventoryItem:      i.inventoryItem,
             qty:                parseFloat(i.qty) || 0,
@@ -711,11 +728,30 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                 </Box>
                                 <Box sx={{ p: 4 }}>
                                     <Stack spacing={2.5}>
-                                        {[
-                                            ['Net Taxable', formik.values.taxableValue],
-                                            ['Tax Liability', parseNum(formik.values.cgstAmount) + parseNum(formik.values.sgstAmount) + parseNum(formik.values.igstAmount)],
-                                            ['Adjustments', formik.values.roundOffAmount + parseNum(formik.values.freightAndForwardingCharges)],
-                                        ].map(([label, val]) => (
+                                        {(() => {
+                                            const freightAmt = parseNum(formik.values.freightAndForwardingCharges);
+                                            const taxableVal = parseNum(formik.values.taxableValue);
+                                            const cgstAmt = parseNum(formik.values.cgstAmount);
+                                            const sgstAmt = parseNum(formik.values.sgstAmount);
+                                            const igstAmt = parseNum(formik.values.igstAmount);
+                                            const pct = (amt) => (taxableVal > 0 ? (amt / taxableVal * 100) : 0);
+                                            const fmtPct = (n) => (Number.isInteger(n) ? n : n.toFixed(1));
+
+                                            const rows = [];
+                                            rows.push(['Total Item Amount', parseNum(formik.values.subTotal)]);
+                                            if (freightAmt > 0) {
+                                                rows.push(['Freight Charges', freightAmt]);
+                                            }
+                                            rows.push(['Taxable Amount', taxableVal]);
+                                            if (formik.values.taxType === 'IGST') {
+                                                rows.push([`IGST (${fmtPct(pct(igstAmt))}%)`, igstAmt]);
+                                            } else {
+                                                rows.push([`CGST (${fmtPct(pct(cgstAmt))}%)`, cgstAmt]);
+                                                rows.push([`SGST (${fmtPct(pct(sgstAmt))}%)`, sgstAmt]);
+                                            }
+                                            rows.push(['Round Off', parseNum(formik.values.roundOffAmount)]);
+                                            return rows;
+                                        })().map(([label, val]) => (
                                             <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>{label}</Typography>
                                                 <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>₹{parseNum(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>

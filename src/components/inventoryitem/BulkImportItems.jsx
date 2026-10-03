@@ -57,7 +57,6 @@ const TEMPLATE_COLUMNS = [
     { key: 'batchTracked',   label: 'Batch Tracked',    sample: 'false',       note: 'true | false' },
     { key: 'serialTracked',  label: 'Serial Tracked',   sample: 'false',       note: 'true | false' },
     { key: 'itemGroupCode',  label: 'Item Group Code',  sample: 'GRP-001',     note: 'Free text' },
-    { key: 'revision',       label: 'Revision',         sample: '1',           note: 'Numeric' },
     { key: 'remarks',        label: 'Remarks',          sample: '',            note: 'Any notes' },
 ];
 
@@ -161,7 +160,6 @@ export default function BulkImportItems() {
             drawingNumber: row.drawingNumber || '',
             processType: row.processType || '',
         },
-        revision: row.revision || 1,
         remarks: row.remarks || '',
         productInventorySettings: {
             leadTime: row.leadTime || '',

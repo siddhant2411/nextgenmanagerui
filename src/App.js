@@ -13,6 +13,14 @@ import AppLauncherPage from "./pages/AppLauncherPage";
 import AccountingPage from "./pages/AccountingPage";
 import PlanningPage from "./pages/PlanningPage";
 import PlanningDeskPage from "./components/planning/PlanningDeskPage";
+import WarehousePage from "./components/inventory/warehouse/WarehousePage";
+import PickListPage from "./components/inventory/picking/PickListPage";
+import WarehouseDetailPage from "./components/inventory/warehouse/WarehouseDetailPage";
+import PickListDetailPage from "./components/inventory/picking/PickListDetailPage";
+import PackingSlipPage from "./components/inventory/packing/PackingSlipPage";
+import PackingSlipDetailPage from "./components/inventory/packing/PackingSlipDetailPage";
+import StockTransferPage from "./components/inventory/transfer/StockTransferPage";
+import StockTransferDetailPage from "./components/inventory/transfer/StockTransferDetailPage";
 import Contact from "./components/contact/Contact";
 import EnquiryPage from "./pages/EnquiryPage";
 import CrmDashboard from "./components/crm/CrmDashboard";
@@ -172,6 +180,94 @@ function AppShell() {
                                 deniedMessage="You are not authorized for material requests."
                             >
                                 <MaterialRequestDashboard />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/warehouses"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for warehouses."
+                            >
+                                <WarehousePage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/warehouses/:id"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for warehouses."
+                            >
+                                <WarehouseDetailPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/pick-lists"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for pick lists."
+                            >
+                                <PickListPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/pick-lists/:id"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for pick lists."
+                            >
+                                <PickListDetailPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/packing-slips"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for packing slips."
+                            >
+                                <PackingSlipPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/packing-slips/:id"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for packing slips."
+                            >
+                                <PackingSlipDetailPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/stock-transfers"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for stock transfers."
+                            >
+                                <StockTransferPage />
+                            </RoleProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/inventory/stock-transfers/:id"
+                        element={
+                            <RoleProtectedRoute
+                                allowedRoles={INVENTORY_ACCESS_ROLES}
+                                deniedMessage="You are not authorized for stock transfers."
+                            >
+                                <StockTransferDetailPage />
                             </RoleProtectedRoute>
                         }
                     />

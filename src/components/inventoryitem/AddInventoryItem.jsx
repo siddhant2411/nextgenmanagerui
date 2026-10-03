@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 import {
   PictureAsPdf, PictureAsPdf as PdfIcon, FileDownload, OpenInNew, Sync, InfoOutlined,
-  Lock as LockIcon, CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy,
+  Lock as LockIcon, LockOpen as LockOpenIcon, EditNote,
+  CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy,
   ArrowBack, Save
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
@@ -33,6 +34,11 @@ import {
   createInventoryItemWithFiles,
   getInventoryItem,
   updateInventoryItemWithFiles,
+  getItemRevisionHistory,
+  reviseItem as reviseItemApi,
+  updateDraftRevision,
+  submitRevisionForApproval,
+  releaseRevision,
 } from '../../services/inventoryService';
 
 /* ── Premium Design Tokens ── */
@@ -142,6 +148,19 @@ export default function AddInventoryItem() {
   // Active-BOM cost breakdown, for display-only "Total Cost incl. overhead" (stored standard cost stays prime).
   const [bomCost, setBomCost] = useState(null);
 
+  /* ── Item revision control ──
+     currentRevision comes straight off the item entity (itemData.currentRevision). A DRAFT/
+     PENDING_APPROVAL row in revisionHistory is the "next" revision being worked on — the item
+     stays locked at its last RELEASED revision until that one is released in turn. ── */
+  const [revisionHistory, setRevisionHistory] = useState([]);
+  const [reviseDialogOpen, setReviseDialogOpen] = useState(false);
+  const [reviseForm, setReviseForm] = useState({ changeReason: '', ecoNumber: '' });
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
+  const [draftForm, setDraftForm] = useState({});
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releaseForm, setReleaseForm] = useState({ interchangeable: '', approvalComments: '' });
+  const [revisionBusy, setRevisionBusy] = useState(false);
+
   /* ── Attachment refs ── */
   const hydratingRef = useRef(false);
   const hydrationDoneRef = useRef(false);
@@ -155,7 +174,6 @@ export default function AddInventoryItem() {
     hsnCode: '',
     uom: 'NOS',
     itemType: 'RAW_MATERIAL',
-    revision: 1,
     remarks: '',
     itemGroupCode: '',
     purchased: false,
@@ -189,9 +207,20 @@ export default function AddInventoryItem() {
     : null;
   const marginColor = marginPct === null ? '#9ca3af' : parseFloat(marginPct) >= 20 ? '#10b981' : parseFloat(marginPct) >= 5 ? '#f59e0b' : '#ef4444';
 
+  /* ── Revision control derived state ──
+     The item is "locked" (engineering fields frozen) whenever it has a current revision and that
+     revision is RELEASED — which is true from the moment the item is first created (Rev A). An
+     open draft/pending-approval row lives alongside it in revisionHistory until it is released. */
+  const currentRevision = itemData.currentRevision || null;
+  const isLocked = !!currentRevision && currentRevision.status === 'RELEASED';
+  const openRevision = revisionHistory.find(r => r.status === 'DRAFT' || r.status === 'PENDING_APPROVAL') || null;
+  const canManageRevisions = hasAnyRole(user?.roles, INVENTORY_ITEM_APPROVAL_ROLES);
+  const engineeringLocked = isLocked && isEditMode;
+
   /* ── Tab definitions ── */
   const tabs = [
     { key: 'basic',     label: 'Basic Info',          show: true },
+    { key: 'revisions', label: 'Revisions',           show: isEditMode },
     { key: 'inventory', label: 'Inventory Settings',  show: true },
     { key: 'finance',   label: 'Finance',             show: isFinanceAdmin },
     { key: 'mfg',       label: 'Manufacturing',       show: true },
@@ -240,6 +269,7 @@ export default function AddInventoryItem() {
     setActiveBom(null);
     setBomHistory([]);
     setWhereUsedList([]);
+    setRevisionHistory([]);
     setSavedItem(null);
     hydratingRef.current = false;
     hydrationDoneRef.current = false;
@@ -253,7 +283,7 @@ export default function AddInventoryItem() {
       hsnCode: dup.hsnCode || '',
       uom: dup.uom || 'NOS',
       itemType: dup.itemType || 'RAW_MATERIAL',
-      revision: 1,
+      currentRevision: undefined, // a duplicate is a brand-new item — it gets its own fresh Rev A on save
       remarks: dup.remarks || '',
       itemGroupCode: dup.itemGroupCode || '',
       purchased: dup.purchased ?? false,
@@ -305,6 +335,19 @@ export default function AddInventoryItem() {
   }, [id]);
 
   useEffect(() => { if (id) fetchMfgData(); }, [id, fetchMfgData]);
+
+  /* ── Load revision history ── */
+  const fetchRevisionHistory = useCallback(async () => {
+    if (!id) return;
+    try {
+      const hist = await getItemRevisionHistory(id);
+      setRevisionHistory(extractArray(hist));
+    } catch {
+      setRevisionHistory([]);
+    }
+  }, [id]);
+
+  useEffect(() => { if (id) fetchRevisionHistory(); }, [id, fetchRevisionHistory]);
 
   /* ── Attachment sync effects ── */
   useEffect(() => {
@@ -475,6 +518,96 @@ export default function AddInventoryItem() {
     }
   };
 
+  /* ── Revision control actions ── */
+  const openReviseDialog = () => {
+    setReviseForm({ changeReason: '', ecoNumber: '' });
+    setReviseDialogOpen(true);
+  };
+
+  const confirmRevise = async () => {
+    setRevisionBusy(true);
+    try {
+      await reviseItemApi(id, reviseForm);
+      showSnackbar(`Draft revision opened — edit and release it when ready.`);
+      setReviseDialogOpen(false);
+      await Promise.all([fetchItem(), fetchRevisionHistory()]);
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to open a new revision'), 'error');
+    } finally {
+      setRevisionBusy(false);
+    }
+  };
+
+  const openDraftDialog = () => {
+    if (!openRevision) return;
+    setDraftForm({
+      dimension: openRevision.dimension || '',
+      size: openRevision.size || '',
+      weight: openRevision.weight || '',
+      basicMaterial: openRevision.basicMaterial || '',
+      processType: openRevision.processType || '',
+      drawingNumber: openRevision.drawingNumber || '',
+      uom: openRevision.uom || itemData.uom || 'NOS',
+      hsnCode: openRevision.hsnCode || '',
+      changeReason: openRevision.changeReason || '',
+      ecoNumber: openRevision.ecoNumber || '',
+    });
+    setDraftDialogOpen(true);
+  };
+
+  const saveDraftEdits = async () => {
+    if (!openRevision) return;
+    setRevisionBusy(true);
+    try {
+      await updateDraftRevision(openRevision.id, draftForm);
+      showSnackbar('Draft revision updated');
+      setDraftDialogOpen(false);
+      await fetchRevisionHistory();
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to update draft'), 'error');
+    } finally {
+      setRevisionBusy(false);
+    }
+  };
+
+  const submitDraft = async () => {
+    if (!openRevision) return;
+    setRevisionBusy(true);
+    try {
+      await submitRevisionForApproval(openRevision.id);
+      showSnackbar(`Revision ${openRevision.revisionCode} submitted for approval`);
+      await fetchRevisionHistory();
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to submit for approval'), 'error');
+    } finally {
+      setRevisionBusy(false);
+    }
+  };
+
+  const openReleaseDialog = () => {
+    if (!openRevision) return;
+    setReleaseForm({ interchangeable: '', approvalComments: '' });
+    setReleaseDialogOpen(true);
+  };
+
+  const confirmRelease = async () => {
+    if (!openRevision) return;
+    setRevisionBusy(true);
+    try {
+      await releaseRevision(openRevision.id, {
+        interchangeable: releaseForm.interchangeable === '' ? null : releaseForm.interchangeable === 'true',
+        approvalComments: releaseForm.approvalComments,
+      });
+      showSnackbar(`Revision ${openRevision.revisionCode} released — item is now locked at ${openRevision.revisionCode}.`);
+      setReleaseDialogOpen(false);
+      await Promise.all([fetchItem(), fetchRevisionHistory()]);
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to release revision'), 'error');
+    } finally {
+      setRevisionBusy(false);
+    }
+  };
+
   /* ── Series picker ── */
   const handleSeriesSelect = ({ seriesId, seriesLabel }) => {
     setSelectedSeries({ seriesId, seriesLabel });
@@ -618,8 +751,17 @@ export default function AddInventoryItem() {
                             </Typography>
                             {isEditMode && (
                                 <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
-                                    <Chip label={`Rev. ${itemData.revision}`} size="small" 
-                                        sx={{ fontWeight: 900, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', height: 24 }} />
+                                    <Tooltip title={isLocked ? 'Engineering fields are frozen at this revision' : 'This revision is open for engineering changes'}>
+                                        <Chip
+                                            icon={isLocked ? <LockIcon sx={{ fontSize: 15, color: 'white !important' }} /> : <LockOpenIcon sx={{ fontSize: 15, color: 'white !important' }} />}
+                                            label={`Rev. ${currentRevision?.revisionCode || '-'}${isLocked ? ' · Locked' : ''}`}
+                                            size="small"
+                                            sx={{ fontWeight: 900, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', height: 24 }} />
+                                    </Tooltip>
+                                    {openRevision && (
+                                        <Chip label={`Rev. ${openRevision.revisionCode} — ${openRevision.status.replace('_', ' ')}`} size="small"
+                                            sx={{ fontWeight: 700, bgcolor: '#fef3c7', color: '#92400e', height: 24 }} />
+                                    )}
                                     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
                                         {itemData.itemCode}
                                     </Typography>
@@ -632,6 +774,20 @@ export default function AddInventoryItem() {
                     </Stack>
 
                     <Stack direction="row" spacing={2} alignItems="center">
+                        {isEditMode && canManageRevisions && isLocked && !openRevision && (
+                            <Button variant="outlined" size="small" startIcon={<EditNote />}
+                                onClick={openReviseDialog}
+                                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.2)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}>
+                                Revise
+                            </Button>
+                        )}
+                        {isEditMode && canManageRevisions && openRevision && (
+                            <Button variant="outlined" size="small" startIcon={<EditNote />}
+                                onClick={openDraftDialog}
+                                sx={{ color: '#fbbf24', borderColor: 'rgba(251,191,36,0.4)', borderRadius: 2.5, textTransform: 'none', fontWeight: 700, px: 3 }}>
+                                Edit Draft Rev. {openRevision.revisionCode}
+                            </Button>
+                        )}
                         {isEditMode && canWrite && (
                             <Button variant="outlined" size="small" startIcon={<ContentCopy />}
                                 onClick={() => setShowDuplicateConfirm(true)}
@@ -735,13 +891,13 @@ export default function AddInventoryItem() {
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <TextField size="small" label="HSN Code" name="hsnCode" value={itemData.hsnCode}
-                onChange={handleChange} fullWidth sx={fieldSx}
+                onChange={handleChange} fullWidth sx={fieldSx} disabled={engineeringLocked}
                 helperText="4 or 8-digit HSN for GST" />
             </Grid>
 
             <SectionHeading>Classification</SectionHeading>
             <Grid item xs={12} sm={6} md={3}>
-              <FormControl fullWidth size="small">
+              <FormControl fullWidth size="small" disabled={engineeringLocked}>
                 <InputLabel sx={{ fontSize: 13.5 }}>Unit of Measure</InputLabel>
                 <Select name="uom" value={itemData.uom} label="Unit of Measure" onChange={handleChange} sx={{ borderRadius: 1.5, fontSize: 13.5 }}>
                   {UOM_OPTIONS.map(u => <MenuItem key={u} value={u}>{u}</MenuItem>)}
@@ -764,23 +920,33 @@ export default function AddInventoryItem() {
               <TextField size="small" label="Group Code" name="itemGroupCode"
                 value={itemData.itemGroupCode} onChange={handleChange} fullWidth sx={fieldSx} />
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField size="small" label="Revision" name="revision" type="number"
-                value={itemData.revision} onChange={handleChange} fullWidth sx={fieldSx} />
-            </Grid>
-
-            <SectionHeading>Specifications</SectionHeading>
+            <SectionHeading>Specifications {engineeringLocked && (
+              <Chip icon={<LockIcon sx={{ fontSize: 13 }} />} label={`Locked at Rev. ${currentRevision?.revisionCode}`}
+                size="small" sx={{ ml: 1.5, height: 20, fontSize: '0.7rem', bgcolor: '#fee2e2', color: '#991b1b' }} />
+            )}</SectionHeading>
+            {engineeringLocked && (
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ fontSize: '0.78rem', py: 0.5 }}>
+                  This item is locked at revision {currentRevision?.revisionCode}. Dimension, size, weight, material,
+                  process, drawing number, UoM and HSN code cannot be edited here — use{' '}
+                  <strong>Revise</strong> above to open a new draft revision.
+                </Alert>
+              </Grid>
+            )}
             <Grid item xs={12} sm={6} md={4}>
               <TextField size="small" label="Dimension" name="productSpecification.dimension"
-                value={itemData.productSpecification?.dimension} onChange={handleChange} fullWidth sx={fieldSx} />
+                value={itemData.productSpecification?.dimension} onChange={handleChange} fullWidth sx={fieldSx}
+                disabled={engineeringLocked} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <TextField size="small" label="Size" name="productSpecification.size"
-                value={itemData.productSpecification?.size} onChange={handleChange} fullWidth sx={fieldSx} />
+                value={itemData.productSpecification?.size} onChange={handleChange} fullWidth sx={fieldSx}
+                disabled={engineeringLocked} />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <TextField size="small" label="Weight (kg)" name="productSpecification.weight" type="number"
-                value={itemData.productSpecification?.weight} onChange={handleChange} fullWidth sx={fieldSx} />
+                value={itemData.productSpecification?.weight} onChange={handleChange} fullWidth sx={fieldSx}
+                disabled={engineeringLocked} />
             </Grid>
 
             {/* Material — creatable autocomplete */}
@@ -790,6 +956,7 @@ export default function AddInventoryItem() {
                 selectOnFocus
                 clearOnBlur
                 handleHomeEndKeys
+                disabled={engineeringLocked}
                 options={materialOptions}
                 value={itemData.productSpecification?.basicMaterial || ''}
                 filterOptions={(opts, params) => {
@@ -822,6 +989,7 @@ export default function AddInventoryItem() {
                 selectOnFocus
                 clearOnBlur
                 handleHomeEndKeys
+                disabled={engineeringLocked}
                 options={processTypeOptions}
                 value={itemData.productSpecification?.processType || ''}
                 filterOptions={(opts, params) => {
@@ -849,13 +1017,73 @@ export default function AddInventoryItem() {
 
             <Grid item xs={12} sm={6} md={4}>
               <TextField size="small" label="Drawing Number" name="productSpecification.drawingNumber"
-                value={itemData.productSpecification?.drawingNumber} onChange={handleChange} fullWidth sx={fieldSx} />
+                value={itemData.productSpecification?.drawingNumber} onChange={handleChange} fullWidth sx={fieldSx}
+                disabled={engineeringLocked} />
             </Grid>
 
             <SectionHeading>Description</SectionHeading>
             <Grid item xs={12}>
               <TextField size="small" label="Description / Remarks" name="remarks" fullWidth multiline rows={2}
                 value={itemData.remarks} onChange={handleChange} sx={fieldSx} />
+            </Grid>
+          </Grid>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            TAB 1.5 — REVISIONS (edit mode only)
+            ══════════════════════════════════════════════════════════════════ */}
+        {activeKey === 'revisions' && isEditMode && (
+          <Grid container spacing={2}>
+            <SectionHeading>Revision History</SectionHeading>
+            <Grid item xs={12}>
+              {revisionHistory.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">No revision history yet.</Typography>
+              ) : (
+                <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 1.5, borderColor: BORDER_COLOR }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        {['Rev', 'Status', 'ECO', 'Change Reason', 'Interchangeable', 'Released By', 'Released On'].map(h => (
+                          <TableCell key={h} sx={bomHeaderSx}>{h}</TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {revisionHistory.map((r) => (
+                        <TableRow key={r.id} sx={{ '& td': { fontSize: '0.8125rem', py: 0.75 } }}>
+                          <TableCell sx={{ fontWeight: 700 }}>{r.revisionCode}</TableCell>
+                          <TableCell>
+                            <Chip size="small" label={r.status?.replace('_', ' ')} variant="outlined"
+                              color={r.status === 'RELEASED' ? 'success' : r.status === 'OBSOLETE' ? 'default' : 'warning'}
+                              sx={{ fontSize: '0.7rem' }} />
+                          </TableCell>
+                          <TableCell>{r.ecoNumber || '-'}</TableCell>
+                          <TableCell>{r.changeReason || '-'}</TableCell>
+                          <TableCell>{r.interchangeable === null || r.interchangeable === undefined ? '-' : (r.interchangeable ? 'Yes' : 'No — impact review')}</TableCell>
+                          <TableCell>{r.releasedBy || '-'}</TableCell>
+                          <TableCell>{formatDate(r.releasedOn)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+              {openRevision && canManageRevisions && (
+                <Stack direction="row" spacing={1.5} sx={{ mt: 1.5 }}>
+                  <Button size="small" variant="outlined" startIcon={<EditNote />} onClick={openDraftDialog} sx={{ textTransform: 'none', borderRadius: 1.5 }}>
+                    Edit Draft
+                  </Button>
+                  {openRevision.status === 'DRAFT' && (
+                    <Button size="small" variant="outlined" onClick={submitDraft} disabled={revisionBusy} sx={{ textTransform: 'none', borderRadius: 1.5 }}>
+                      Submit for Approval
+                    </Button>
+                  )}
+                  <Button size="small" variant="contained" startIcon={<LockIcon sx={{ fontSize: 15 }} />} onClick={openReleaseDialog}
+                    sx={{ textTransform: 'none', borderRadius: 1.5, bgcolor: T.primary }}>
+                    Release Rev. {openRevision.revisionCode}
+                  </Button>
+                </Stack>
+              )}
             </Grid>
           </Grid>
         )}
@@ -1248,6 +1476,121 @@ export default function AddInventoryItem() {
         }}
       />
 
+      {/* ── Revise dialog: open a new draft revision ── */}
+      <Dialog open={reviseDialogOpen} onClose={() => setReviseDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Revise Item</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Opens a new draft revision (Rev. {currentRevision ? nextRevisionCodePreview(currentRevision.revisionCode) : '?'})
+            copying the current engineering fields. Rev. {currentRevision?.revisionCode} stays released and unchanged
+            until the draft is released in turn.
+          </Typography>
+          <Stack spacing={2}>
+            <TextField size="small" label="Change Reason" fullWidth multiline rows={2}
+              value={reviseForm.changeReason}
+              onChange={e => setReviseForm(f => ({ ...f, changeReason: e.target.value }))} sx={fieldSx} />
+            <TextField size="small" label="ECO Number" fullWidth
+              value={reviseForm.ecoNumber}
+              onChange={e => setReviseForm(f => ({ ...f, ecoNumber: e.target.value }))} sx={fieldSx} />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReviseDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" onClick={confirmRevise} disabled={revisionBusy} sx={{ textTransform: 'none' }}>
+            Open Draft Revision
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Edit draft revision dialog ── */}
+      <Dialog open={draftDialogOpen} onClose={() => setDraftDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Draft Revision {openRevision?.revisionCode}</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            <Grid item xs={6}>
+              <TextField size="small" label="Dimension" fullWidth value={draftForm.dimension || ''}
+                onChange={e => setDraftForm(f => ({ ...f, dimension: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="Size" fullWidth value={draftForm.size || ''}
+                onChange={e => setDraftForm(f => ({ ...f, size: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="Weight (kg)" fullWidth value={draftForm.weight || ''}
+                onChange={e => setDraftForm(f => ({ ...f, weight: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="Material" fullWidth value={draftForm.basicMaterial || ''}
+                onChange={e => setDraftForm(f => ({ ...f, basicMaterial: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="Fabrication Process" fullWidth value={draftForm.processType || ''}
+                onChange={e => setDraftForm(f => ({ ...f, processType: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="Drawing Number" fullWidth value={draftForm.drawingNumber || ''}
+                onChange={e => setDraftForm(f => ({ ...f, drawingNumber: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ fontSize: 13.5 }}>Unit of Measure</InputLabel>
+                <Select label="Unit of Measure" value={draftForm.uom || 'NOS'}
+                  onChange={e => setDraftForm(f => ({ ...f, uom: e.target.value }))} sx={{ borderRadius: 1.5, fontSize: 13.5 }}>
+                  {UOM_OPTIONS.map(u => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <TextField size="small" label="HSN Code" fullWidth value={draftForm.hsnCode || ''}
+                onChange={e => setDraftForm(f => ({ ...f, hsnCode: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField size="small" label="Change Reason" fullWidth multiline rows={2} value={draftForm.changeReason || ''}
+                onChange={e => setDraftForm(f => ({ ...f, changeReason: e.target.value }))} sx={fieldSx} />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField size="small" label="ECO Number" fullWidth value={draftForm.ecoNumber || ''}
+                onChange={e => setDraftForm(f => ({ ...f, ecoNumber: e.target.value }))} sx={fieldSx} />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDraftDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" onClick={saveDraftEdits} disabled={revisionBusy} sx={{ textTransform: 'none' }}>
+            Save Draft
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Release revision dialog ── */}
+      <Dialog open={releaseDialogOpen} onClose={() => setReleaseDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Release Revision {openRevision?.revisionCode}</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2, fontSize: '0.8rem' }}>
+            Releasing freezes Rev. {openRevision?.revisionCode}'s engineering fields and supersedes
+            Rev. {currentRevision?.revisionCode}. This cannot be undone — a further change needs another Revise.
+          </Alert>
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel sx={{ fontSize: 13.5 }}>Interchangeable with prior revision?</InputLabel>
+            <Select label="Interchangeable with prior revision?" value={releaseForm.interchangeable}
+              onChange={e => setReleaseForm(f => ({ ...f, interchangeable: e.target.value }))} sx={{ fontSize: 13.5 }}>
+              <MenuItem value=""><em>— Not recorded —</em></MenuItem>
+              <MenuItem value="true">Yes — existing stock/POs still valid, BOMs may roll forward</MenuItem>
+              <MenuItem value="false">No — needs a where-used impact review</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField size="small" label="Approval Comments" fullWidth multiline rows={2}
+            value={releaseForm.approvalComments}
+            onChange={e => setReleaseForm(f => ({ ...f, approvalComments: e.target.value }))} sx={fieldSx} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReleaseDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+          <Button variant="contained" onClick={confirmRelease} disabled={revisionBusy} sx={{ textTransform: 'none' }}>
+            Release
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* ── Snackbar ── */}
       <Snackbar open={snackbar.open} autoHideDuration={3500}
         onClose={() => setSnackbar(s => ({ ...s, open: false }))}
@@ -1537,4 +1880,20 @@ function extractArray(res) {
   if (Array.isArray(res.data)) return res.data;
   if (Array.isArray(res.data?.content)) return res.data.content;
   return [];
+}
+
+/** Display-only preview of the next revision letter (A, B, ... Z, AA, AB...) — mirrors the
+ * backend's BomServiceImpl.toRevision/nextRevision scheme, used only for dialog copy. */
+function nextRevisionCodePreview(code) {
+  if (!code) return '?';
+  let num = 0;
+  for (let i = 0; i < code.length; i++) num = num * 26 + (code.charCodeAt(i) - 64);
+  num++;
+  let out = '';
+  while (num > 0) {
+    num--;
+    out = String.fromCharCode(65 + (num % 26)) + out;
+    num = Math.floor(num / 26);
+  }
+  return out;
 }
