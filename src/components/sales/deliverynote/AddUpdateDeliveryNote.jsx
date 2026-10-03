@@ -167,7 +167,8 @@ export default function AddUpdateDeliveryNote() {
         const items = soItems
             .map(item => {
                 const id = item.inventoryItem?.inventoryItemId ?? item.inventoryItem?.id;
-                const qty = parseInt(dispatchQtys[id] ?? 0, 10);
+                // Decimal: goods sold by weight or length ship in fractions.
+                const qty = Number(dispatchQtys[id]) || 0;
                 return { 
                     inventoryItemId: id, 
                     quantityDelivered: qty,
@@ -440,9 +441,10 @@ export default function AddUpdateDeliveryNote() {
                                                                     disabled={Boolean(pick)}
                                                                     onChange={e => setDispatchQtys(prev => ({
                                                                         ...prev,
-                                                                        [id]: Math.max(0, parseInt(e.target.value, 10) || 0),
+                                                                        // Kept as typed so a half-entered "2." is not rewritten to 2 mid-keystroke.
+                                                                        [id]: e.target.value,
                                                                     }))}
-                                                                    inputProps={{ min: 0, max: orderedQty, style: { textAlign: 'right', fontWeight: 800, color: T.primary } }}
+                                                                    inputProps={{ min: 0, max: orderedQty, step: 'any', style: { textAlign: 'right', fontWeight: 800, color: T.primary } }}
                                                                     sx={{ width: 100, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: T.bg } }}
                                                                 />
                                                                 {pick ? (
@@ -559,7 +561,7 @@ export default function AddUpdateDeliveryNote() {
                 open={modalOpen} 
                 onClose={() => setModalOpen(false)} 
                 item={activeItem} 
-                requiredQty={activeItem ? dispatchQtys[activeItem.inventoryItem?.inventoryItemId ?? activeItem.inventoryItem?.id] : 0}
+                requiredQty={activeItem ? Number(dispatchQtys[activeItem.inventoryItem?.inventoryItemId ?? activeItem.inventoryItem?.id]) || 0 : 0}
                 onAllocate={(ids) => {
                     if (activeItem) {
                         const id = activeItem.inventoryItem?.inventoryItemId ?? activeItem.inventoryItem?.id;
