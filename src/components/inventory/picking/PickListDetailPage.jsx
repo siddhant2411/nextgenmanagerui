@@ -31,6 +31,7 @@ import {
     ArrowBack,
     AssignmentTurnedInOutlined,
     BlockOutlined,
+    Inventory2Outlined,
     DoneAll,
     LocalShippingOutlined,
     PendingActions,
@@ -48,6 +49,7 @@ import {
     resolveApiErrorMessage,
 } from "../../../services/pickListService";
 import PickConfirmDialog from "./PickConfirmDialog";
+import { createPackingSlip, isLiveSlip, listPackingSlips } from "../../../services/packingSlipService";
 import {
     chipSx,
     headerCellSx,
@@ -119,13 +121,22 @@ const PickListDetailPage = () => {
     const [confirmSaving, setConfirmSaving] = useState(false);
 
     const [ask, setAsk] = useState(null);
+    const [liveSlip, setLiveSlip] = useState(null);
     const [toast, setToast] = useState(null);
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            setPick(await getPickList(id));
+            const p = await getPickList(id);
+            setPick(p);
+            // The slip packing this pick, if any. Optional: the pick page still works without it.
+            const slips = await listPackingSlips({ salesOrderId: p.salesOrderId }).catch(() => []);
+            setLiveSlip(
+                (Array.isArray(slips) ? slips : []).find(
+                    (s) => s.pickListId === p.id && isLiveSlip(s)
+                ) || null
+            );
         } catch (e) {
             setError(resolveApiErrorMessage(e, "Could not load this pick list."));
             setPick(null);
@@ -297,6 +308,54 @@ const PickListDetailPage = () => {
                                 >
                                     Confirm Pick
                                 </Button>
+                            )}
+                            {liveSlip ? (
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<Inventory2Outlined />}
+                                    onClick={() => navigate(`/inventory/packing-slips/${liveSlip.id}`)}
+                                    sx={{
+                                        color: "white",
+                                        borderColor: "rgba(255,255,255,0.25)",
+                                        textTransform: "none",
+                                        fontWeight: 700,
+                                        borderRadius: 2.5,
+                                        "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.05)" },
+                                    }}
+                                >
+                                    {liveSlip.slipNumber}
+                                </Button>
+                            ) : (
+                                canShip && (
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<Inventory2Outlined />}
+                                        disabled={busy}
+                                        onClick={async () => {
+                                            setBusy(true);
+                                            try {
+                                                const created = await createPackingSlip({ pickListId: pick.id });
+                                                navigate(`/inventory/packing-slips/${created.id}`);
+                                            } catch (e) {
+                                                setToast({
+                                                    severity: "error",
+                                                    message: resolveApiErrorMessage(e, "Could not open a packing slip."),
+                                                });
+                                                setBusy(false);
+                                            }
+                                        }}
+                                        sx={{
+                                            color: "white",
+                                            borderColor: "rgba(255,255,255,0.25)",
+                                            textTransform: "none",
+                                            fontWeight: 700,
+                                            borderRadius: 2.5,
+                                            "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.05)" },
+                                        }}
+                                    >
+                                        Pack
+                                    </Button>
+                                )
                             )}
                             {canShip && (
                                 <Button

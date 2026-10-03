@@ -195,6 +195,7 @@ const Sidebar = ({
                         { text: "Warehouses", path: "/inventory/warehouses" },
                         { text: "Stock Transfers", path: "/inventory/stock-transfers" },
                         { text: "Pick Lists", path: "/inventory/pick-lists" },
+                        { text: "Packing Slips", path: "/inventory/packing-slips" },
                         { text: "Material Requests", path: "/inventory/material-requests" },
                     ],
                 },
