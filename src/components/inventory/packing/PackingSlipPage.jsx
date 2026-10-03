@@ -190,7 +190,9 @@ const PackingSlipPage = () => {
             draft: allSlips.filter((s) => s.status === "DRAFT"),
             blocked: packed.filter((s) => blockingLots(s).length > 0),
             readyToClose: packed.filter((s) => blockingLots(s).length === 0),
-            closed: allSlips.filter((s) => s.status === "CLOSED").length,
+            // Closed and not yet on a delivery note: packed, waiting for a lorry.
+            readyToShip: allSlips.filter((s) => s.status === "CLOSED" && !s.deliveryNoteId),
+            shipped: allSlips.filter((s) => s.status === "CLOSED" && s.deliveryNoteId).length,
         };
     }, [allSlips, pickedPicks, blockingLots]);
 
@@ -231,13 +233,16 @@ const PackingSlipPage = () => {
         : slips;
 
     const railVisible =
-        stats.waiting.length > 0 || stats.blocked.length > 0 || stats.readyToClose.length > 0;
+        stats.waiting.length > 0 ||
+        stats.blocked.length > 0 ||
+        stats.readyToClose.length > 0 ||
+        stats.readyToShip.length > 0;
 
     const statCards = [
         { label: "To Pack", value: stats.waiting.length, icon: PendingActions, color: "#3b82f6", tag: "Picked, no slip" },
         { label: "Being Packed", value: stats.draft.length, icon: Inventory2Outlined, color: "#f59e0b", tag: "Draft" },
         { label: "QC Blocking", value: stats.blocked.length, icon: Warning, color: "#ef4444", tag: stats.blocked.length ? "Investigate" : "Clear" },
-        { label: "Closed", value: stats.closed, icon: DoneAll, color: "#10b981", tag: "Ready to ship" },
+        { label: "Ready To Ship", value: stats.readyToShip.length, icon: DoneAll, color: "#10b981", tag: `${stats.shipped} shipped` },
     ];
 
     return (
@@ -398,6 +403,43 @@ const PackingSlipPage = () => {
                                                         sx={railButtonSx("#2563eb")}
                                                     >
                                                         Pack
+                                                    </Button>
+                                                }
+                                            />
+                                        ))}
+                                    </RailPanel>
+                                )}
+
+                                {stats.readyToShip.length > 0 && (
+                                    <RailPanel
+                                        border="#bbf7d0"
+                                        wash="#f0fdf4"
+                                        head="#dcfce7"
+                                        headColor="#166534"
+                                        icon={LocalShippingOutlined}
+                                        iconColor={T.success}
+                                        title={`Closed, Waiting To Ship (${stats.readyToShip.length})`}
+                                    >
+                                        {stats.readyToShip.slice(0, 5).map((s) => (
+                                            <RailRow
+                                                key={s.id}
+                                                border="#bbf7d0"
+                                                hover="#f7fef9"
+                                                onClick={() => navigate(`/inventory/packing-slips/${s.id}`)}
+                                                title={s.slipNumber}
+                                                subtitle={`${s.salesOrderNumber} · ${(s.boxes || []).length} box(es), waiting for a challan`}
+                                                action={
+                                                    <Button
+                                                        size="small"
+                                                        variant="contained"
+                                                        disableElevation
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/sales/sales-order/delivery-notes/add?soId=${s.salesOrderId}&pickListId=${s.pickListId}`);
+                                                        }}
+                                                        sx={railButtonSx(T.success)}
+                                                    >
+                                                        Ship
                                                     </Button>
                                                 }
                                             />
@@ -578,6 +620,11 @@ const PackingSlipPage = () => {
                                                         <TableCell align="center">
                                                             <Stack spacing={0.5} alignItems="center">
                                                                 <Chip label={cfg.label} size="small" sx={chipSx(cfg)} />
+                                                                {s.deliveryNoteNumber && (
+                                                                    <Typography variant="caption" sx={{ color: MUTED }}>
+                                                                        {s.deliveryNoteNumber}
+                                                                    </Typography>
+                                                                )}
                                                                 {blocking > 0 && (
                                                                     <Chip
                                                                         label={`${blocking} QC blocking`}
