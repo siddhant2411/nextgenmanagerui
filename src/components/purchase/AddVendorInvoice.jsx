@@ -27,6 +27,32 @@ const SectionCard = ({ title, children }) => (
     </Paper>
 );
 
+const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+const num = (v) => (v === '' || v == null ? 0 : parseFloat(v) || 0);
+
+/**
+ * Re-derive a line from its quantity and unit price. The PO line's discount and tax proportions are kept
+ * on the row (_netFactor, _rates) so a part-quantity invoice carries part-value tax, instead of silently
+ * keeping the full-order amounts the form was pre-filled with.
+ */
+const recalcLine = (it) => {
+    const taxable = r2(num(it.invoicedQty) * num(it.unitPrice) * (it._netFactor ?? 1));
+    const cgst = r2(taxable * (it._rates?.cgst ?? 0));
+    const sgst = r2(taxable * (it._rates?.sgst ?? 0));
+    const igst = r2(taxable * (it._rates?.igst ?? 0));
+    const cess = r2(taxable * (it._rates?.cess ?? 0));
+    return { ...it, taxableValue: String(taxable), cgstAmount: String(cgst), sgstAmount: String(sgst),
+        igstAmount: String(igst), cessAmount: String(cess), lineTotal: String(r2(taxable + cgst + sgst + igst + cess)) };
+};
+
+const totalsOf = (items) => {
+    const sum = (k) => r2(items.reduce((a, it) => a + num(it[k]), 0));
+    const t = { subtotal: sum('taxableValue'), cgstAmount: sum('cgstAmount'), sgstAmount: sum('sgstAmount'),
+        igstAmount: sum('igstAmount'), cessAmount: sum('cessAmount') };
+    t.grandTotal = r2(t.subtotal + t.cgstAmount + t.sgstAmount + t.igstAmount + t.cessAmount);
+    return Object.fromEntries(Object.entries(t).map(([k, v]) => [k, String(v)]));
+};
+
 const emptyItem = () => ({
     itemId: '', itemName: '', hsnCode: '', uom: '',
     invoicedQty: '', unitPrice: '', taxableValue: '',
@@ -58,7 +84,13 @@ export default function AddVendorInvoice() {
                 setPo(poData);
                 setGrns(grnData ?? []);
                 if (poData?.items?.length) {
-                    setItems(poData.items.map(l => ({
+                    setItems(poData.items.map(l => {
+                        const gross = num(l.quantityOrdered) * num(l.unitPrice);
+                        const taxable = num(l.taxableValue);
+                        const rateOf = (a) => (taxable > 0 ? num(a) / taxable : 0);
+                        return {
+                        _netFactor:   gross > 0 && taxable > 0 ? taxable / gross : 1,
+                        _rates:       { cgst: rateOf(l.cgstAmount), sgst: rateOf(l.sgstAmount), igst: rateOf(l.igstAmount), cess: rateOf(l.cessAmount) },
                         itemId:       l.itemId ?? '',
                         itemName:     l.itemName ?? l.item?.name ?? '',
                         hsnCode:      l.hsnCode ?? '',
@@ -71,7 +103,8 @@ export default function AddVendorInvoice() {
                         igstAmount:   String(l.igstAmount ?? ''),
                         cessAmount:   String(l.cessAmount ?? ''),
                         lineTotal:    String(l.lineTotal ?? ''),
-                    })));
+                        };
+                    }));
                 }
                 setForm(f => ({
                     ...f,
@@ -88,10 +121,40 @@ export default function AddVendorInvoice() {
     }, [poId]);
 
     const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
+    // Quantity or price edits recalculate the line; every line edit refreshes the invoice totals.
+    // Tax and amount boxes stay editable, so a vendor's rounding can still be typed over.
     const setItemField = (idx, key, val) =>
-        setItems(prev => prev.map((it, i) => i === idx ? { ...it, [key]: val } : it));
+        setItems(prev => {
+            const next = prev.map((it, i) => {
+                if (i !== idx) return it;
+                const updated = { ...it, [key]: val };
+                return key === 'invoicedQty' || key === 'unitPrice' ? recalcLine(updated) : updated;
+            });
+            setForm(f => ({ ...f, ...totalsOf(next) }));
+            return next;
+        });
     const addItem = () => setItems(prev => [...prev, emptyItem()]);
-    const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
+    const removeItem = (idx) =>
+        setItems(prev => {
+            const next = prev.filter((_, i) => i !== idx);
+            setForm(f => ({ ...f, ...totalsOf(next) }));
+            return next;
+        });
+
+    // Linking a GRN brings in what was actually accepted, not the full ordered quantity.
+    const handleGrnChange = (grnId) => {
+        setField('grnId', grnId);
+        const grn = grns.find(g => g.id === grnId);
+        if (!grn?.items?.length) return;
+        setItems(prev => {
+            const next = prev.map(it => {
+                const line = grn.items.find(g => String(g.inventoryItemId) === String(it.itemId));
+                return line ? recalcLine({ ...it, invoicedQty: String(line.acceptedQty) }) : it;
+            });
+            setForm(f => ({ ...f, ...totalsOf(next) }));
+            return next;
+        });
+    };
 
     const handleSubmit = async (e) => {
         e?.preventDefault();
@@ -207,7 +270,7 @@ export default function AddVendorInvoice() {
                                     <FormControl fullWidth>
                                         <InputLabel>Link to GRN (optional)</InputLabel>
                                         <Select value={form.grnId} label="Link to GRN (optional)"
-                                            onChange={e => setField('grnId', e.target.value)}
+                                            onChange={e => handleGrnChange(e.target.value)}
                                             sx={{ borderRadius: 2.5 }}>
                                             <MenuItem value="">— No GRN —</MenuItem>
                                             {grns.filter(g => g.status === 'COMPLETED' || g.status === 'SUBMITTED').map(g => (

@@ -210,7 +210,9 @@ function ReceiveForm({ po, grns, onPosted, onCancel }) {
                 orderedQty: item.quantityOrdered,
                 alreadyReceived: already,
                 remaining,
-                rate: Number(item.unitPrice) || 0,
+                // Stock is valued at what is actually paid: the list price less the PO line discount.
+                // Receiving at the list price overstated stock and left the discount sitting in GR/IR.
+                rate: Math.round((Number(item.unitPrice) || 0) * (1 - (Number(item.discountPct) || 0) / 100) * 100) / 100,
                 receivedQty: remaining,
                 acceptedQty: remaining,
                 rejectedQty: 0,

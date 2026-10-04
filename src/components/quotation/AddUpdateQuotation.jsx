@@ -126,7 +126,8 @@ const AddUpdateQuotation = ({ onSave }) => {
         const packagingAndForwardingCharges = +(taxableAmount * pafPct / 100).toFixed(2);
 
         const gp = parseNum(formik.values.gstPercentage);
-        const gstAmount = +(taxableAmount * gp / 100).toFixed(2);
+        // Packing & forwarding is part of the supply, so it carries GST — the server computes it this way too.
+        const gstAmount = +((taxableAmount + packagingAndForwardingCharges) * gp / 100).toFixed(2);
 
         const rawTotal = taxableAmount + gstAmount + packagingAndForwardingCharges;
         const total = Math.round(rawTotal);

@@ -12,9 +12,12 @@ const REASONS = ['DEFECTIVE', 'SHORT_SUPPLY', 'RATE_DIFFERENCE', 'QUALITY_ISSUE'
 
 const fmtAmt = (n) => '₹ ' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Per-line GST rate inferred from the invoice item's tax amounts vs its taxable value. */
-const gstRateOf = (item) => {
-    const taxable = (item.qty ?? 0) * (item.pricePerUnit ?? 0);
+/** Rate actually charged: the list price less the order-level discount. */
+const netRateOf = (item, discountPct) => (item.pricePerUnit ?? 0) * (1 - (discountPct ?? 0) / 100);
+
+/** Per-line GST rate inferred from the invoice item's tax amounts vs its (discounted) taxable value. */
+const gstRateOf = (item, discountPct) => {
+    const taxable = (item.qty ?? 0) * netRateOf(item, discountPct);
     const tax = (item.cgstAmount ?? 0) + (item.sgstAmount ?? 0) + (item.igstAmount ?? 0);
     if (!taxable) return 0;
     return Math.round((tax / taxable) * 10000) / 100; // 2-dp percentage
@@ -36,8 +39,8 @@ export default function RaiseCreditNoteDialog({ open, onClose, invoice, onCreate
                 lineNumber: i + 1,
                 maxQty: it.qty ?? 0,
                 returnedQty: it.qty ?? 0,
-                rate: it.pricePerUnit ?? 0,
-                gstRate: gstRateOf(it),
+                rate: Math.round(netRateOf(it, invoice.discountPercentage) * 100) / 100,
+                gstRate: Math.round(gstRateOf(it, invoice.discountPercentage)),
                 include: true,
             })));
             setReason('DEFECTIVE');

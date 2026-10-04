@@ -300,7 +300,7 @@ export default function AddUpdatePurchaseRequisition() {
             const res = isEdit
                 ? await updatePurchaseRequisition(id, payload)
                 : await createPurchaseRequisition(payload);
-            if (!isEdit) navigate(`../${res.id}`, { replace: true });
+            if (!isEdit) navigate(`/purchase/requisitions/${res.id}`, { replace: true });
             else { setPr(res); }
         } catch (e) {
             setError(e?.response?.data?.message ?? 'Save failed');
@@ -330,7 +330,7 @@ export default function AddUpdatePurchaseRequisition() {
     const onCancel = (reason) => runAction('Cancel', () => cancelPurchaseRequisition(id, reason));
     const onDelete = () => runAction('Delete', async () => {
         await deletePurchaseRequisition(id);
-        navigate('..');
+        navigate('/purchase/requisitions');
     });
     const onConvert = async (payload) => {
         setActionLoading(true);
@@ -365,7 +365,7 @@ export default function AddUpdatePurchaseRequisition() {
                 <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={2}>
                     <Stack direction="row" alignItems="center" spacing={1.5}>
                         <IconButton
-                            onClick={() => navigate('..')}
+                            onClick={() => navigate('/purchase/requisitions')}
                             sx={{
                                 color: SHELL.heroInk, border: `1px solid ${SHELL.heroLine}`,
                                 '&:hover': { bgcolor: SHELL.heroFill },

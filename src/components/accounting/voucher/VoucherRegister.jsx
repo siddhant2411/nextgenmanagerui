@@ -64,7 +64,8 @@ const STATUS_META = {
     REVERSED:         { label: "Reversed",         color: "#94a3b8", bg: "#f8fafc" },
 };
 
-const MANUAL_TYPES = ["", "JOURNAL", "RECEIPT", "PAYMENT", "CONTRA"];
+// Every voucher type, not only the manual ones: opening, sales, purchase and the rest were unfilterable.
+const MANUAL_TYPES = ["", ...Object.keys(TYPE_META)];
 const ALL_STATUSES = ["", "POSTED", "PENDING_APPROVAL", "DRAFT", "REVERSED"];
 
 const fmtDate = (d) => !d ? "—" : new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });

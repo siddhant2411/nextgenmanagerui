@@ -198,7 +198,7 @@ const validationSchema = Yup.object({
     contactType: Yup.string().oneOf(['VENDOR', 'CUSTOMER', 'BOTH']).required('Contact type is required'),
     gstNumber:   Yup.string().nullable().matches(/^$|^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Invalid GSTIN format (e.g. 27ABCDE1234F1Z5)'),
     panNumber:   Yup.string().nullable().matches(/^$|^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Invalid PAN format (e.g. ABCDE1234F)'),
-    creditDays:  Yup.number().nullable().typeError('Must be a number').positive('Must be positive').integer('Must be a whole number'),
+    creditDays:  Yup.number().nullable().typeError('Must be a number').min(0, 'Cannot be negative').integer('Must be a whole number'),
     msmeNumber:  Yup.string().when('msmeRegistered', { is: true, then: s => s.required('Udyam number is required when MSME registered') }),
     personDetails: Yup.array().of(Yup.object({
         emailId:     Yup.string().nullable().email('Invalid email'),

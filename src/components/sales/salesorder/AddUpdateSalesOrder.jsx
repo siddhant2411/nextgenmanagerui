@@ -243,7 +243,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                 qty:                i.qty ?? 0,
                 pricePerUnit:       i.pricePerUnit ?? 0,
                 discountPercentage: i.discountPercentage ?? 0,
-                gstRatePct:         i.cgstRate != null ? (parseNum(i.cgstRate) + parseNum(i.sgstRate || 0)) || parseNum(i.igstRate) : (i.gstRatePct ?? 18),
+                // An inter-state line carries only igstRate (cgstRate is null); falling through to 18 here
+                // re-priced every IGST order at 18% as soon as it was opened.
+                gstRatePct:         (parseNum(i.cgstRate) + parseNum(i.sgstRate)) || parseNum(i.igstRate) || parseNum(i.gstRatePct) || 18,
                 hsnCode:            i.hsnCode ?? '',
                 unitPriceAfterDiscount: i.unitPriceAfterDiscount ?? 0,
                 totalAmountOfProduct:   i.totalAmountOfProduct ?? 0,
