@@ -214,7 +214,13 @@ export default function JobWorkChallanForm() {
                 try {
                     setItemLoading(true);
                     const res = await searchInventoryItemsForChallan(query);
-                    setItemOptions(Array.isArray(res?.content) ? res.content : Array.isArray(res) ? res : []);
+                    const rows = Array.isArray(res?.content) ? res.content : Array.isArray(res) ? res : [];
+                    // The item search returns { inventoryItemId, name, uom }; the form works with { id, itemName }.
+                    setItemOptions(rows.map(r => ({
+                        ...r,
+                        id: r.id ?? r.inventoryItemId,
+                        itemName: r.itemName ?? r.name,
+                    })));
                 } catch {
                     setItemOptions([]);
                 } finally {

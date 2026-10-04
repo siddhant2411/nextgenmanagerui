@@ -83,8 +83,19 @@ const PlanningDeskPage = () => {
         runAction(row, procurementPlanningService.decideMake, "Work Order created");
     const handleBuy = (row) =>
         runAction(row, procurementPlanningService.decideBuy, "Purchase Requisition created");
-    const handleDefer = (row) =>
+    // Deferring takes the need off the desk with nothing raised for it. It used to act on a single
+    // click, so one stray press silently dropped a shortfall — ask first.
+    const handleDefer = (row) => {
+        const ok = window.confirm(
+            `Defer ${row.itemCode} (shortfall ${row.shortfall})?
+
+` +
+            "No work order or purchase requisition will be raised, and the need leaves this desk. " +
+            "Only defer if the shortfall is covered by stock or a reorder."
+        );
+        if (!ok) return;
         runAction(row, procurementPlanningService.deferNeed, "Need deferred");
+    };
 
     return (
         <Box sx={{ p: 3 }}>

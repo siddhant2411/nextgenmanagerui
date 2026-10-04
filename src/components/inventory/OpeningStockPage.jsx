@@ -15,6 +15,15 @@ import { useAuth } from '../../auth/AuthContext';
 
 /* ─── constants ────────────────────────────────────────────────────────────── */
 
+// The template shows dd-mm-yyyy; the API wants yyyy-mm-dd. Anything unreadable is sent as "today".
+const toIsoDate = (v) => {
+    const t = String(v || '').trim();
+    if (!t) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    const m = t.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+};
+
 const TEMPLATE_COLS = ['itemCode', 'quantity', 'costPerUnit', 'batchNo', 'entryDate', 'notes'];
 
 const HEADER_SX = {
@@ -64,8 +73,8 @@ const SingleEntryForm = ({ onSuccess }) => {
 
     const handleSubmit = async () => {
         if (!item)            { setError('Select an inventory item.'); return; }
-        if (!form.quantity)   { setError('Enter quantity.'); return; }
-        if (!form.costPerUnit){ setError('Enter cost per unit.'); return; }
+        if (!(Number(form.quantity) > 0))   { setError('Quantity must be greater than zero.'); return; }
+        if (form.costPerUnit === '' || !(Number(form.costPerUnit) >= 0)) { setError('Enter a cost per unit (zero or more).'); return; }
 
         setSaving(true); setError(''); setSuccess('');
         try {
@@ -75,6 +84,8 @@ const SingleEntryForm = ({ onSuccess }) => {
                 referenceId:        0,
                 quantity:           Number(form.quantity),
                 costPerUnit:        Number(form.costPerUnit),
+                entryDate:          form.entryDate || null,
+                batchNo:            form.batchNo || null,
                 createdBy:          user?.username || 'system',
             });
             setSuccess(`Opening stock recorded for ${item.itemCode} — ${item.name}`);
@@ -259,6 +270,8 @@ const BulkImportSection = ({ onSuccess }) => {
                     referenceId:         0,
                     quantity:            row.quantity,
                     costPerUnit:         row.costPerUnit,
+                    entryDate:           toIsoDate(row.entryDate),
+                    batchNo:             row.batchNo || null,
                     createdBy:           user?.username || 'system',
                 });
 

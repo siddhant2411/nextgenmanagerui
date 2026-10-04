@@ -67,8 +67,6 @@ const PickConfirmDialog = ({ open, pick, onClose, onSubmit, saving, error }) => 
                 out[l.id] = "Enter a quantity";
             } else if (qty > Number(l.quantityToPick)) {
                 out[l.id] = `More than the ${l.quantityToPick} asked for`;
-            } else if (l.tracked && qty > 0 && ids.length === 0) {
-                out[l.id] = "Name the instances picked";
             }
         });
         return out;
@@ -123,7 +121,7 @@ const PickConfirmDialog = ({ open, pick, onClose, onSubmit, saving, error }) => 
                                 <TableCell align="right" sx={{ width: 140 }}>
                                     Picked
                                 </TableCell>
-                                <TableCell sx={{ width: 260 }}>Instance ids</TableCell>
+                                <TableCell sx={{ width: 260 }}>Units (optional)</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -154,11 +152,12 @@ const PickConfirmDialog = ({ open, pick, onClose, onSubmit, saving, error }) => 
                                         <TextField
                                             size="small"
                                             fullWidth
-                                            placeholder="e.g. 101, 102"
+                                            placeholder={l.tracked ? "Auto: oldest units" : "Not tracked"}
+                                            disabled={!l.tracked}
                                             value={rows[l.id]?.instanceIds ?? ""}
                                             onChange={setField(l.id, "instanceIds")}
                                             error={Boolean(problems[l.id])}
-                                            helperText={problems[l.id] || " "}
+                                            helperText={problems[l.id] || (l.tracked ? "Leave blank to pick the oldest units" : " ")}
                                         />
                                     </TableCell>
                                 </TableRow>

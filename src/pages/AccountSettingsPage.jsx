@@ -15,6 +15,7 @@ import { resolveApiErrorMessage } from "../services/apiService";
 const EMPTY_FORM = {
     currentPassword: "",
     newPassword: "",
+    confirmPassword: "",
 };
 
 const validateForm = (form) => {
@@ -24,6 +25,11 @@ const validateForm = (form) => {
     }
     if (!form.newPassword) {
         errors.newPassword = "New password is required.";
+    } else if (form.newPassword.length < 8 || !/[A-Za-z]/.test(form.newPassword) || !/\d/.test(form.newPassword)) {
+        errors.newPassword = "Use at least 8 characters, with a letter and a digit.";
+    }
+    if (form.confirmPassword !== form.newPassword) {
+        errors.confirmPassword = "The two passwords do not match.";
     }
     return errors;
 };
@@ -132,6 +138,18 @@ export default function AccountSettingsPage() {
                                 onChange={handleChange("newPassword")}
                                 error={Boolean(formErrors.newPassword)}
                                 helperText={formErrors.newPassword}
+                                size="small"
+                                autoComplete="new-password"
+                                required
+                            />
+
+                            <TextField
+                                label="Confirm New Password"
+                                type="password"
+                                value={form.confirmPassword}
+                                onChange={handleChange("confirmPassword")}
+                                error={Boolean(formErrors.confirmPassword)}
+                                helperText={formErrors.confirmPassword}
                                 size="small"
                                 autoComplete="new-password"
                                 required

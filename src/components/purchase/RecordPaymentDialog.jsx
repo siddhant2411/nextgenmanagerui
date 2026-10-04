@@ -69,7 +69,10 @@ export default function RecordPaymentDialog({ open, invoice, onClose, onChanged 
     const tds = (() => {
         const section = tdsSections.find(s => s.section === form.tdsSectionCode);
         if (!section || amountNum <= 0) return { section: null, amount: 0, net: amountNum };
-        const amt = round2(amountNum * Number(section.rate) / 100);
+        // TDS is on the taxable value; GST charged on top of it is outside the deduction base.
+        const grand = Number(invoice?.grandTotal) || 0;
+        const taxableShare = grand > 0 && invoice?.subtotal != null ? Number(invoice.subtotal) / grand : 1;
+        const amt = round2(amountNum * taxableShare * Number(section.rate) / 100);
         return { section, amount: amt, net: round2(amountNum - amt) };
     })();
 

@@ -398,6 +398,7 @@ const FinancialYearsPage = () => {
     }, []);
 
     const handleLock = useCallback(async (periodId) => {
+        if (!window.confirm("Lock this period? No voucher can be posted to it until it is unlocked.")) return;
         setLoadingPeriodId(periodId);
         try {
             const updated = await lockPeriod(periodId);
@@ -416,6 +417,8 @@ const FinancialYearsPage = () => {
     }, [showSnack]);
 
     const handleUnlock = useCallback(async (periodId) => {
+        if (!window.confirm("Unlock this period? If a GST return or TDS deposit was already filed for it, "
+            + "figures posted now will no longer match what was filed.")) return;
         setLoadingPeriodId(periodId);
         try {
             const updated = await unlockPeriod(periodId);
