@@ -36,6 +36,10 @@ const normalizeRoles = (payload, fallbackRoles = []) => {
 const normalizeUser = (payload, fallback = {}) => ({
     username: payload?.username || payload?.userName || fallback?.username || "",
     roles: normalizeRoles(payload, fallback?.roles || []),
+    // Only /auth/me reports this; until it has answered it stays unknown and the agreement gate checks for itself.
+    agreementAccepted: typeof payload?.agreementAccepted === "boolean"
+        ? payload.agreementAccepted
+        : fallback?.agreementAccepted,
 });
 
 export function AuthProvider({ children }) {
