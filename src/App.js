@@ -509,7 +509,7 @@ function AppShell() {
                             </RoleProtectedRoute>
                         }
                     />
-                    <Route
+                    {/* <Route
                         path="/manufacturing/routing/*"
                         element={
                             <RoleProtectedRoute
@@ -519,7 +519,7 @@ function AppShell() {
                                 <RoutingPage />
                             </RoleProtectedRoute>
                         }
-                    />
+                    /> */}
                     <Route
                         path="/sales/sales-order/*"
                         element={

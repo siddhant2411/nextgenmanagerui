@@ -76,6 +76,22 @@ export const getMe = async () => {
 };
 
 /**
+ * @returns {Promise<{ version: string, title: string, content: string, accepted: boolean, acceptedDate: string|null }>}
+ */
+export const getAgreement = async () => {
+    const response = await apiClient.get("/auth/agreement");
+    return response.data;
+};
+
+/**
+ * @param {string} version the version the user was shown
+ */
+export const acceptAgreement = async (version) => {
+    const response = await apiClient.post("/auth/agreement/accept", { version });
+    return response.data;
+};
+
+/**
  * @returns {Promise<UserSummary[]>}
  */
 export const listUsers = async () => {

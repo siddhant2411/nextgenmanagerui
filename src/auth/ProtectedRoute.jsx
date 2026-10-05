@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Box, CircularProgress } from "@mui/material";
 import { useAuth } from "./AuthContext";
+import AgreementGate from "./AgreementGate";
 
 export default function ProtectedRoute({ children }) {
     const location = useLocation();
@@ -19,6 +20,6 @@ export default function ProtectedRoute({ children }) {
         return <Navigate to="/login" replace state={{ from: location }} />;
     }
 
-    return children;
+    return <AgreementGate>{children}</AgreementGate>;
 }
 

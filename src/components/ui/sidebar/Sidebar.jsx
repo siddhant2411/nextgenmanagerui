@@ -139,7 +139,7 @@ const Sidebar = ({
                     icon: <PrecisionManufacturing />,
                     children: [
                         { text: "Work Center", path: "/manufacturing/work-center" },
-                        { text: "Routing", path: "/manufacturing/routing" },
+                        // { text: "Routing", path: "/manufacturing/routing" },
                         { text: "Downtime Reasons", path: "/manufacturing/downtime-reasons" },
                         { text: "Production Job", path: "/production/production-job" },
                         { text: "Labor Roles", path: "/production/labor-role" },
