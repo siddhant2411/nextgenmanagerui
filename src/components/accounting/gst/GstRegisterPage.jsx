@@ -4,6 +4,7 @@ import {
     TableContainer, TableHead, TableRow,
 } from "@mui/material";
 import { FileDownloadOutlined } from "@mui/icons-material";
+import { GstStateLabel } from "../../common/GstStateSelect";
 import {
     getOutwardRegister, getInwardRegister,
     downloadOutwardRegisterExcel, downloadInwardRegisterExcel,
@@ -105,7 +106,7 @@ const GstRegisterPage = ({ variant = "OUTWARD" }) => {
                                                 <TableCell sx={CELL}>{fmtDate(r.docDate)}</TableCell>
                                                 <TableCell sx={CELL_MONO}>{r.gstin || "—"}</TableCell>
                                                 <TableCell sx={{ ...CELL, fontWeight: 500, color: "#0f172a" }}>{r.partyName}</TableCell>
-                                                <TableCell sx={CELL}>{r.placeOfSupply || "—"}</TableCell>
+                                                <TableCell sx={CELL}><GstStateLabel code={r.placeOfSupply} /></TableCell>
                                                 <TableCell sx={CELL_NUM}>{fmtAmt(r.taxableValue)}</TableCell>
                                                 <TableCell sx={CELL_NUM}>{fmtRate(r.rate)}</TableCell>
                                                 <TableCell sx={CELL_NUM}>{fmtAmt(r.cgst)}</TableCell>

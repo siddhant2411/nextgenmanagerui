@@ -14,6 +14,8 @@ import {
 import { apiClient, resolveApiErrorMessage } from "../services/apiService";
 import { useAuth } from "../auth/AuthContext";
 import { ADMIN_ROLES } from "../auth/roles";
+import DocumentBrandingCard from "../components/company/DocumentBrandingCard";
+import { StateNameField } from "../components/common/GstStateSelect";
 
 const MONTHS = [
     { value: 1, label: "January" },
@@ -377,11 +379,9 @@ export default function CompanyDetailsPage() {
                                 />
                             </Grid>
                             <Grid item xs={12} sm={4}>
-                                <TextField
-                                    label="State"
+                                <StateNameField
                                     value={form.state}
-                                    onChange={handleChange("state")}
-                                    fullWidth
+                                    onChange={(name) => handleChange("state")({ target: { value: name } })}
                                     size="small"
                                     disabled={!canEdit}
                                 />
@@ -516,6 +516,8 @@ export default function CompanyDetailsPage() {
                         )}
                     </Box>
                 </Paper>
+
+                <DocumentBrandingCard canEdit={canEdit} />
             </Box>
         </Box>
     );

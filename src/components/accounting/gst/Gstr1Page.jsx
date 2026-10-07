@@ -4,6 +4,7 @@ import {
     TableContainer, TableHead, TableRow,
 } from "@mui/material";
 import { FileDownloadOutlined, DataObjectOutlined } from "@mui/icons-material";
+import { GstStateLabel } from "../../common/GstStateSelect";
 import {
     getGstr1, downloadGstr1Excel, downloadGstr1Json, fileGstr1,
 } from "../../../services/accounting/gstService";
@@ -68,7 +69,7 @@ const InvoiceSection = ({ rows, title, hint, showGstin, isNote }) => {
                                 <TableCell sx={{ ...CELL, fontWeight: 500, color: "#0f172a" }}>{r.partyName || "—"}</TableCell>
                                 <TableCell sx={{ ...CELL_MONO, color: "#0f172a", fontWeight: 600 }}>{no}</TableCell>
                                 <TableCell sx={CELL}>{fmtDate(dt)}</TableCell>
-                                <TableCell sx={CELL}>{r.placeOfSupply || "—"}</TableCell>
+                                <TableCell sx={CELL}><GstStateLabel code={r.placeOfSupply} /></TableCell>
                                 <TableCell sx={CELL}>{rateList(r.items)}</TableCell>
                                 <TableCell sx={CELL_NUM}>{fmtAmt(s.taxable)}</TableCell>
                                 <TableCell sx={CELL_NUM}>{fmtAmt(s.cgst)}</TableCell>
@@ -106,7 +107,7 @@ const B2csSection = ({ rows }) => {
                     {rows.map((r, i) => (
                         <TableRow key={`${r.placeOfSupply}-${r.rate}-${i}`} sx={{ "&:hover": { bgcolor: "#f8fafc" } }}>
                             <TableCell sx={CELL}>{r.type || "OE"}</TableCell>
-                            <TableCell sx={CELL}>{r.placeOfSupply || "—"}</TableCell>
+                            <TableCell sx={CELL}><GstStateLabel code={r.placeOfSupply} /></TableCell>
                             <TableCell sx={CELL_NUM}>{fmtRate(r.rate)}</TableCell>
                             <TableCell sx={CELL_NUM}>{fmtAmt(r.taxableValue)}</TableCell>
                             <TableCell sx={CELL_NUM}>{fmtAmt(r.cgst)}</TableCell>

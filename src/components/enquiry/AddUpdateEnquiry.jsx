@@ -9,6 +9,7 @@ import {
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import apiService from '../../services/apiService';
+import { StateNameField } from '../common/GstStateSelect';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -448,7 +449,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                             <TextField label="City" name="city" fullWidth size="small" value={formik.values.city} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                                         </Grid>
                                         <Grid item xs={12} md={6}>
-                                            <TextField label="State" name="state" fullWidth size="small" value={formik.values.state} onChange={formik.handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                                            <StateNameField size="small" value={formik.values.state} onChange={name => formik.setFieldValue('state', name)} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                                         </Grid>
 
                                         <Grid item xs={12}>

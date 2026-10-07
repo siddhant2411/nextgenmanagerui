@@ -46,6 +46,26 @@ const STATUS_STYLE = {
     CANCELLED: { color: '#dc2626', bg: '#fef2f2' },
 };
 
+/* One party on the invoice: name, address, then GSTIN and state. */
+const PartyBlock = ({ label, party, sameAsBillTo = false, large = false }) => (
+    <Box>
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: large ? 2.5 : 1.5 }}>
+            <Typography sx={{ fontSize: large ? '0.8rem' : '0.7rem', fontWeight: 950, color: T.textSec, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</Typography>
+            {sameAsBillTo && <Chip label="Same as bill to" size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 800 }} />}
+        </Stack>
+        <Typography sx={{ fontWeight: 950, fontSize: large ? '1.4rem' : '1.05rem', color: T.text }}>{party?.name || '—'}</Typography>
+        <Typography sx={{ color: T.textSec, fontSize: large ? '0.95rem' : '0.875rem', whiteSpace: 'pre-line', mt: large ? 1.5 : 0.5, lineHeight: 1.7, fontWeight: 500 }}>
+            {party?.address || 'No address on file'}
+        </Typography>
+        {(party?.gstin || party?.stateLabel) && (
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: large ? 3 : 1.5 }}>
+                {party.gstin && <Box sx={{ px: 2, py: 0.8, border: `1.5px solid ${T.border}`, borderRadius: 2 }}><Typography sx={{ fontSize: '0.8rem', fontWeight: 900 }}>GSTIN: {party.gstin}</Typography></Box>}
+                {party.stateLabel && <Box sx={{ px: 2, py: 0.8, border: `1.5px solid ${T.border}`, borderRadius: 2 }}><Typography sx={{ fontSize: '0.8rem', fontWeight: 900 }}>State: {party.stateLabel}</Typography></Box>}
+            </Stack>
+        )}
+    </Box>
+);
+
 export default function AddUpdateInvoice() {
     const navigate = useNavigate();
     const { invoiceId } = useParams();
@@ -213,6 +233,22 @@ export default function AddUpdateInvoice() {
                                     </Box>
                                 </Grid>
                             )}
+                            {so?.billTo && (
+                                <Grid item xs={12}>
+                                    <Grid container spacing={4} sx={{ p: 3, pt: 0, borderRadius: 4, border: `1px solid ${T.border}`, ml: 0, width: '100%' }}>
+                                        <Grid item xs={12} md={6}><PartyBlock label="Bill To" party={so.billTo} /></Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <PartyBlock label="Ship To" party={so.shipTo}
+                                                sameAsBillTo={so.shipTo?.name === so.billTo.name && so.shipTo?.address === so.billTo.address} />
+                                        </Grid>
+                                        <Grid item xs={12} sx={{ pt: '8px !important', pb: 2 }}>
+                                            <Typography sx={{ fontSize: '0.8rem', color: T.textSec, fontWeight: 600 }}>
+                                                The invoice keeps these exactly as shown. To change them, edit the sales order before generating.
+                                            </Typography>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+                            )}
                             <Grid item xs={12} md={6}>
                                 <TextField fullWidth type="date" label="Invoice Date" value={form.invoiceDate}
                                     onChange={e => setForm(f => ({ ...f, invoiceDate: e.target.value }))}
@@ -277,14 +313,20 @@ export default function AddUpdateInvoice() {
 
                                 <Grid container spacing={6} sx={{ mb: 10 }}>
                                     <Grid item xs={12} md={6}>
-                                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 950, color: T.textSec, mb: 2.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>BILL TO</Typography>
-                                        <Typography sx={{ fontWeight: 950, fontSize: '1.4rem', color: T.text }}>{invoice.customerName}</Typography>
-                                        <Typography sx={{ color: T.textSec, fontSize: '0.95rem', whiteSpace: 'pre-line', mt: 1.5, lineHeight: 1.7, fontWeight: 500 }}>{invoice.customerAddress}</Typography>
-                                        {invoice.customerGstin && <Box sx={{ display: 'inline-flex', mt: 3, px: 2, py: 0.8, border: `1.5px solid ${T.border}`, borderRadius: 2 }}><Typography sx={{ fontSize: '0.8rem', fontWeight: 900 }}>GSTIN: {invoice.customerGstin}</Typography></Box>}
+                                        <PartyBlock label="Bill To" large party={{
+                                            name: invoice.billToName ?? invoice.customerName,
+                                            address: invoice.billToAddress ?? invoice.customerAddress,
+                                            gstin: invoice.billToGstin ?? invoice.customerGstin,
+                                            stateLabel: invoice.billToState,
+                                        }} />
                                     </Grid>
                                     <Grid item xs={12} md={6}>
-                                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 950, color: T.textSec, mb: 2.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>SHIP TO</Typography>
-                                        <Typography sx={{ color: T.textSec, fontSize: '0.95rem', whiteSpace: 'pre-line', lineHeight: 1.7, fontWeight: 500 }}>{invoice.deliveryAddress || 'Same as billing address'}</Typography>
+                                        <PartyBlock label="Ship To" large sameAsBillTo={!invoice.shipToDiffers} party={{
+                                            name: invoice.shipToName ?? invoice.customerName,
+                                            address: invoice.shipToAddress ?? invoice.deliveryAddress,
+                                            gstin: invoice.shipToGstin,
+                                            stateLabel: invoice.shipToState,
+                                        }} />
                                     </Grid>
                                 </Grid>
 

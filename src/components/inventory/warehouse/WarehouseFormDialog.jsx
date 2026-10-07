@@ -15,6 +15,7 @@ import {
     Typography,
 } from "@mui/material";
 import { WAREHOUSE_TYPES } from "../../../services/warehouseService";
+import { StateNameField } from "../../common/GstStateSelect";
 
 const EMPTY = {
     code: "",
@@ -142,7 +143,10 @@ const WarehouseFormDialog = ({ open, warehouse, onClose, onSubmit, saving, error
                         <TextField label="City" value={form.city || ""} onChange={set("city")} fullWidth />
                     </Grid>
                     <Grid item xs={12} sm={4}>
-                        <TextField label="State" value={form.state || ""} onChange={set("state")} fullWidth />
+                        <StateNameField
+                            value={form.state || ""}
+                            onChange={(name) => set("state")({ target: { value: name } })}
+                        />
                     </Grid>
                     <Grid item xs={12} sm={3}>
                         <TextField
