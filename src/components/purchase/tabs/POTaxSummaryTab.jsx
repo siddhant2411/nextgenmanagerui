@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import { InfoOutlined, CheckCircleOutline } from '@mui/icons-material';
 import { T } from '../../../theme/moduleTokens';
+import { stateLabel, useGstStates } from '../../../services/gstStates';
 
 
 const fmtAmt = (n) => `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -31,6 +32,7 @@ const GST_TREATMENT_LABEL = {
 
 export default function POTaxSummaryTab({ formik }) {
     const v = formik.values;
+    const states = useGstStates();
     const isIntra = v.gstTreatment === 'INTRA_STATE';
     const isInter = v.gstTreatment === 'INTER_STATE';
 
@@ -112,7 +114,7 @@ export default function POTaxSummaryTab({ formik }) {
                                     <Box>
                                         <Typography sx={{ fontSize: '0.8rem', color: '#64748b', mb: 1 }}>Place of Supply</Typography>
                                         <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
-                                            {v.placeOfSupply ? `State Code: ${v.placeOfSupply}` : 'Auto-detected from vendor location'}
+                                            {v.placeOfSupply ? stateLabel(states, v.placeOfSupply) : "Saved as the company's state"}
                                         </Typography>
                                     </Box>
 

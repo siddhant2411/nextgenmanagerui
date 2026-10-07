@@ -12,12 +12,13 @@ import {
     Add, ArrowBack, Save, ShoppingCart, Business, AccountBalance,
     LocalShipping, DeleteOutline, CheckCircle, Cancel, HourglassTop,
     Send, Refresh, Warning, History, Email, LocalShippingOutlined,
-    Receipt, Payments, AssignmentTurnedIn, RequestQuote, PictureAsPdf,
+    Receipt, Payments, AssignmentTurnedIn, RequestQuote, PictureAsPdf, PinDrop,
 } from '@mui/icons-material';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import apiService, { resolveApiErrorMessage } from '../../../services/apiService';
 import { inventoryItemSearch, searchContacts, searchQuotations } from '../../../services/commonAPI';
-import convertAddressToString from '../../../commonTools/convertAddress';
+import SalesOrderPartiesSection, { partyDefaultsFor } from './SalesOrderPartiesSection';
+import GstStateSelect from '../../common/GstStateSelect';
 import {
     getSalesOrder, createSalesOrder, updateSalesOrder,
     submitSalesOrder, approveSalesOrder, rejectSalesOrder,
@@ -115,7 +116,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             placeOfSupplyStateCode: '',
             poNumber: '',
             poDate: '',
+            billToAddress: '',
             deliveryAddress: '',
+            shipToName: '',
+            shipToGstin: '',
+            shipToStateCode: '',
             dispatchThrough: '',
             transportMode: '',
             deliveryDate: '',
@@ -259,7 +264,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             placeOfSupplyStateCode: data.placeOfSupplyStateCode ?? '',
             poNumber:    data.poNumber    ?? '',
             poDate:      data.poDate      ?? '',
+            billToAddress:          data.billToAddress ?? '',
             deliveryAddress:        data.deliveryAddress ?? '',
+            shipToName:             data.shipToName ?? '',
+            shipToGstin:            data.shipToGstin ?? '',
+            shipToStateCode:        data.shipToStateCode ?? '',
             dispatchThrough:        data.dispatchThrough ?? '',
             transportMode:          data.transportMode ?? '',
             deliveryDate:           data.deliveryDate ?? '',
@@ -309,9 +318,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                         formik.setFieldValue('quotation', q);
                         if (q.enquiry?.contact) {
                             formik.setFieldValue('contact', q.enquiry.contact);
-                            if (q.enquiry.contact.addresses?.length > 0) {
-                                formik.setFieldValue('deliveryAddress', convertAddressToString(q.enquiry.contact.addresses[0]));
-                            }
+                            Object.entries(partyDefaultsFor(q.enquiry.contact)).forEach(([k, val]) => formik.setFieldValue(k, val));
                         }
                         if (q.quotationProducts) {
                             formik.setFieldValue('items', q.quotationProducts.map(p => ({
@@ -344,7 +351,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         incoterms:    v.incoterms,
         poNumber:     v.poNumber,
         poDate:       v.poDate || null,
+        billToAddress:       v.billToAddress,
         deliveryAddress:     v.deliveryAddress,
+        shipToName:          v.shipToName,
+        shipToGstin:         v.shipToGstin,
+        shipToStateCode:     v.shipToStateCode,
         dispatchThrough:     v.dispatchThrough,
         transportMode:       v.transportMode,
         deliveryDate:        v.deliveryDate || null,
@@ -591,8 +602,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                             onInputChange={(_, v) => handleSearch('contact', v)}
                                             onChange={(_, v) => {
                                                 formik.setFieldValue('contact', v);
-                                                if (v?.addresses?.length > 0)
-                                                    formik.setFieldValue('deliveryAddress', convertAddressToString(v.addresses[0]));
+                                                // A new customer brings their own billing address and starts shipping to it
+                                                Object.entries(partyDefaultsFor(v)).forEach(([k, val]) => formik.setFieldValue(k, val));
                                             }}
                                             disabled={readOnly}
                                             renderInput={(p) => <TextField {...p} label="Select Customer *" error={Boolean(formik.errors.contact)} helperText={formik.errors.contact} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />}
@@ -621,6 +632,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                     <Grid item xs={12} md={3}><TextField fullWidth type="date" label="PO Date" name="poDate" value={formik.values.poDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth label="Currency" name="currency" value={formik.values.currency} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                 </Grid>
+
+                                <Divider sx={{ my: 5, borderStyle: 'dashed' }} />
+
+                                <SectionHeader icon={<PinDrop />} title="Bill To & Ship To" subtitle="Who is invoiced, and where the goods are delivered" />
+                                <SalesOrderPartiesSection formik={formik} readOnly={readOnly} />
 
                                 <Divider sx={{ my: 5, borderStyle: 'dashed' }} />
 
@@ -690,7 +706,6 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                     <Grid item xs={12} md={6}>
                                         <SectionHeader icon={<LocalShipping />} title="Delivery & Dispatch" subtitle="Logistics and routing parameters" />
                                         <Stack spacing={3}>
-                                            <TextField fullWidth multiline rows={3} label="Consignee Delivery Address" name="deliveryAddress" value={formik.values.deliveryAddress} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }} />
                                             <Grid container spacing={2}>
                                                 <Grid item xs={6}><TextField fullWidth label="Dispatch Through" name="dispatchThrough" value={formik.values.dispatchThrough} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                                 <Grid item xs={6}><TextField fullWidth label="Transport Mode" name="transportMode" value={formik.values.transportMode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
@@ -705,10 +720,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 <MenuItem value="CGST_SGST">Intra-State (CGST + SGST)</MenuItem>
                                                 <MenuItem value="IGST">Inter-State (IGST)</MenuItem>
                                             </TextField>
-                                            <Grid container spacing={2}>
-                                                <Grid item xs={8}><TextField fullWidth label="Place of Supply" name="placeOfSupply" value={formik.values.placeOfSupply} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
-                                                <Grid item xs={4}><TextField fullWidth label="Code" name="placeOfSupplyStateCode" value={formik.values.placeOfSupplyStateCode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
-                                            </Grid>
+                                            {/* The backend writes the state's name beside the code, so only the code is sent. */}
+                                            <GstStateSelect label="Place of Supply" disabled={readOnly}
+                                                value={formik.values.placeOfSupplyStateCode}
+                                                onChange={(code) => { formik.setFieldValue('placeOfSupplyStateCode', code); formik.setFieldValue('placeOfSupply', ''); }}
+                                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                             <TextField fullWidth label="Global Discount %" name="discountPercentage" type="number" value={formik.values.discountPercentage} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                             <TextField fullWidth label="Freight Charges (₹)" name="freightAndForwardingCharges" type="number" value={formik.values.freightAndForwardingCharges} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                         </Stack>

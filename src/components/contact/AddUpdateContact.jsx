@@ -24,6 +24,8 @@ import {
 import { AccountBalanceOutlined, AddCircleOutline, Close, SaveOutlined } from '@mui/icons-material';
 import apiService, { resolveApiErrorMessage } from '../../services/apiService';
 import { getContactLedgers, ensureContactLedger } from '../../services/accounting/accountingCoaService';
+import GstStateSelect, { StateNameField } from '../common/GstStateSelect';
+import { stateCodeFromGstin, useGstStates } from '../../services/gstStates';
 
 /* ── Design tokens ── */
 const T = {
@@ -218,6 +220,7 @@ const AddUpdateContact = ({ onSave }) => {
     const [snackbar,      setSnackbar]      = useState({ open: false, message: '', severity: 'error' });
 
     const showError = (msg) => setSnackbar({ open: true, message: msg, severity: 'error' });
+    const gstStates = useGstStates();
 
     const fetchContact = useCallback(async () => {
         if (!contactId) return;
@@ -246,6 +249,7 @@ const AddUpdateContact = ({ onSave }) => {
             gstNumber:           initialData?.gstNumber           ?? '',
             gstType:             initialData?.gstType             ?? 'REGULAR',
             panNumber:           initialData?.panNumber           ?? '',
+            stateCode:           initialData?.stateCode           ?? '',
             msmeRegistered:      initialData?.msmeRegistered      ?? false,
             msmeNumber:          initialData?.msmeNumber          ?? '',
             defaultPaymentTerms: initialData?.defaultPaymentTerms ?? '',
@@ -419,6 +423,17 @@ const AddUpdateContact = ({ onSave }) => {
                                         inputProps={{ maxLength: 10, style: { fontFamily: "'IBM Plex Mono', monospace" } }}
                                         sx={fieldSx} />
                                 </Grid>
+                                <Grid item xs={12} sm={5}>
+                                    {/* A GSTIN carries its state in the first two digits; only an unregistered party is asked. */}
+                                    <GstStateSelect size="small" label="GST State" sx={fieldSx}
+                                        emptyLabel="Take it from the address"
+                                        disabled={Boolean(stateCodeFromGstin(gstStates, values.gstNumber))}
+                                        value={stateCodeFromGstin(gstStates, values.gstNumber) || values.stateCode}
+                                        onChange={code => formik.setFieldValue('stateCode', code)}
+                                        helperText={stateCodeFromGstin(gstStates, values.gstNumber)
+                                            ? 'Taken from the GSTIN'
+                                            : 'Decides CGST + SGST or IGST for a party with no GSTIN'} />
+                                </Grid>
                                 <Grid item xs={12}>
                                     <FormControlLabel
                                         control={<Checkbox size="small" checked={values.msmeRegistered}
@@ -506,9 +521,8 @@ const AddUpdateContact = ({ onSave }) => {
                                                 onChange={handleChange} sx={fieldSx} />
                                         </Grid>
                                         <Grid item xs={6} sm={3}>
-                                            <TextField fullWidth size="small" label="State"
-                                                name={`addresses[${i}].state`} value={addr.state}
-                                                onChange={handleChange} sx={fieldSx} />
+                                            <StateNameField size="small" sx={fieldSx} value={addr.state}
+                                                onChange={name => formik.setFieldValue(`addresses[${i}].state`, name)} />
                                         </Grid>
                                         <Grid item xs={6} sm={3}>
                                             <TextField fullWidth size="small" label="PIN Code"

@@ -11,6 +11,7 @@ import {
 import apiService from '../../../services/apiService';
 import { searchContacts } from '../../../services/commonAPI';
 import { T } from '../../../theme/moduleTokens';
+import GstStateSelect from '../../common/GstStateSelect';
 
 const PO_TYPES = ['STANDARD', 'BLANKET', 'SUBCONTRACT', 'SERVICE', 'IMPORT'];
 
@@ -197,7 +198,6 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                         if (v) {
                                             if (v.defaultPaymentTerms && !formik.values.paymentTerms) set('paymentTerms', v.defaultPaymentTerms);
                                             if (v.creditDays && !formik.values.creditDays) set('creditDays', v.creditDays);
-                                            if (v.stateCode) set('placeOfSupply', v.stateCode);
                                         }
                                     }}
                                     disabled={readOnly}
@@ -229,14 +229,13 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                             </Grid>
 
                             <Grid item xs={12} sm={6}>
-                                <TextField fullWidth size="small" label="Place of Supply (State Code)"
-                                    placeholder="e.g. 27"
-                                    inputProps={{ maxLength: 2 }}
+                                <GstStateSelect size="small" label="Place of Supply"
+                                    emptyLabel="Our own state"
                                     value={formik.values.placeOfSupply ?? ''}
-                                    onChange={e => set('placeOfSupply', e.target.value)}
+                                    onChange={code => set('placeOfSupply', code)}
                                     disabled={readOnly}
                                     InputProps={{ sx: { borderRadius: 1.5 } }}
-                                    helperText="Auto-filled from vendor's state code" />
+                                    helperText="Left blank, it is saved as the company's state" />
                             </Grid>
 
                             {selectedVendor && (
