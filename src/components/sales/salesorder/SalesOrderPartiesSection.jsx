@@ -181,7 +181,7 @@ export default function SalesOrderPartiesSection({ formik, readOnly }) {
                                 {v.contact?.companyName ?? '—'}
                             </Typography>
                             <Typography sx={{ color: C.textSec, fontSize: '0.85rem', mt: 0.5 }}>
-                                {billToText || 'No billing address on file for this customer.'}
+                                {billToText || (customerId ? 'No billing address on file for this customer.' : 'Select a customer first.')}
                             </Typography>
                         </Box>
                     )}

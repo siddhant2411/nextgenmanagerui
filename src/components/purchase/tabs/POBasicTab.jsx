@@ -6,10 +6,11 @@ import {
 } from '@mui/material';
 import {
     Storefront, LocalShipping, Payment, NoteAlt,
-    Business, Search, Verified,
+    Business, Search, Verified, Factory, PersonPinCircle,
 } from '@mui/icons-material';
 import apiService from '../../../services/apiService';
 import { searchContacts } from '../../../services/commonAPI';
+import { listWarehouses } from '../../../services/warehouseService';
 import { T } from '../../../theme/moduleTokens';
 import GstStateSelect from '../../common/GstStateSelect';
 
@@ -34,8 +35,10 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
     const [addressLoading, setAddressLoading] = useState(false);
     const [companyDetails, setCompanyDetails] = useState(null);
 
-    // Ship-To override (optional alternate location)
-    const [shipToMode, setShipToMode] = useState(formik.values.shipToAddressId ? 'OTHER' : 'OWN');
+    // Ship-to: the registered address (COMPANY), one of our plants (PLANT) or another party (PARTY).
+    // The kind lives on the form, so it is saved even when it only clears an earlier choice.
+    const shipToMode = formik.values.shipToKind ?? 'COMPANY';
+    const [plants, setPlants] = useState([]);
     const [shipToContacts, setShipToContacts] = useState([]);
     const [shipToContactLoading, setShipToContactLoading] = useState(false);
     const [shipToContact, setShipToContact] = useState(null);
@@ -66,10 +69,12 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
             .finally(() => setAddressLoading(false));
     }, [formik.values.vendorId]);
 
-    // Sync shipToMode when form data loads (existing PO with shipToAddressId)
+    // Our plants are the warehouses; each carries its own address. Nobody delivers to quarantine or scrap.
     useEffect(() => {
-        setShipToMode(formik.values.shipToAddressId ? 'OTHER' : 'OWN');
-    }, [formik.values.shipToAddressId]);
+        listWarehouses(true)
+            .then(r => setPlants((r ?? []).filter(w => w.warehouseType !== 'QUARANTINE' && w.warehouseType !== 'SCRAP')))
+            .catch(() => setPlants([]));
+    }, []);
 
     const handleShipToContactSearch = async (val) => {
         if (!val || val.length < 2) return;
@@ -95,12 +100,16 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
     };
 
     const handleShipToModeChange = (mode) => {
-        setShipToMode(mode);
-        if (mode === 'OWN') {
-            // Clear other-contact selection; ship-to falls back to company address
+        formik.setFieldValue('shipToKind', mode);
+        if (mode !== 'PARTY') {
             formik.setFieldValue('shipToAddressId', null);
             setShipToContact(null);
             setShipToAddresses([]);
+        }
+        if (mode !== 'PLANT') {
+            formik.setFieldValue('shipToWarehouseId', null);
+        } else if (!formik.values.shipToWarehouseId && plants.length === 1) {
+            formik.setFieldValue('shipToWarehouseId', plants[0].id);
         }
     };
 
@@ -110,6 +119,10 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
     const selectedVendor = vendors.find(v => v.id === formik.values.vendorId) ?? null;
     const selectedBillingAddr = vendorAddresses.find(a => a.id === formik.values.vendorBillingAddressId) ?? null;
     const selectedShipToAddr = shipToAddresses.find(a => a.id === formik.values.shipToAddressId) ?? null;
+    const selectedPlant = plants.find(w => w.id === formik.values.shipToWarehouseId) ?? null;
+    const plantAddressLine = (w) => [w.addressLine1, w.addressLine2, w.city, w.state, w.pincode].filter(Boolean).join(', ');
+    // An order opened for editing knows its recipient only by address id; the server sends who that is.
+    const savedParty = shipToMode === 'PARTY' && !shipToContact && formik.values.shipToAddressId ? formik.values.shipTo : null;
 
     const companyAddressLine = companyDetails
         ? [companyDetails.street1, companyDetails.street2, companyDetails.city, companyDetails.state, companyDetails.pinCode]
@@ -265,28 +278,70 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                 </Grid>
 
                 <Grid item xs={12} md={5}>
-                    {/* Ship-To Section: defaults to own company; can override */}
-                    <SectionCard title="Ship To (Receiving Address)" icon={LocalShipping}>
+                    {/* Ship-To Section: the registered address unless a plant or another party is chosen */}
+                    <SectionCard title="Ship To (Deliver To)" icon={LocalShipping}>
                         <RadioGroup
                             value={shipToMode}
                             onChange={(e) => handleShipToModeChange(e.target.value)}
                             sx={{ mb: 1 }}
                         >
                             <FormControlLabel
-                                value="OWN"
+                                value="COMPANY"
                                 disabled={readOnly}
                                 control={<Radio size="small" />}
-                                label={<Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>Own Company Address (default)</Typography>}
+                                label={<Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>Registered address (default)</Typography>}
                             />
                             <FormControlLabel
-                                value="OTHER"
+                                value="PLANT"
                                 disabled={readOnly}
                                 control={<Radio size="small" />}
-                                label={<Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>Different Location (drop-ship)</Typography>}
+                                label={<Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>One of our plants / warehouses</Typography>}
+                            />
+                            <FormControlLabel
+                                value="PARTY"
+                                disabled={readOnly}
+                                control={<Radio size="small" />}
+                                label={<Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }}>Direct to a customer or other party</Typography>}
                             />
                         </RadioGroup>
 
-                        {shipToMode === 'OWN' && (
+                        {shipToMode === 'PLANT' && (
+                            <Stack spacing={2}>
+                                <Autocomplete
+                                    fullWidth size="small"
+                                    options={plants}
+                                    getOptionLabel={w => `${w.code} · ${w.name}${w.city ? ` (${w.city})` : ''}`}
+                                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                                    value={selectedPlant}
+                                    onChange={(_, w) => set('shipToWarehouseId', w?.id ?? null)}
+                                    disabled={readOnly}
+                                    noOptionsText="No warehouses yet. Add your plants under Inventory > Warehouses."
+                                    renderInput={params => (
+                                        <TextField {...params} label="Plant / Warehouse *"
+                                            error={!selectedPlant}
+                                            InputProps={{
+                                                ...params.InputProps,
+                                                sx: { borderRadius: 1.5 },
+                                                startAdornment: <InputAdornment position="start"><Factory sx={{ fontSize: 18 }} /></InputAdornment>
+                                            }} />
+                                    )} />
+                                {selectedPlant && (
+                                    <Box sx={{ p: 2.5, bgcolor: '#f0fdf4', borderRadius: 1.5, border: '1px solid #bbf7d0' }}>
+                                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', mb: 0.3 }}>
+                                            {[companyDetails?.companyName, selectedPlant.name].filter(Boolean).join(' - ')}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.82rem', color: plantAddressLine(selectedPlant) ? '#475569' : '#b45309', lineHeight: 1.5 }}>
+                                            {plantAddressLine(selectedPlant) || 'This warehouse has no address on file, so the order will print the name only.'}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mt: 0.5 }}>
+                                            GSTIN: {selectedPlant.gstin || companyDetails?.gstNumber || '—'}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Stack>
+                        )}
+
+                        {shipToMode === 'COMPANY' && (
                             companyDetails ? (
                                 <Box sx={{ p: 2.5, bgcolor: '#f0fdf4', borderRadius: 1.5, border: '1px solid #bbf7d0' }}>
                                     <Stack direction="row" spacing={1} alignItems="center" mb={1}>
@@ -317,8 +372,23 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                             )
                         )}
 
-                        {shipToMode === 'OTHER' && (
+                        {shipToMode === 'PARTY' && (
                             <Stack spacing={2}>
+                                {savedParty && (
+                                    <Box sx={{ p: 2.5, bgcolor: '#eff6ff', borderRadius: 1.5, border: '1px solid #bfdbfe' }}>
+                                        <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                                            <PersonPinCircle sx={{ fontSize: 16, color: '#2563eb' }} />
+                                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                                Delivering directly to
+                                            </Typography>
+                                        </Stack>
+                                        <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a', mb: 0.3 }}>{savedParty.name}</Typography>
+                                        <Typography sx={{ fontSize: '0.82rem', color: '#475569', lineHeight: 1.5 }}>{savedParty.address}</Typography>
+                                        {savedParty.gstin && (
+                                            <Typography sx={{ fontSize: '0.75rem', color: '#64748b', mt: 0.5 }}>GSTIN: {savedParty.gstin}</Typography>
+                                        )}
+                                    </Box>
+                                )}
                                 <Autocomplete
                                     fullWidth size="small"
                                     options={shipToContacts}
@@ -329,7 +399,7 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                     value={shipToContact}
                                     disabled={readOnly}
                                     renderInput={params => (
-                                        <TextField {...params} label="Search Recipient"
+                                        <TextField {...params} label={savedParty ? 'Change Recipient' : 'Search Recipient *'}
                                             placeholder="Type 2+ letters to search contacts..."
                                             InputProps={{
                                                 ...params.InputProps,
