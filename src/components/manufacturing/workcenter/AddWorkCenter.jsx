@@ -2,11 +2,12 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Box, Button, Grid, TextField, Typography, Paper, Divider,
   Snackbar, CircularProgress, Dialog, DialogTitle, DialogContent, DialogActions,
-  Alert, Stack
+  Alert, Stack, MenuItem
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import apiService from '../../../services/apiService';
+import { listWarehouses } from '../../../services/warehouseService';
 import { useNavigate, useParams } from 'react-router-dom';
 
 const BORDER_COLOR = '#e5e7eb';
@@ -37,6 +38,7 @@ const AddWorkCenter = () => {
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
   const formChanged = useRef(false);
 
   const { id } = useParams();
@@ -63,6 +65,13 @@ const AddWorkCenter = () => {
     if (id) fetchWorkCenter();
   }, [id, fetchWorkCenter]);
 
+  // The store is optional, so a failed load leaves the field empty instead of blocking the form.
+  useEffect(() => {
+    listWarehouses(true)
+      .then((data) => setWarehouses(Array.isArray(data) ? data : []))
+      .catch(() => setWarehouses([]));
+  }, []);
+
   const formik = useFormik({
     initialValues: {
       centerCode: '',
@@ -72,6 +81,7 @@ const AddWorkCenter = () => {
       availableHoursPerDay: '',
       department: '',
       location: '',
+      warehouseId: '',
       description: '',
     },
     validationSchema: Yup.object({
@@ -82,8 +92,11 @@ const AddWorkCenter = () => {
       availableHoursPerDay: Yup.number().min(0, 'Must be >= 0').max(24, 'Must be <= 24').required('Available Hours Per Day is required'),
     }),
     onSubmit: (values) => {
+      const { warehouseId, ...rest } = values;
       const payload = {
-        ...values,
+        ...rest,
+        // Sent by id only; blank clears it, which means "use the default warehouse".
+        warehouse: warehouseId !== '' ? { id: warehouseId } : null,
         machineCostPerHour: values.machineCostPerHour !== '' ? Number(values.machineCostPerHour) : null,
         overheadPercentage: values.overheadPercentage !== '' ? Number(values.overheadPercentage) : null,
         availableHoursPerDay: values.availableHoursPerDay !== '' ? Number(values.availableHoursPerDay) : null,
@@ -113,6 +126,7 @@ const AddWorkCenter = () => {
         availableHoursPerDay: wcData.availableHoursPerDay ?? '',
         department: wcData.department || '',
         location: wcData.location || '',
+        warehouseId: wcData.warehouseId ?? '',
         description: wcData.description || '',
       });
     }
@@ -245,7 +259,24 @@ const AddWorkCenter = () => {
                 />
               </Grid>
 
-              <SectionHeading>Location & Department</SectionHeading>
+              <SectionHeading>Plant, Location & Department</SectionHeading>
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField fullWidth select name="warehouseId" label="Plant / Store"
+                  value={formik.values.warehouseId}
+                  onChange={(e) => { formChanged.current = true; formik.handleChange(e); }}
+                  helperText="Material is drawn from, and output goes into, this store. Blank uses the default warehouse."
+                  size='small' sx={fieldSx}
+                >
+                  <MenuItem value=""><em>Default warehouse</em></MenuItem>
+                  {/* A store retired since it was chosen is not in the active list; keep it selectable. */}
+                  {wcData?.warehouseId && !warehouses.some((w) => w.id === wcData.warehouseId) && (
+                    <MenuItem value={wcData.warehouseId}>{wcData.warehouseCode} · {wcData.warehouseName}</MenuItem>
+                  )}
+                  {warehouses.map((w) => (
+                    <MenuItem key={w.id} value={w.id}>{w.code} · {w.name}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
               <Grid item xs={12} sm={6} md={4}>
                 <TextField fullWidth name="department" label="Department"
                   value={formik.values.department} onChange={formik.handleChange}

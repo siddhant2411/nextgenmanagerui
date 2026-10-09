@@ -175,6 +175,7 @@ const WorkCenterList = () => {
                     <TableCell align="right" sx={headerCellSx}>Machine Cost/Hr</TableCell>
                     <TableCell align="right" sx={headerCellSx}>Overhead %</TableCell>
                     <TableCell sx={headerCellSx}>Department</TableCell>
+                    <TableCell sx={headerCellSx}>Plant / Store</TableCell>
                     <TableCell sx={headerCellSx}>Location</TableCell>
                     <TableCell align="center" sx={headerCellSx}>Actions</TableCell>
                   </TableRow>
@@ -203,6 +204,7 @@ const WorkCenterList = () => {
                         <Typography variant="body2">{wc.overheadPercentage != null ? `${wc.overheadPercentage}%` : '-'}</Typography>
                       </TableCell>
                       <TableCell>{wc.department || '-'}</TableCell>
+                      <TableCell>{wc.warehouseCode || 'Default'}</TableCell>
                       <TableCell>{wc.location || '-'}</TableCell>
                       <TableCell align="center">
                         <Tooltip title="Edit">
@@ -234,7 +236,7 @@ const WorkCenterList = () => {
                   ))}
                   {workCenters.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                      <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                         <Typography variant="body2" color="text.secondary">No work centers found.</Typography>
                       </TableCell>
                     </TableRow>
