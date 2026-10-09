@@ -19,6 +19,7 @@ import {
 } from '../../../services/purchaseRequisitionService';
 import { filterInventoryItems } from '../../../services/inventoryService';
 import { searchWorkCenters } from '../../../services/machineAssetsService';
+import { contactLabel } from '../../../utils/contactLabel';
 import { useAuth } from '../../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../../auth/roles';
 import { T, SHELL, STATUS, heroButtonSx, heroCtaSx } from '../../../theme/moduleTokens';
@@ -99,7 +100,7 @@ function ConvertToPoDialog({ open, vendors, lines, onClose, onConfirm, loading }
                     <Grid item xs={12} md={6}>
                         <Autocomplete size="small"
                             options={vendors}
-                            getOptionLabel={(o) => o.companyName ?? ''}
+                            getOptionLabel={contactLabel}
                             onChange={(_, v) => setVendorId(v?.id ?? null)}
                             renderInput={(params) => <TextField {...params} label="Vendor *" />} />
                     </Grid>
@@ -557,9 +558,11 @@ export default function AddUpdatePurchaseRequisition() {
                                                 <Autocomplete size="small"
                                                     options={items}
                                                     getOptionLabel={(o) => o.name ? `${o.itemCode ?? ''} ${o.name}` : ''}
-                                                    value={items.find(it => it.inventoryItemId === l.itemId) ?? null}
+                                                    // The picked item comes from the line, not the search results, so a new search cannot drop it
+                                                    value={l.itemId ? { inventoryItemId: l.itemId, itemCode: l.itemCode, name: l.itemName, uom: l.uom } : null}
+                                                    isOptionEqualToValue={(o, v) => o.inventoryItemId === v.inventoryItemId}
                                                     onChange={(_, v) => onItemPick(idx, v)}
-                                                    onInputChange={(_, val) => searchItems(val)}
+                                                    onInputChange={(_, val, reason) => { if (reason !== 'reset') searchItems(val); }}
                                                     filterOptions={(x) => x}
                                                     renderInput={(params) => <TextField {...params} variant="standard" placeholder="Type to search..." />} />
                                             ) : (
@@ -589,7 +592,7 @@ export default function AddUpdatePurchaseRequisition() {
                                             {editable ? (
                                                 <Autocomplete size="small"
                                                     options={vendors}
-                                                    getOptionLabel={(o) => o.companyName ?? ''}
+                                                    getOptionLabel={contactLabel}
                                                     value={vendors.find(v => v.id === l.suggestedVendorId) ?? null}
                                                     onChange={(_, v) => updateLine(idx, { suggestedVendorId: v?.id ?? null })}
                                                     renderInput={(params) => <TextField {...params} variant="standard" placeholder="—" />} />

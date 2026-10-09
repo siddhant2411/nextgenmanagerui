@@ -142,6 +142,8 @@ export default function UserCreatePage() {
 
     const [rolesCatalog, setRolesCatalog] = useState([]);
     const [rolesError, setRolesError] = useState("");
+    const [roleLabels, setRoleLabels] = useState({});
+    const roleLabel = (role) => roleLabels[role] || role;
 
     const [form, setForm] = useState(EMPTY_FORM);
     const [formErrors, setFormErrors] = useState({});
@@ -199,10 +201,16 @@ export default function UserCreatePage() {
         setRolesError("");
         try {
             const response = await listRoles();
-            const roleNames = (Array.isArray(response) ? response : [])
-                .map(normalizeRoleName)
-                .filter(Boolean);
+            const roleList = Array.isArray(response) ? response : [];
+            const roleNames = roleList.map(normalizeRoleName).filter(Boolean);
             setRolesCatalog(Array.from(new Set(roleNames)));
+            setRoleLabels(
+                Object.fromEntries(
+                    roleList
+                        .filter((role) => role && typeof role === "object" && role.displayName)
+                        .map((role) => [normalizeRoleName(role), role.displayName])
+                )
+            );
         } catch (error) {
             setRolesCatalog([]);
             setRolesError(resolveApiErrorMessage(error, "Failed to load roles list."));
@@ -595,7 +603,10 @@ export default function UserCreatePage() {
                                     value={form.password}
                                     onChange={handleChange("password")}
                                     error={Boolean(formErrors.password)}
-                                    helperText={formErrors.password}
+                                    helperText={
+                                        formErrors.password ||
+                                        "At least 8 characters, with a letter and a digit."
+                                    }
                                     size="small"
                                     required
                                 />
@@ -619,7 +630,7 @@ export default function UserCreatePage() {
                                         renderValue={(selected) => (
                                             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                                                 {selected.map((role) => (
-                                                    <Chip key={role} size="small" label={role} />
+                                                    <Chip key={role} size="small" label={roleLabel(role)} />
                                                 ))}
                                             </Box>
                                         )}
@@ -627,7 +638,7 @@ export default function UserCreatePage() {
                                     {availableRoleOptions.map((role) => (
                                         <MenuItem key={role} value={role}>
                                             <Checkbox checked={selectedRoles.includes(role)} />
-                                            <ListItemText primary={role} />
+                                            <ListItemText primary={roleLabel(role)} />
                                         </MenuItem>
                                     ))}
                                     </Select>
@@ -722,7 +733,7 @@ export default function UserCreatePage() {
                                                 <TableCell>
                                                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                                                         {roles.map((role) => (
-                                                            <Chip key={`${user.username}-${role}`} size="small" label={role} />
+                                                            <Chip key={`${user.username}-${role}`} size="small" label={roleLabel(role)} />
                                                         ))}
                                                     </Box>
                                                 </TableCell>
@@ -828,7 +839,7 @@ export default function UserCreatePage() {
                             renderValue={(selected) => (
                                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                                     {selected.map((role) => (
-                                        <Chip key={role} size="small" label={role} />
+                                        <Chip key={role} size="small" label={roleLabel(role)} />
                                     ))}
                                 </Box>
                             )}
@@ -836,7 +847,7 @@ export default function UserCreatePage() {
                             {roleDialogOptions.map((role) => (
                                 <MenuItem key={role} value={role}>
                                     <Checkbox checked={(roleDialog.roles || []).includes(role)} />
-                                    <ListItemText primary={role} />
+                                    <ListItemText primary={roleLabel(role)} />
                                 </MenuItem>
                             ))}
                         </Select>

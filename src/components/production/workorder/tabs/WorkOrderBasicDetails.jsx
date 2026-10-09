@@ -4,6 +4,7 @@ import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
 import { getWorkOrderList } from '../../../../services/workOrderService';
+import { searchWorkCenters } from '../../../../services/machineAssetsService';
 import WorkOrderItemsSection from './WorkOrderItemsSection';
 
 
@@ -128,6 +129,18 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
     formik.values.status
   );
   const isPlanningEditable = ["DRAFT", "CREATED"].includes(formik.values.status);
+
+  // Optional, so a failed load leaves the picker empty instead of blocking the order.
+  const [workCenters, setWorkCenters] = useState([]);
+  useEffect(() => {
+    searchWorkCenters({ size: 200 })
+      .then((data) => setWorkCenters(data?.content || []))
+      .catch(() => setWorkCenters([]));
+  }, []);
+  // A saved order carries only the centre's code; a fresh pick is the whole row.
+  const selectedWorkCenter = typeof formik.values.workCenter === 'string'
+    ? workCenters.find((wc) => wc.centerCode === formik.values.workCenter) || null
+    : formik.values.workCenter || null;
 
   const openNewTab = (path) => {
     if (!path) return;
@@ -348,6 +361,29 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
           Scheduling & Execution Timeline
         </Typography>
         <Grid container spacing={2.5}>
+          <Grid item xs={12}>
+            <Autocomplete
+              size="small"
+              options={workCenters}
+              value={selectedWorkCenter}
+              onChange={(_, value) => formik.setFieldValue('workCenter', value || '')}
+              getOptionLabel={(wc) => wc?.centerCode
+                ? `${wc.centerCode} · ${wc.centerName}${wc.warehouseCode ? ` · ${wc.warehouseCode}` : ''}`
+                : ''}
+              isOptionEqualToValue={(a, b) => a?.id === b?.id}
+              // The store is fixed once material has been reserved against the order.
+              disabled={!isPlanningEditable}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Work Centre (Plant)"
+                  helperText={selectedWorkCenter?.warehouseCode
+                    ? `Material is drawn from, and finished goods go into, ${selectedWorkCenter.warehouseCode} · ${selectedWorkCenter.warehouseName}.`
+                    : 'Decides which store this order draws material from and produces into. Left blank, the first operation\'s work centre decides.'}
+                />
+              )}
+            />
+          </Grid>
           <Grid item xs={12} sm={4} md={4}>
             <TextField
               label="Due Date"

@@ -11,6 +11,8 @@ import {
 } from '@mui/icons-material';
 import apiService from '../../services/apiService';
 import { downloadPOPdf, markEmailSent } from '../../services/purchaseOrderService';
+import { contactEmails, getSendFrom, safeFileName, sendEmail } from '../../utils/emailCompose';
+import { EMAIL_SEND_HINT, EmailSendButtons, SendFromField } from '../common/EmailSend';
 import { T } from '../../theme/moduleTokens';
 
 const MERGE_FIELDS = [
@@ -64,6 +66,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
     const [edited, setEdited]       = useState('');
     const [subject, setSubject]     = useState('');
     const [toEmail, setToEmail]     = useState('');
+    const [fromEmail, setFromEmail] = useState(getSendFrom);
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError]         = useState(null);
     const [sending, setSending]     = useState(false);
@@ -77,6 +80,12 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
         setSelected(null); setPreview(''); setEdited('');
         setSubject(''); setIsEditing(false); setError(null);
         setToEmail(po?.vendorEmail || '');
+        // A PO without a vendor email on it falls back to what the vendor's contact has saved.
+        if (channel === 'EMAIL' && !po?.vendorEmail && po?.vendorId) {
+            apiService.get(`/contact/${po.vendorId}`)
+                .then(contact => setToEmail(prev => prev || contactEmails(contact)[0] || ''))
+                .catch(() => {});
+        }
 
         apiService.get(`/message-template/channel/${channel}`)
             .then(data => {
@@ -110,27 +119,36 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
     const currentText    = isEditing ? edited : preview;
     const currentSubject = subject;
 
-    const handleSend = async () => {
+    const handleSend = async (via) => {
         if (!po?.id) return;
+        const to = toEmail.trim();
+        if (isEmail && !to) { setError('Vendor email is required.'); return; }
         setSending(true);
         setError(null);
+
+        // The compose window has to open straight off the click — after an await the browser blocks it.
+        if (isEmail) {
+            const pdfName = `PO-${safeFileName(po.purchaseOrderNumber || po.id)}.pdf`;
+            const fetchPdf = async () => (await apiService.fetchBlob(`/purchase-orders/${po.id}/pdf`)).blob;
+            try {
+                await sendEmail(via, { to, subject: currentSubject, body: currentText, from: fromEmail }, fetchPdf, pdfName);
+            } catch {
+                setError('The email was opened, but the PDF could not be prepared. Download it and attach it manually.');
+                setSending(false);
+                return;
+            }
+        } else {
+            const phone = (po?.vendorPhone || '').replace(/\D/g, '');
+            const waLink = phone
+                ? `https://wa.me/${phone}?text=${encodeURIComponent(currentText)}`
+                : `https://wa.me/?text=${encodeURIComponent(currentText)}`;
+            window.open(waLink, '_blank');
+        }
+
         try {
-            // Record send in backend first (mailto navigation may interrupt async calls)
-            const updated = await markEmailSent(po.id, isEmail ? toEmail : null);
+            const updated = await markEmailSent(po.id, isEmail ? to : null);
             onSent?.(updated);
             onClose();
-            // Open client after dialog closes
-            if (isEmail) {
-                const mailtoLink = `mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(currentSubject)}&body=${encodeURIComponent(currentText)}`;
-                window.open(mailtoLink, '_blank');
-            } else {
-                const phone = (po?.vendorPhone || '').replace(/\D/g, '');
-                const waLink = phone
-                    ? `https://wa.me/${phone}?text=${encodeURIComponent(currentText)}`
-                    : `https://wa.me/?text=${encodeURIComponent(currentText)}`;
-
-                window.open(waLink, '_blank');
-            }
         } catch {
             setError('Failed to record send action.');
         } finally {
@@ -203,7 +221,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                             Download PDF first
                         </Button>
                         <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8', mt: 0.8, lineHeight: 1.4, textAlign: 'center' }}>
-                            {isEmail ? 'Attach the PDF manually in your email client' : 'Share PDF separately if needed'}
+                            {isEmail ? EMAIL_SEND_HINT : 'Share PDF separately if needed'}
                         </Typography>
                     </Box>
                 </Box>
@@ -222,6 +240,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                                         onChange={e => setToEmail(e.target.value)}
                                         placeholder="vendor@example.com"
                                         sx={{ mb: 1.5, '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }} />
+                                    <SendFromField value={fromEmail} onChange={setFromEmail} sx={{ mb: 1.5 }} />
                                     <TextField fullWidth size="small" label="Subject"
                                         value={currentSubject}
                                         onChange={e => setSubject(e.target.value)}
@@ -304,16 +323,20 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                 <Button onClick={onClose} sx={{ textTransform: 'none', fontWeight: 600, color: '#64748b' }}>
                     Cancel
                 </Button>
-                <Button variant="contained" disableElevation disabled={!selected || sending}
-                    startIcon={isEmail ? <Email /> : <WhatsApp />}
-                    onClick={handleSend}
-                    sx={{
-                        textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 3,
-                        bgcolor: channelColor,
-                        '&:hover': { bgcolor: isEmail ? '#1d4ed8' : '#128c7e' },
-                    }}>
-                    {isEmail ? 'Open in Email Client' : 'Open WhatsApp'}
-                </Button>
+                {isEmail ? (
+                    <EmailSendButtons onSend={handleSend} disabled={!selected || sending || !toEmail.trim()} busy={sending} withPdf />
+                ) : (
+                    <Button variant="contained" disableElevation disabled={!selected || sending}
+                        startIcon={<WhatsApp />}
+                        onClick={() => handleSend()}
+                        sx={{
+                            textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 3,
+                            bgcolor: channelColor,
+                            '&:hover': { bgcolor: '#128c7e' },
+                        }}>
+                        Open WhatsApp
+                    </Button>
+                )}
             </DialogActions>
         </Dialog>
     );
