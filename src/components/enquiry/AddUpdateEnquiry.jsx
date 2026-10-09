@@ -11,6 +11,7 @@ import * as Yup from 'yup';
 import apiService from '../../services/apiService';
 import { StateNameField } from '../common/GstStateSelect';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
+import { contactLabel, filterContactOptions } from '../../utils/contactLabel';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Save, ArrowBack, Add, Delete, History, Info, SwapHoriz, OpenInNew, Receipt,
@@ -376,6 +377,8 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                 freeSolo
                                                 options={companyList}
                                                 getOptionLabel={(opt) => typeof opt === 'string' ? opt : (opt?.companyName || '')}
+                                                filterOptions={filterContactOptions}
+                                                renderOption={(props, opt) => <li {...props} key={opt.id}>{contactLabel(opt)}</li>}
                                                 value={formik.values.contact || formik.values.manualCompanyName || null}
                                                 onInputChange={(e, val, reason) => {
                                                     if (reason === 'input') {
@@ -846,7 +849,7 @@ const AddUpdateEnquiry = ({ onSave }) => {
           {linkMode === 'search' ? (
             <Autocomplete
               options={linkSearchList}
-              getOptionLabel={opt => opt?.companyName || ''}
+              getOptionLabel={contactLabel}
               value={linkSearchContact}
               onInputChange={async (e, val) => { const r = await searchContacts(val); setLinkSearchList(r); }}
               onChange={(e, val) => setLinkSearchContact(val)}

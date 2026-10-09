@@ -11,6 +11,7 @@ import {
 import FilterBar from '../ui/filterbar/FilterBar';
 import QuotationTemplatePicker from './QuotationTemplatePicker';
 import apiService from '../../services/apiService';
+import { safeFileName, sendEmail } from '../../utils/emailCompose';
 
 const STATUS_CONFIG = {
   DRAFT:     { label: 'Draft',     color: '#64748b', bg: '#f8fafc' },
@@ -66,14 +67,15 @@ const QuotationList = ({
     }
   };
 
-  const handleTemplateSend = (text, subject) => {
+  const handleTemplateSend = (text, subject, mail) => {
     const qtn = templatePicker.quotation;
     if (templatePicker.channel === 'WHATSAPP') {
       const phone = qtn?.phone || '';
       if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
     } else {
-      const email = qtn?.email || '';
-      if (email) window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+      const fetchPdf = async () => (await apiService.fetchBlob(`/quotation/pdf/${qtn.id}`)).blob;
+      sendEmail(mail.via, { to: mail.to, subject, body: text, from: mail.from }, fetchPdf, `Quotation-${safeFileName(qtn.qtnNo || qtn.id)}.pdf`)
+        .catch(() => alert('The email was opened, but the PDF could not be prepared. Download it and attach it manually.'));
     }
   };
 

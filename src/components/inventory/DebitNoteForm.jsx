@@ -17,6 +17,7 @@ import { searchContacts }       from '../../services/commonAPI';
 import { searchGRNs }           from '../../services/grnService';
 import { getPurchaseOrders }    from '../../services/grnService';
 import { inventoryItemSearch }  from '../../services/commonAPI';
+import { contactLabel }         from '../../utils/contactLabel';
 import {
     createDebitNote, getDebitNote, getNextDebitNoteNumber,
     confirmDebitNote, cancelDebitNote,
@@ -387,7 +388,7 @@ const CreateBody = ({
                     {/* Vendor */}
                     <Autocomplete
                         options={vendorOpts} value={vendor}
-                        getOptionLabel={(o) => o.companyName || ''}
+                        getOptionLabel={contactLabel}
                         isOptionEqualToValue={(a, b) => a.id === b.id}
                         onInputChange={(_, q) => onVendorSearch(q)}
                         onChange={(_, v) => { setVendor(v); setGrn(null); setPo(null); }}

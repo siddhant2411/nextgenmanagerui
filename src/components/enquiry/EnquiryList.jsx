@@ -13,6 +13,7 @@ import {
 } from "@mui/icons-material";
 import FilterBar from '../ui/filterbar/FilterBar';
 import TemplatePicker from './TemplatePicker';
+import { sendEmail } from '../../utils/emailCompose';
 import apiService from '../../services/apiService';
 import { searchUsers } from '../../services/commonAPI';
 
@@ -61,14 +62,13 @@ const EnquiryList = ({
 
   const handleEdit = (enquiryId) => navigate(`/enquiry/edit/${enquiryId}`);
 
-  const handleTemplateSend = (text, subject) => {
+  const handleTemplateSend = (text, subject, mail) => {
     const enquiry = templatePicker.enquiry;
     if (templatePicker.channel === 'WHATSAPP') {
       const phone = enquiry?.phone || '';
       if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
     } else {
-      const email = enquiry?.email || '';
-      if (email) window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+      sendEmail(mail.via, { to: mail.to, subject, body: text, from: mail.from });
     }
   };
 

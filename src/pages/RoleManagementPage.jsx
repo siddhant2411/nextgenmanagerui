@@ -17,7 +17,7 @@ import {
     Typography,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { listRoles } from "../services/authService";
+import { listRoles, listUsers } from "../services/authService";
 import { resolveApiErrorMessage } from "../services/apiService";
 import { ROLE_ADMIN, ROLE_SUPER_ADMIN, ROLE_USER } from "../auth/roles";
 
@@ -44,6 +44,7 @@ const normalizeRole = (role) => {
         "";
     const id = role.id ?? role.roleId ?? name;
     const description =
+        role.roleDescription ||
         role.description ||
         role.details ||
         role.summary ||
@@ -58,7 +59,8 @@ const normalizeRole = (role) => {
     const assignedCountNumber = Number(assignedCount);
     const isSystem =
         Boolean(
-            role.isSystem ??
+            role.isSystemRole ??
+                role.isSystem ??
                 role.system ??
                 role.systemRole ??
                 role.protected ??
@@ -67,10 +69,24 @@ const normalizeRole = (role) => {
     return {
         id,
         name,
+        displayName: role.displayName || "",
+        moduleName: role.moduleName || "",
         description,
         isSystem,
-        assignedCount: Number.isFinite(assignedCountNumber) ? assignedCountNumber : null,
+        assignedCount:
+            assignedCount !== null && Number.isFinite(assignedCountNumber) ? assignedCountNumber : null,
     };
+};
+
+// The roles API carries no user count, so it is counted from the user list.
+const countUsersByRole = (users) => {
+    const counts = {};
+    (Array.isArray(users) ? users : []).forEach((user) => {
+        (Array.isArray(user?.roles) ? user.roles : []).forEach((roleName) => {
+            counts[roleName] = (counts[roleName] || 0) + 1;
+        });
+    });
+    return counts;
 };
 
 const mapRoleError = (error, fallback) =>
@@ -85,10 +101,19 @@ export default function RoleManagementPage() {
         setLoadingRoles(true);
         setRolesError("");
         try {
-            const response = await listRoles();
+            const [response, users] = await Promise.all([
+                listRoles(),
+                listUsers().catch(() => null),
+            ]);
+            const userCounts = users ? countUsersByRole(users) : null;
             const normalized = (Array.isArray(response) ? response : [])
                 .map(normalizeRole)
-                .filter(Boolean);
+                .filter(Boolean)
+                .map((role) =>
+                    role.assignedCount === null && userCounts
+                        ? { ...role, assignedCount: userCounts[role.name] || 0 }
+                        : role
+                );
             setRoles(normalized);
         } catch (error) {
             setRolesError(mapRoleError(error, "Failed to load roles."));
@@ -157,6 +182,7 @@ export default function RoleManagementPage() {
                                 <TableHead>
                                     <TableRow>
                                         <TableCell>Role</TableCell>
+                                        <TableCell>Module</TableCell>
                                         <TableCell>Description</TableCell>
                                         <TableCell>System</TableCell>
                                         <TableCell>Assigned Users</TableCell>
@@ -170,11 +196,17 @@ export default function RoleManagementPage() {
                                                 <TableCell>
                                                     <Stack direction="row" spacing={1} alignItems="center">
                                                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                                            {role.name || "-"}
+                                                            {role.displayName || role.name || "-"}
                                                         </Typography>
                                                         {isSystemRole ? <Chip size="small" label="System" /> : null}
                                                     </Stack>
+                                                    {role.displayName ? (
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {role.name}
+                                                        </Typography>
+                                                    ) : null}
                                                 </TableCell>
+                                                <TableCell>{role.moduleName || "-"}</TableCell>
                                                 <TableCell>{role.description || "-"}</TableCell>
                                                 <TableCell>{isSystemRole ? "Yes" : "No"}</TableCell>
                                                 <TableCell>

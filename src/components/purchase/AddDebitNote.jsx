@@ -12,6 +12,7 @@ import { listPurchaseOrders } from '../../services/purchaseOrderService';
 import { getGRNsByPO } from '../../services/grnService';
 import { createDebitNote, getNextDebitNoteNumber } from '../../services/debitNoteService';
 import { searchInventoryItems } from '../../services/inventoryService';
+import { contactLabel } from '../../utils/contactLabel';
 import { T, STATUS, SHELL } from '../../theme/moduleTokens';
 
 /* ── Design Tokens (matches Sales UI) ── */
@@ -202,7 +203,7 @@ export default function AddDebitNote() {
                                 <Grid item xs={12} sm={4}>
                                     <Autocomplete
                                         options={vendors}
-                                        getOptionLabel={v => v.companyName ?? `${v.firstName ?? ''} ${v.lastName ?? ''}`.trim()}
+                                        getOptionLabel={v => v.companyName ? contactLabel(v) : `${v.firstName ?? ''} ${v.lastName ?? ''}`.trim()}
                                         value={selectedVendor}
                                         onChange={(_, v) => { setSelectedVendor(v); setSelectedPo(null); setSelectedGrn(null); }}
                                         renderInput={params => (

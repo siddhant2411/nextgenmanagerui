@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import { Close } from '@mui/icons-material';
 import apiService from '../../services/apiService';
+import { contactLabel } from '../../utils/contactLabel';
 import dayjs from 'dayjs';
 
 const DRAWER_WIDTH = 480;
@@ -155,13 +156,13 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
               value={formData.vendorRef}
               onChange={handleVendorChange}
               onInputChange={(_, val) => fetchVendors(val)}
-              getOptionLabel={(option) => option.companyName || ''}
+              getOptionLabel={contactLabel}
               isOptionEqualToValue={(option, value) => option.id === value.id}
               loading={searching}
               renderOption={(props, option) => (
                 <li {...props} key={option.id}>
                   <Box>
-                    <Typography variant="body2">{option.companyName}</Typography>
+                    <Typography variant="body2">{contactLabel(option)}</Typography>
                     <Box display="flex" gap={1}>
                       <Typography variant="caption" color="text.secondary">GST: {option.gstNumber || 'N/A'}</Typography>
                       {option.gstType === 'UNREGISTERED' && (

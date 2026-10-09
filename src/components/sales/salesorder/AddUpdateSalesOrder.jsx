@@ -17,6 +17,7 @@ import {
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import apiService, { resolveApiErrorMessage } from '../../../services/apiService';
 import { inventoryItemSearch, searchContacts, searchQuotations } from '../../../services/commonAPI';
+import { contactLabel } from '../../../utils/contactLabel';
 import SalesOrderPartiesSection, { partyDefaultsFor } from './SalesOrderPartiesSection';
 import GstStateSelect from '../../common/GstStateSelect';
 import {
@@ -597,7 +598,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                 <SectionHeader icon={<Business />} title="Entity Details" subtitle="Client identification and order reference" />
                                 <Grid container spacing={4}>
                                     <Grid item xs={12} md={6}>
-                                        <Autocomplete options={contactOptions} getOptionLabel={(o) => o?.companyName || ''}
+                                        <Autocomplete options={contactOptions} getOptionLabel={contactLabel}
                                             value={formik.values.contact}
                                             onInputChange={(_, v) => handleSearch('contact', v)}
                                             onChange={(_, v) => {

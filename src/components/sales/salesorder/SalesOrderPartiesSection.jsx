@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import apiService from '../../../services/apiService';
 import { searchContacts } from '../../../services/commonAPI';
+import { contactLabel, filterContactOptions } from '../../../utils/contactLabel';
 import convertAddressToString, { pickBillingAddress, pickShippingAddress } from '../../../commonTools/convertAddress';
 import GstStateSelect from '../../common/GstStateSelect';
 import { gstStatesNow, stateCodeForName, stateCodeFromGstin, useGstStates } from '../../../services/gstStates';
@@ -190,6 +191,8 @@ export default function SalesOrderPartiesSection({ formik, readOnly }) {
                         <>
                             <Autocomplete freeSolo options={consigneeOptions} disabled={readOnly}
                                 getOptionLabel={(o) => (typeof o === 'string' ? o : o?.companyName ?? '')}
+                                filterOptions={filterContactOptions}
+                                renderOption={(props, o) => <li {...props} key={o.id}>{contactLabel(o)}</li>}
                                 inputValue={v.shipToName ?? ''}
                                 onInputChange={(_, text, reason) => {
                                     if (reason === 'reset') return;

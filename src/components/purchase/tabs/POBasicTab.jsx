@@ -11,6 +11,7 @@ import {
 import apiService from '../../../services/apiService';
 import { searchContacts } from '../../../services/commonAPI';
 import { listWarehouses } from '../../../services/warehouseService';
+import { contactLabel } from '../../../utils/contactLabel';
 import { T } from '../../../theme/moduleTokens';
 import GstStateSelect from '../../common/GstStateSelect';
 
@@ -204,7 +205,7 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                     fullWidth size="small"
                                     options={vendors}
                                     loading={vendorLoading}
-                                    getOptionLabel={v => `${v.companyName}${v.contactCode ? ` (${v.contactCode})` : ''}`}
+                                    getOptionLabel={contactLabel}
                                     value={selectedVendor}
                                     onChange={(_, v) => {
                                         set('vendorId', v?.id ?? null);
@@ -393,7 +394,7 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                     fullWidth size="small"
                                     options={shipToContacts}
                                     loading={shipToContactLoading}
-                                    getOptionLabel={c => c.companyName || ''}
+                                    getOptionLabel={contactLabel}
                                     onInputChange={(_, val) => handleShipToContactSearch(val)}
                                     onChange={(_, c) => handleShipToContactPick(c)}
                                     value={shipToContact}

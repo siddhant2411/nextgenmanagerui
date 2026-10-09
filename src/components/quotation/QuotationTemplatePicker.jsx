@@ -6,6 +6,8 @@ import {
 } from '@mui/material';
 import { ContentCopy, Send, Edit, Preview, Close } from '@mui/icons-material';
 import apiService from '../../services/apiService';
+import { getSendFrom } from '../../utils/emailCompose';
+import { EMAIL_SEND_HINT, EmailSendButtons, SendFromField } from '../common/EmailSend';
 
 const MERGE_FIELDS = [
   { key: '{{contactPerson}}', label: 'Contact Person' },
@@ -43,6 +45,9 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
   const [previewText, setPreviewText] = useState('');
   const [editedText, setEditedText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [toEmail, setToEmail] = useState('');
+  const [fromEmail, setFromEmail] = useState(getSendFrom);
+  const isEmail = channel === 'EMAIL';
 
   useEffect(() => {
     if (open) {
@@ -51,6 +56,7 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
       setPreviewText('');
       setEditedText('');
       setIsEditing(false);
+      setToEmail(quotation?.email || '');
     }
   }, [open, channel]);
 
@@ -72,12 +78,12 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
     setIsEditing(false);
   };
 
-  const handleSend = () => {
+  const handleSend = (via) => {
     const finalText = isEditing ? editedText : previewText;
     const subject = selectedTemplate?.subject
       ? mergeTemplate(selectedTemplate.subject, quotation)
       : `Quotation: ${quotation?.qtnNo || ''} - ${quotation?.companyName || ''}`;
-    onSend(finalText, subject);
+    onSend(finalText, subject, { via, to: toEmail.trim(), from: fromEmail });
     onClose();
   };
 
@@ -186,6 +192,18 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
 
               <Divider />
 
+              {isEmail && (
+                <Box sx={{ px: 3, pt: 2 }}>
+                  <TextField fullWidth size="small" label="To" type="email"
+                    value={toEmail} onChange={(e) => setToEmail(e.target.value)}
+                    placeholder="customer@example.com" sx={{ mb: 1.5 }} />
+                  <SendFromField value={fromEmail} onChange={setFromEmail} />
+                  <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#64748b', fontSize: '0.7rem' }}>
+                    {EMAIL_SEND_HINT}
+                  </Typography>
+                </Box>
+              )}
+
               <Box sx={{ flex: 1, p: 3, overflow: 'auto' }}>
                 {isEditing ? (
                   <TextField
@@ -246,20 +264,24 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
 
       <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #e2e8f0', bgcolor: '#fafafa' }}>
         <Button onClick={onClose} sx={{ textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
-        <Button
-          variant="contained"
-          disableElevation
-          startIcon={<Send />}
-          disabled={!selectedTemplate}
-          onClick={handleSend}
-          sx={{
-            textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 3,
-            bgcolor: CHANNEL_COLORS[channel]?.color,
-            '&:hover': { bgcolor: channel === 'WHATSAPP' ? '#128c7e' : '#1d4ed8' },
-          }}
-        >
-          {channel === 'WHATSAPP' ? 'Open WhatsApp' : 'Open Email'}
-        </Button>
+        {isEmail ? (
+          <EmailSendButtons onSend={handleSend} disabled={!selectedTemplate || !toEmail.trim()} withPdf />
+        ) : (
+          <Button
+            variant="contained"
+            disableElevation
+            startIcon={<Send />}
+            disabled={!selectedTemplate}
+            onClick={() => handleSend()}
+            sx={{
+              textTransform: 'none', fontWeight: 700, borderRadius: 2, px: 3,
+              bgcolor: CHANNEL_COLORS[channel]?.color,
+              '&:hover': { bgcolor: '#128c7e' },
+            }}
+          >
+            Open WhatsApp
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
