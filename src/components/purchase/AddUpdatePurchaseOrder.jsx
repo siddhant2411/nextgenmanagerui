@@ -397,7 +397,7 @@ export default function AddUpdatePurchaseOrder() {
                                 </>
                             )}
 
-                            {(formik.values.status === 'RECEIVED' || formik.values.status === 'PARTIALLY_RECEIVED') && (
+                            {canApprove && (formik.values.status === 'RECEIVED' || formik.values.status === 'PARTIALLY_RECEIVED') && (
                                 <Button variant="contained" size="small" disableElevation startIcon={<CheckCircle />}
                                     sx={{ textTransform: 'none', borderRadius: 1.5, fontWeight: 700, background: '#16a34a' }}
                                     onClick={() => setDialog({
@@ -424,7 +424,8 @@ export default function AddUpdatePurchaseOrder() {
 
                             <Box sx={{ flexGrow: 1 }} />
 
-                            {!isCompleted && canApprove && (
+                            {/* A drafter may withdraw their own draft; past that it is the purchase admin's call. */}
+                            {!isCompleted && (canApprove || isDraft) && (
                                 <Button variant="text" size="small" color="error" startIcon={<Cancel />}
                                     sx={{ textTransform: 'none', fontWeight: 600 }}
                                     onClick={() => setDialog({ type: 'cancel', title: 'Cancel Purchase Order', body: 'This will permanently cancel this order. Reason:', input: 'Cancellation Reason' })}>
@@ -432,7 +433,7 @@ export default function AddUpdatePurchaseOrder() {
                                 </Button>
                             )}
 
-                            {isDraft && canApprove && (
+                            {isDraft && (
                                 <Button variant="text" size="small" color="error" startIcon={<Delete />}
                                     sx={{ textTransform: 'none', fontWeight: 600 }}
                                     onClick={() => setDialog({ type: 'delete', title: 'Delete Draft', body: 'Permanently delete this draft purchase order? This action is irreversible.' })}>

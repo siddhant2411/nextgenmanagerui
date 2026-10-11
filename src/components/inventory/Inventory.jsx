@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import { addInventory, getPresentInventory, updateInventory, sendToPlanning } from '../../services/inventoryService';
 import { useViewState } from '../../commonTools/useViewState';
+import WarehouseSelect from '../common/WarehouseSelect';
 
 /* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
 const VIEW_STATE_NS = '/inventory';
@@ -33,6 +34,8 @@ const Inventory = () => {
 
     const [planningDialog, setPlanningDialog] = useState({ open: false, item: null });
     const [planningQty, setPlanningQty] = useState('');
+    // The warehouse the stock is wanted in; '' is the default warehouse.
+    const [planningWarehouse, setPlanningWarehouse] = useState('');
     const [planningLoading, setPlanningLoading] = useState(false);
     const [planningResult, setPlanningResult] = useState(null);
     const [planningError, setPlanningError] = useState(null);
@@ -65,6 +68,7 @@ const Inventory = () => {
     const handleOpenPlanningDialog = (item) => {
         const suggested = Math.max(0, (item.maxStock || 0) - (item.totalQuantity || 0));
         setPlanningQty(suggested > 0 ? suggested.toFixed(2) : '');
+        setPlanningWarehouse('');
         setPlanningResult(null);
         setPlanningError(null);
         setPlanningDialog({ open: true, item });
@@ -85,7 +89,7 @@ const Inventory = () => {
         setPlanningLoading(true);
         setPlanningError(null);
         try {
-            const result = await sendToPlanning(planningDialog.item.inventoryItemId, qty, 'STORE');
+            const result = await sendToPlanning(planningDialog.item.inventoryItemId, qty, 'STORE', planningWarehouse);
             setPlanningResult(result);
         } catch (err) {
             setPlanningError(err?.response?.data?.error || 'Failed to send to planning.');
@@ -218,8 +222,10 @@ const Inventory = () => {
                             {planningResult.decision === 'WORK_ORDER' && `Work Order #${planningResult.orderId} created.`}
                             {planningResult.decision === 'PURCHASE_ORDER' && `Purchase Requisition #${planningResult.orderId} created.`}
                             {planningResult.decision === 'UNDECIDED' && 'Added to the Planning Desk queue — a planner will decide make/buy.'}
+                            {planningResult.deliverToWarehouse && ` Wanted in ${planningResult.deliverToWarehouse}.`}
                         </Alert>
                     ) : (
+                        <>
                         <TextField
                             label="Replenishment Quantity"
                             type="number"
@@ -232,6 +238,16 @@ const Inventory = () => {
                                 ? `Suggested: max stock (${planItem.maxStock}) − current (${planItem.totalQuantity?.toFixed(2)}) = ${Math.max(0, (planItem.maxStock || 0) - (planItem.totalQuantity || 0)).toFixed(2)}`
                                 : ''}
                         />
+                        <WarehouseSelect
+                            label="Wanted in"
+                            fullWidth
+                            size="small"
+                            sx={{ mt: 2 }}
+                            value={planningWarehouse}
+                            onChange={setPlanningWarehouse}
+                            helperText="The work order or requisition raised for this is addressed to this warehouse."
+                        />
+                        </>
                     )}
                     {planningError && <Alert severity="error" sx={{ mt: 1 }}>{planningError}</Alert>}
                 </DialogContent>

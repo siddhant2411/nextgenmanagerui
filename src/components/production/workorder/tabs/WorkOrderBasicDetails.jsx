@@ -3,7 +3,8 @@ import { Box, Grid, TextField, Autocomplete, Checkbox, FormControlLabel, FormHel
 import { OpenInNew } from '@mui/icons-material';
 import apiService from '../../../../services/apiService';
 import { getActiveBomByItemid } from '../../../../services/bomService';
-import { getWorkOrderList } from '../../../../services/workOrderService';
+import { getWorkOrderList, changeProduceInto } from '../../../../services/workOrderService';
+import WarehouseSelect from '../../../common/WarehouseSelect';
 import { searchWorkCenters } from '../../../../services/machineAssetsService';
 import WorkOrderItemsSection from './WorkOrderItemsSection';
 
@@ -129,6 +130,27 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
     formik.values.status
   );
   const isPlanningEditable = ["DRAFT", "CREATED"].includes(formik.values.status);
+
+  // Where the goods are wanted stays open longer than the rest of the header: it can change while
+  // they are still being made, and is fixed only once they are booked into stock.
+  const goodsBooked = ["COMPLETED", "CLOSED", "SHORT_CLOSED", "CANCELLED"].includes(formik.values.status);
+  const [destinationError, setDestinationError] = useState('');
+  const changeDestination = async (code) => {
+    setDestinationError('');
+    // Before issue the destination is saved with the rest of the form.
+    if (isPlanningEditable || !workOrderId) {
+      formik.setFieldValue('produceIntoWarehouseCode', code);
+      return;
+    }
+    const previous = formik.values.produceIntoWarehouseCode;
+    formik.setFieldValue('produceIntoWarehouseCode', code);
+    try {
+      await changeProduceInto(workOrderId, code);
+    } catch (e) {
+      formik.setFieldValue('produceIntoWarehouseCode', previous);
+      setDestinationError(e?.response?.data?.error || 'Could not change where the goods go.');
+    }
+  };
 
   // Optional, so a failed load leaves the picker empty instead of blocking the order.
   const [workCenters, setWorkCenters] = useState([]);
@@ -378,10 +400,28 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
                   {...params}
                   label="Work Centre (Plant)"
                   helperText={selectedWorkCenter?.warehouseCode
-                    ? `Material is drawn from, and finished goods go into, ${selectedWorkCenter.warehouseCode} · ${selectedWorkCenter.warehouseName}.`
-                    : 'Decides which store this order draws material from and produces into. Left blank, the first operation\'s work centre decides.'}
+                    ? `Material is drawn from ${selectedWorkCenter.warehouseCode} · ${selectedWorkCenter.warehouseName}.`
+                    : 'Decides which store this order draws material from. Left blank, the first operation\'s work centre decides.'}
                 />
               )}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <WarehouseSelect
+              fullWidth
+              size="small"
+              label="Finished Goods Go Into"
+              emptyLabel="The store the material comes from"
+              showDefaultCode={false}
+              value={formik.values.produceIntoWarehouseCode || ''}
+              onChange={changeDestination}
+              disabled={goodsBooked}
+              error={!!destinationError}
+              helperText={destinationError || (goodsBooked
+                ? 'The goods are booked. Move them with a stock transfer.'
+                : isPlanningEditable
+                  ? 'Where the finished goods are wanted. An order raised for a sales order starts with the warehouse that order is dispatched from.'
+                  : 'Where the finished goods are wanted. Can still be changed until the order is completed; a change here is saved at once.')}
             />
           </Grid>
           <Grid item xs={12} sm={4} md={4}>

@@ -5,7 +5,7 @@ import AddInventoryItem from './AddInventoryItem';
 import { deleteInventoryItem as deleteInventoryItemRequest } from '../../services/inventoryService';
 import { Alert, Box, Snackbar } from '@mui/material';
 import RoleProtectedRoute from '../../auth/RoleProtectedRoute';
-import { ACTION_KEYS, INVENTORY_ITEM_APPROVAL_ROLES, INVENTORY_MANAGE_ROLES } from '../../auth/roles';
+import { ACTION_KEYS, INVENTORY_ITEM_APPROVAL_ROLES, INVENTORY_ITEM_VIEW_ROLES, INVENTORY_MANAGE_ROLES } from '../../auth/roles';
 import { useAuth } from '../../auth/AuthContext';
 import './style/InventoryItem.css'
 const InventoryItem = () => {
@@ -14,9 +14,9 @@ const InventoryItem = () => {
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { canAction } = useAuth();
+  const { canAction, hasAnyRole } = useAuth();
   const canWriteInventoryItems = canAction(ACTION_KEYS.INVENTORY_ITEM_WRITE);
-  const isAdminRole = canAction(INVENTORY_ITEM_APPROVAL_ROLES);
+  const isAdminRole = hasAnyRole(INVENTORY_ITEM_APPROVAL_ROLES);
 
   const handleAddNewItemClick = () => {
     if (!canWriteInventoryItems) {
@@ -86,8 +86,8 @@ const InventoryItem = () => {
           path="/edit/:id"
           element={
             <RoleProtectedRoute
-              allowedRoles={INVENTORY_MANAGE_ROLES}
-              deniedMessage="You are not authorized to update inventory items."
+              allowedRoles={INVENTORY_ITEM_VIEW_ROLES}
+              deniedMessage="You are not authorized to view inventory items."
             >
               <AddInventoryItem />
             </RoleProtectedRoute>

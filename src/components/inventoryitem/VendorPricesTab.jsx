@@ -16,8 +16,10 @@ const HEADER_BG = '#0f2744';
  *   purchased=true, manufactured=false  → PURCHASE prices only
  *   purchased=false, manufactured=true  → JOB_WORK (sub-contract) only
  *   both true OR both false             → both sections shown
+ *
+ * canManage: only a purchase admin adds, edits, prefers or removes a price; everyone else reads.
  */
-export default function VendorPricesTab({ itemId, setSnackbar, purchased = true, manufactured = false }) {
+export default function VendorPricesTab({ itemId, setSnackbar, purchased = true, manufactured = false, canManage = false }) {
   const [vendorPrices, setVendorPrices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -92,19 +94,23 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
             </Typography>
           </Box>
         </Box>
-        <Button variant="outlined" size="small" sx={{ textTransform: 'none', borderRadius: 1.5 }} onClick={() => handleAddClick(typeConst)}>
-          {addLabel}
-        </Button>
+        {canManage && (
+          <Button variant="outlined" size="small" sx={{ textTransform: 'none', borderRadius: 1.5 }} onClick={() => handleAddClick(typeConst)}>
+            {addLabel}
+          </Button>
+        )}
       </Box>
 
       {loading ? (
         <Box textAlign="center" py={4}><CircularProgress size={24} /></Box>
       ) : prices.length === 0 ? (
         <Box textAlign="center" py={5} px={2} bgcolor="#fff">
-          <Typography variant="body2" color="text.secondary" mb={2}>{emptyMessage}</Typography>
-          <Button variant="contained" size="small" disableElevation onClick={() => handleAddClick(typeConst)} sx={{ textTransform: 'none', bgcolor: '#1565c0' }}>
-            {addLabel}
-          </Button>
+          <Typography variant="body2" color="text.secondary" mb={canManage ? 2 : 0}>{emptyMessage}</Typography>
+          {canManage && (
+            <Button variant="contained" size="small" disableElevation onClick={() => handleAddClick(typeConst)} sx={{ textTransform: 'none', bgcolor: '#1565c0' }}>
+              {addLabel}
+            </Button>
+          )}
         </Box>
       ) : (
         <TableContainer>
@@ -117,7 +123,7 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
                 <TableCell sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }} align="right">Price/Unit</TableCell>
                 <TableCell sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }}>Lead Time</TableCell>
                 <TableCell sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }}>Valid Until</TableCell>
-                <TableCell sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }} align="right">Actions</TableCell>
+                {canManage && <TableCell sx={{ color: '#fff', fontWeight: 600, fontSize: '0.75rem' }} align="right">Actions</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -127,7 +133,7 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
                 return (
                   <TableRow key={row.id} hover sx={{ '& td': { fontSize: '0.8125rem', py: 1.5 } }}>
                     <TableCell align="center">
-                      <IconButton size="small" onClick={() => handleSetPreferred(row.id, row.priceType)}>
+                      <IconButton size="small" disabled={!canManage} onClick={() => handleSetPreferred(row.id, row.priceType)}>
                         {row.isPreferredVendor ? <Star sx={{ color: '#f59e0b', fontSize: 18 }} /> : <StarOutline sx={{ color: '#9ca3af', fontSize: 18 }} />}
                       </IconButton>
                     </TableCell>
@@ -149,10 +155,12 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
                         {isExpiringSoon && <Chip size="small" label="Expiring Soon" color="warning" sx={{ height: 20, fontSize: '0.65rem' }} />}
                       </Box>
                     </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => handleEditClick(row)}><Edit sx={{ fontSize: 16, color: '#3b82f6' }} /></IconButton>
-                      <IconButton size="small" onClick={() => handleDelete(row.id)}><Delete sx={{ fontSize: 16, color: '#ef4444' }} /></IconButton>
-                    </TableCell>
+                    {canManage && (
+                      <TableCell align="right">
+                        <IconButton size="small" onClick={() => handleEditClick(row)}><Edit sx={{ fontSize: 16, color: '#3b82f6' }} /></IconButton>
+                        <IconButton size="small" onClick={() => handleDelete(row.id)}><Delete sx={{ fontSize: 16, color: '#ef4444' }} /></IconButton>
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}

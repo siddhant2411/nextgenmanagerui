@@ -13,6 +13,7 @@ import {
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getRegister } from '../../services/grnService';
+import { warehouseCode } from '../common/WarehouseSelect';
 import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
 
 /* Route namespace for preserved date range/filters/page — see commonTools/useViewState.
@@ -175,7 +176,7 @@ const InwardOutwardRegister = ({ refreshKey }) => {
                 'Transaction':    txLabel(r.transactionType),
                 'Ref Type':       r.referenceType  ?? '',
                 'Reference No':   r.referenceDocNo ?? '',
-                Warehouse:        r.warehouse       ?? '',
+                Warehouse:        warehouseCode(r.warehouse),
                 Inward:           dir === 'in'  ? qty : '',
                 Outward:          dir === 'out' ? qty : '',
                 'Rate (₹)':       r.rate   ?? '',
@@ -441,7 +442,7 @@ const InwardOutwardRegister = ({ refreshKey }) => {
                                             {/* Warehouse */}
                                             <TableCell>
                                                 <Typography variant="body2" color={T.textSec}>
-                                                    {r.warehouse || '—'}
+                                                    {warehouseCode(r.warehouse) || '—'}
                                                 </Typography>
                                             </TableCell>
 

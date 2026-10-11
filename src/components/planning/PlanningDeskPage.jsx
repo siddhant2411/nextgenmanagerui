@@ -5,6 +5,7 @@ import {
     Button,
     Chip,
     CircularProgress,
+    MenuItem,
     Paper,
     Snackbar,
     Stack,
@@ -14,6 +15,7 @@ import {
     TableContainer,
     TableHead,
     TableRow,
+    TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
@@ -26,6 +28,7 @@ import {
 import procurementPlanningService, {
     resolveApiErrorMessage,
 } from "../../services/procurementPlanningService";
+import { listWarehouses } from "../../services/warehouseService";
 
 const RECOMMENDATION_STYLE = {
     MAKE: { label: "Make", color: "#10b981", bg: "rgba(16,185,129,0.12)" },
@@ -45,6 +48,18 @@ const PlanningDeskPage = () => {
     const [error, setError] = useState(null);
     const [actingId, setActingId] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+    // Loaded once for the whole table. Every need arrives with the warehouse it was raised for;
+    // `redirected` holds only the rows the planner has pointed somewhere else.
+    const [warehouses, setWarehouses] = useState([]);
+    const [redirected, setRedirected] = useState({});
+
+    useEffect(() => {
+        listWarehouses(true)
+            .then((list) => setWarehouses(Array.isArray(list) ? list : []))
+            .catch(() => setWarehouses([]));
+    }, []);
+
+    const deliverToOf = (row) => redirected[row.procurementOrderId] || row.deliverToWarehouseCode || "";
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -66,11 +81,13 @@ const PlanningDeskPage = () => {
     const notify = (message, severity = "success") =>
         setSnackbar({ open: true, message, severity });
 
-    const runAction = async (row, action, label) => {
+    // `raises` is true for Make and Buy, which raise a document for the row's warehouse.
+    const runAction = async (row, action, label, raises = false) => {
         setActingId(row.procurementOrderId);
+        const wantedIn = raises ? deliverToOf(row) : "";
         try {
-            await action(row.procurementOrderId);
-            notify(`${row.itemCode}: ${label}`);
+            await action(row.procurementOrderId, wantedIn);
+            notify(`${row.itemCode}: ${label}${wantedIn ? ` for ${wantedIn}` : ""}`);
             await load();
         } catch (e) {
             notify(resolveApiErrorMessage(e, `Could not ${label.toLowerCase()}.`), "error");
@@ -80,9 +97,9 @@ const PlanningDeskPage = () => {
     };
 
     const handleMake = (row) =>
-        runAction(row, procurementPlanningService.decideMake, "Work Order created");
+        runAction(row, procurementPlanningService.decideMake, "Work Order created", true);
     const handleBuy = (row) =>
-        runAction(row, procurementPlanningService.decideBuy, "Purchase Requisition created");
+        runAction(row, procurementPlanningService.decideBuy, "Purchase Requisition created", true);
     // Deferring takes the need off the desk with nothing raised for it. It used to act on a single
     // click, so one stray press silently dropped a shortfall — ask first.
     const handleDefer = (row) => {
@@ -114,6 +131,7 @@ const PlanningDeskPage = () => {
             </Stack>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
                 Needs that could not be auto-routed. Each row shows the system's make-or-buy recommendation — decide to Make, Buy, or Defer.
+                The work order or requisition is raised for the warehouse under Deliver to; change it first if the goods are wanted elsewhere.
             </Typography>
 
             {error && (
@@ -143,6 +161,7 @@ const PlanningDeskPage = () => {
                                 <TableCell>Item</TableCell>
                                 <TableCell>Sales Order</TableCell>
                                 <TableCell align="right">Shortfall</TableCell>
+                                <TableCell>Deliver to</TableCell>
                                 <TableCell>Recommendation</TableCell>
                                 <TableCell align="right">Make / unit</TableCell>
                                 <TableCell align="right">Buy / unit</TableCell>
@@ -177,6 +196,26 @@ const PlanningDeskPage = () => {
                                         </TableCell>
                                         <TableCell>{row.salesOrderNumber || "—"}</TableCell>
                                         <TableCell align="right">{qty(row.shortfallQty)}</TableCell>
+                                        <TableCell>
+                                            <TextField
+                                                select
+                                                size="small"
+                                                variant="standard"
+                                                disabled={busy}
+                                                value={deliverToOf(row)}
+                                                onChange={(e) => setRedirected((r) => ({ ...r, [row.procurementOrderId]: e.target.value }))}
+                                                sx={{ minWidth: 130 }}
+                                                inputProps={{ "aria-label": `Deliver ${row.itemCode} to` }}
+                                            >
+                                                {/* The need's own warehouse stays listed even if it has since been retired. */}
+                                                {deliverToOf(row) && !warehouses.some((w) => w.code === deliverToOf(row)) && (
+                                                    <MenuItem value={deliverToOf(row)}>{deliverToOf(row)}</MenuItem>
+                                                )}
+                                                {warehouses.map((w) => (
+                                                    <MenuItem key={w.id} value={w.code}>{w.code} — {w.name}</MenuItem>
+                                                ))}
+                                            </TextField>
+                                        </TableCell>
                                         <TableCell>
                                             <Tooltip title={row.recommendationReason || ""} arrow>
                                                 <Chip

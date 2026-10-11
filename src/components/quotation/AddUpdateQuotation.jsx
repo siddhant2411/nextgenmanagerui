@@ -21,6 +21,10 @@ import {
 import { inventoryItemSearch, searchEnquiry } from "../../services/commonAPI";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import apiService from "../../services/apiService";
+import { serverFiltered, renderItemOption } from '../common/itemPicker';
+import PriceFloorHint, { floorOf, isBelowFloor } from '../common/PriceFloorHint';
+import { useAuth } from '../../auth/AuthContext';
+import { SALES_MANAGE_ROLES } from '../../auth/roles';
 import { 
     Add, RemoveCircle, Info, Description, 
     AttachMoney, LocalShipping, Receipt, Note, 
@@ -52,6 +56,7 @@ const AddUpdateQuotation = ({ onSave }) => {
     const [enquiryList, setEnquiryList] = useState([]);
     const [productList, setProductList] = useState([]);
     const { quotationId } = useParams();
+    const { hasAnyRole } = useAuth();
     const debounceTimeout = useRef(null);
 
     const formik = useFormik({
@@ -165,6 +170,17 @@ const AddUpdateQuotation = ({ onSave }) => {
     useEffect(() => {
         if (quotationId) fetchQuotationDetails();
     }, [quotationId, fetchQuotationDetails]);
+
+    // Gross total less the discount, before GST and packing & forwarding are added.
+    const grossTotal = (formik.values.quotationProducts || []).reduce((sum, p) => sum + parseNum(p.qty) * parseNum(p.pricePerUnit), 0);
+    const valueAfterDiscount = +(grossTotal * (1 - parseNum(formik.values.discountPercentage) / 100)).toFixed(2);
+
+    // Lines under the item's minimum selling price once discounts are taken off. The server
+    // refuses these for a sales user; this only says so before Save.
+    const canGoBelowFloor = hasAnyRole(SALES_MANAGE_ROLES);
+    const belowFloorCount = (formik.values.quotationProducts || []).filter(p =>
+        isBelowFloor(floorOf(p.inventoryItem), p.pricePerUnit, p.discountPercentage, formik.values.discountPercentage)
+    ).length;
 
     const handleEnquiryChange = async (enquiry) => {
         const response = await apiService.get('/enquiry/' + enquiry.id);
@@ -359,6 +375,12 @@ const AddUpdateQuotation = ({ onSave }) => {
                                             Add Item
                                         </Button>
                                     </Box>
+                                    {belowFloorCount > 0 && (
+                                        <Alert severity={canGoBelowFloor ? 'warning' : 'error'} sx={{ m: 3, mb: 0, borderRadius: 3, fontWeight: 600 }}>
+                                            {belowFloorCount} line{belowFloorCount > 1 ? 's are' : ' is'} priced below the minimum selling price after discounts.
+                                            {canGoBelowFloor ? '' : ' Only a sales admin can take a price below the minimum.'}
+                                        </Alert>
+                                    )}
                                     <TableContainer>
                                         <Table sx={{ minWidth: 800 }}>
                                             <TableHead sx={{ bgcolor: T.bg }}>
@@ -377,7 +399,7 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                         <TableCell sx={{ fontWeight: 800, color: T.textSec }}>{index + 1}</TableCell>
                                                         <TableCell sx={{ py: 3, maxWidth: 300 }}>
                                                             <Autocomplete
-                                                                fullWidth size="small" options={productList}
+                                                                fullWidth size="small" options={productList} filterOptions={serverFiltered} renderOption={renderItemOption}
                                                                 getOptionLabel={(option) => option.name || option.productNameRequired || ''}
                                                                 value={product.inventoryItem || null}
                                                                 onInputChange={(event, newInputValue) => handleSearchChangeProduct(event, newInputValue, index)}
@@ -408,6 +430,8 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                         <TableCell align="right">
                                                             <TextField size="small" type="number" name={`quotationProducts[${index}].pricePerUnit`} value={product.pricePerUnit || 0} onChange={formik.handleChange} 
                                                                 sx={{ width: 120, '& input': { textAlign: 'right', fontWeight: 800, borderRadius: 2, bgcolor: T.bg } }} variant="outlined" />
+                                                            <PriceFloorHint item={product.inventoryItem} price={product.pricePerUnit}
+                                                                lineDiscountPct={product.discountPercentage} documentDiscountPct={formik.values.discountPercentage} />
                                                         </TableCell>
                                                         <TableCell align="right">
                                                             <Typography sx={{ fontWeight: 900, color: T.primary }}>
@@ -451,6 +475,10 @@ const AddUpdateQuotation = ({ onSave }) => {
                                                     <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 900 }}>Discount (%)</Typography>
                                                     <TextField size="small" name="discountPercentage" value={formik.values.discountPercentage} onChange={formik.handleChange} 
                                                         sx={{ width: 60, '& input': { py: 0.5, textAlign: 'center', fontWeight: 900, bgcolor: 'white', borderRadius: 1 } }} />
+                                                </Box>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 900 }}>Total Value</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>{formik.values.currency} {valueAfterDiscount.toLocaleString()}</Typography>
                                                 </Box>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 900 }}>GST (%)</Typography>

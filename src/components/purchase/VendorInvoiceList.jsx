@@ -18,6 +18,8 @@ import {
 } from '../../theme/moduleTokens';
 import ModuleHero from '../ui/moduleshell/ModuleHero';
 import ModuleBody from '../ui/moduleshell/ModuleBody';
+import { useAuth } from '../../auth/AuthContext';
+import { ADMIN_ROLES, VENDOR_INVOICE_ENTRY_ROLES, VENDOR_INVOICE_POST_ROLES } from '../../auth/roles';
 
 const STATUS_STYLE = {
     DRAFT:     { color: T.ink2,          bg: T.ruleSoft },
@@ -32,6 +34,10 @@ const fmt = (n) => n != null ? Number(n).toLocaleString('en-IN', { minimumFracti
 export default function VendorInvoiceList() {
     const navigate = useNavigate();
     const { id: poId } = useParams();
+    const { hasAnyRole } = useAuth();
+    const canEnter  = hasAnyRole(VENDOR_INVOICE_ENTRY_ROLES);
+    const canPost   = hasAnyRole(VENDOR_INVOICE_POST_ROLES);
+    const canCancel = hasAnyRole(ADMIN_ROLES);
     const [po, setPo] = useState(null);
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -85,13 +91,15 @@ export default function VendorInvoiceList() {
                         <Button variant="outlined" startIcon={<Refresh />} onClick={load} disabled={loading} sx={heroButtonSx}>
                             Refresh
                         </Button>
-                        <Button
-                            variant="contained" disableElevation startIcon={<Add />}
-                            onClick={() => navigate(`/purchase/${poId}/invoices/new`)}
-                            sx={heroCtaSx}
-                        >
-                            Record Invoice
-                        </Button>
+                        {canEnter && (
+                            <Button
+                                variant="contained" disableElevation startIcon={<Add />}
+                                onClick={() => navigate(`/purchase/${poId}/invoices/new`)}
+                                sx={heroCtaSx}
+                            >
+                                Record Invoice
+                            </Button>
+                        )}
                     </>
                 }
             />
@@ -128,12 +136,16 @@ export default function VendorInvoiceList() {
                         <Box sx={{ py: 12, textAlign: 'center' }}>
                             <Receipt sx={{ fontSize: 48, color: '#cbd5e1', mb: 2 }} />
                             <Typography variant="h6" sx={{ fontWeight: 700, color: T.ink, mb: 0.5 }}>No invoices recorded</Typography>
-                            <Typography sx={{ color: T.ink2, mb: 3 }}>Record the first vendor invoice against this PO.</Typography>
-                            <Button variant="contained" disableElevation startIcon={<Add />}
-                                sx={{ bgcolor: T.accent, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
-                                onClick={() => navigate(`/purchase/${poId}/invoices/new`)}>
-                                Record Invoice
-                            </Button>
+                            {canEnter && (
+                                <>
+                                    <Typography sx={{ color: T.ink2, mb: 3 }}>Record the first vendor invoice against this PO.</Typography>
+                                    <Button variant="contained" disableElevation startIcon={<Add />}
+                                        sx={{ bgcolor: T.accent, borderRadius: 2.5, textTransform: 'none', fontWeight: 700 }}
+                                        onClick={() => navigate(`/purchase/${poId}/invoices/new`)}>
+                                        Record Invoice
+                                    </Button>
+                                </>
+                            )}
                         </Box>
                     ) : (
                         <TableContainer>
@@ -191,7 +203,7 @@ export default function VendorInvoiceList() {
                                                                 <OpenInNew sx={{ fontSize: 15 }} />
                                                             </IconButton>
                                                         </Tooltip>
-                                                        {inv.status === 'DRAFT' && (
+                                                        {canPost && inv.status === 'DRAFT' && (
                                                             <Tooltip title="Post Invoice">
                                                                 <IconButton size="small" disabled={isLoading}
                                                                     onClick={() => handlePost(inv.id)}
@@ -202,7 +214,7 @@ export default function VendorInvoiceList() {
                                                                 </IconButton>
                                                             </Tooltip>
                                                         )}
-                                                        {inv.status === 'POSTED' && (
+                                                        {canPost && inv.status === 'POSTED' && (
                                                             <Tooltip title="Record Payment">
                                                                 <IconButton size="small"
                                                                     onClick={() => setPaymentInvoice(inv)}
@@ -211,7 +223,7 @@ export default function VendorInvoiceList() {
                                                                 </IconButton>
                                                             </Tooltip>
                                                         )}
-                                                        {inv.status !== 'CANCELLED' && (
+                                                        {canCancel && inv.status !== 'CANCELLED' && (
                                                             <Tooltip title="Cancel Invoice">
                                                                 <IconButton size="small" disabled={isLoading}
                                                                     onClick={() => handleCancel(inv.id)}

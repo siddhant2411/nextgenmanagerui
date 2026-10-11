@@ -57,6 +57,8 @@ const getDefaultValues = () => ({
   lines: [],
   additionalLines: [],
   workCenter: '',
+  // Code of the warehouse the finished goods are wanted in; '' keeps them in the work centre's store.
+  produceIntoWarehouseCode: '',
   dueDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
   plannedStartDate: dayjs().format('YYYY-MM-DD'),
   plannedEndDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),

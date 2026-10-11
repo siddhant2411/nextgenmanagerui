@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import { getGRNsByPO, createGRN } from '../../../services/grnService';
 import { useAuth } from '../../../auth/AuthContext';
+import WarehouseSelect from '../../common/WarehouseSelect';
 import { T } from '../../../theme/moduleTokens';
 
 
@@ -330,9 +331,8 @@ function ReceiveForm({ po, grns, onPosted, onCancel }) {
                 <TextField label="GRN Date" type="date" size="small" value={grnDate}
                     onChange={e => setGrnDate(e.target.value)}
                     InputLabelProps={{ shrink: true }} sx={{ width: 180 }} />
-                <TextField label="Warehouse" size="small" value={warehouse}
-                    onChange={e => setWarehouse(e.target.value)}
-                    placeholder="e.g. Main Store" sx={{ width: 200 }} />
+                <WarehouseSelect size="small" value={warehouse}
+                    onChange={setWarehouse} sx={{ width: 240 }} />
                 <TextField label="Remarks" size="small" value={remarks}
                     onChange={e => setRemarks(e.target.value)} sx={{ flex: 1 }} />
             </Stack>

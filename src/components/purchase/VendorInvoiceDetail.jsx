@@ -16,6 +16,8 @@ import {
 import { getPaymentsForInvoice, getPaymentSummary, recordVendorPayment, deleteVendorPayment } from '../../services/vendorPaymentService';
 import RecordPaymentDialog from './RecordPaymentDialog';
 import { T, STATUS, SHELL } from '../../theme/moduleTokens';
+import { useAuth } from '../../auth/AuthContext';
+import { ADMIN_ROLES, VENDOR_INVOICE_ENTRY_ROLES, VENDOR_INVOICE_POST_ROLES } from '../../auth/roles';
 
 /* ── Design Tokens ── */
 
@@ -50,6 +52,10 @@ const SectionCard = ({ title, children, action }) => (
 export default function VendorInvoiceDetail() {
     const navigate = useNavigate();
     const { id: poId, invoiceId } = useParams();
+    const { hasAnyRole } = useAuth();
+    const canEnter  = hasAnyRole(VENDOR_INVOICE_ENTRY_ROLES);
+    const canPost   = hasAnyRole(VENDOR_INVOICE_POST_ROLES);
+    const canCancel = hasAnyRole(ADMIN_ROLES);
 
     const [invoice, setInvoice] = useState(null);
     const [attachments, setAttachments] = useState([]);
@@ -205,7 +211,7 @@ export default function VendorInvoiceDetail() {
                                     <Refresh />
                                 </IconButton>
                             </Tooltip>
-                            {invoice.status === 'DRAFT' && (
+                            {canPost && invoice.status === 'DRAFT' && (
                                 <Button variant="contained" disableElevation
                                     startIcon={actionLoading === 'post' ? <CircularProgress size={16} color="inherit" /> : <CheckCircleOutline />}
                                     disabled={!!actionLoading} onClick={handlePost}
@@ -214,7 +220,7 @@ export default function VendorInvoiceDetail() {
                                     Post Invoice
                                 </Button>
                             )}
-                            {invoice.status === 'POSTED' && (
+                            {canPost && invoice.status === 'POSTED' && (
                                 <Button variant="contained" disableElevation startIcon={<Payments />}
                                     onClick={() => setShowPaymentDialog(true)}
                                     sx={{ textTransform: 'none', fontWeight: 800, borderRadius: 3, bgcolor: T.accent, px: 3,
@@ -222,7 +228,7 @@ export default function VendorInvoiceDetail() {
                                     Record Payment
                                 </Button>
                             )}
-                            {invoice.status !== 'CANCELLED' && (
+                            {canCancel && invoice.status !== 'CANCELLED' && (
                                 <Tooltip title="Cancel Invoice">
                                     <IconButton disabled={!!actionLoading} onClick={handleCancel}
                                         sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)',
@@ -370,7 +376,7 @@ export default function VendorInvoiceDetail() {
 
                     {/* Attachments */}
                     <SectionCard title={`Attachments (${attachments.length})`}
-                        action={
+                        action={canEnter &&
                             <>
                                 <input ref={fileInputRef} type="file" hidden onChange={handleUpload} />
                                 <Button size="small" variant="outlined" startIcon={uploadLoading ? <CircularProgress size={14} /> : <CloudUpload />}
@@ -412,12 +418,14 @@ export default function VendorInvoiceDetail() {
                                                     <Download sx={{ fontSize: 16 }} />
                                                 </IconButton>
                                             </Tooltip>
-                                            <Tooltip title="Delete">
-                                                <IconButton size="small" onClick={() => handleDeleteAttachment(att.id)}
-                                                    sx={{ color: T.ink2, '&:hover': { color: STATUS.critical } }}>
-                                                    <DeleteOutline sx={{ fontSize: 16 }} />
-                                                </IconButton>
-                                            </Tooltip>
+                                            {canPost && (
+                                                <Tooltip title="Delete">
+                                                    <IconButton size="small" onClick={() => handleDeleteAttachment(att.id)}
+                                                        sx={{ color: T.ink2, '&:hover': { color: STATUS.critical } }}>
+                                                        <DeleteOutline sx={{ fontSize: 16 }} />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            )}
                                         </Stack>
                                     </Stack>
                                 ))}
@@ -450,12 +458,14 @@ export default function VendorInvoiceDetail() {
                                             <TableCell sx={{ fontSize: '0.8rem', color: T.ink2 }}>{p.notes || '—'}</TableCell>
                                             <TableCell sx={{ fontWeight: 700, fontSize: '0.8rem' }}>₹{fmt(p.amount)}</TableCell>
                                             <TableCell align="right">
-                                                <Tooltip title="Delete payment">
-                                                    <IconButton size="small" onClick={() => handleDeletePayment(p.id)}
-                                                        sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
-                                                        <DeleteOutline sx={{ fontSize: 15 }} />
-                                                    </IconButton>
-                                                </Tooltip>
+                                                {canPost && (
+                                                    <Tooltip title="Delete payment">
+                                                        <IconButton size="small" onClick={() => handleDeletePayment(p.id)}
+                                                            sx={{ color: '#94a3b8', '&:hover': { color: STATUS.critical } }}>
+                                                            <DeleteOutline sx={{ fontSize: 15 }} />
+                                                        </IconButton>
+                                                    </Tooltip>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}

@@ -138,7 +138,7 @@ export const searchMachines = async (search='') => {
 
 export const searchUsers = async (search='') => {
     try {
-        const response = await apiService.get('/auth/users');
+        const response = await apiService.get('/enquiry/assignable-users');
         if (search && Array.isArray(response)) {
             return response.filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
         }

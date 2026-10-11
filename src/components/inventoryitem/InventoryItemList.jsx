@@ -22,7 +22,7 @@ import BulkImportItems from './BulkImportItems';
 import PriceListExportDialog from './PriceListExportDialog';
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import { useAuth } from '../../auth/AuthContext';
-import { INVENTORY_FINANCE_ROLES, hasAnyRole } from '../../auth/roles';
+import { INVENTORY_ACCESS_ROLES, INVENTORY_FINANCE_ROLES, hasAnyRole } from '../../auth/roles';
 import { useViewState, useViewStateResetSignal } from '../../commonTools/useViewState';
 
 /* Route namespace for preserved filters/sort/page — see commonTools/useViewState. */
@@ -233,6 +233,9 @@ const InventoryItemList = ({
   // Mirrors the backend guard on /export/price-list: only finance-visible roles get the
   // internal copy (cost, margin, floor price + max discount).
   const canExportInternalPriceList = hasAnyRole(user?.roles, INVENTORY_FINANCE_ROLES);
+  // Mirrors the backend guard on /inventory/summary. Sales and purchase users browse the
+  // catalogue but have no stock totals to read, so the cards are left out rather than shown as 0.
+  const canViewStockSummary = hasAnyRole(user?.roles, INVENTORY_ACCESS_ROLES);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isNarrowDesktop = useMediaQuery(theme.breakpoints.down('xl'));
@@ -259,6 +262,7 @@ const InventoryItemList = ({
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
 
   const fetchSummary = async () => {
+    if (!canViewStockSummary) return;
     try {
       setIsSummaryLoading(true);
       const response = await getInventorySummary();
@@ -316,8 +320,8 @@ const InventoryItemList = ({
     setTotalElements(data.totalElements);
   };
 
+  // Opens the item for everyone; the item screen itself is view-only without write access.
   const handleEditClick = (id) => {
-    if (!canWriteInventoryItems) return;
     navigate(`/inventory-item/edit/${id}`);
   };
 
@@ -542,11 +546,13 @@ const InventoryItemList = ({
                         <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>Manage your product catalog and inventory items.</Typography>
                     </Box>
                     <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-                        <Tooltip title="Refresh Stats">
-                            <IconButton onClick={fetchSummary} sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
-                                <Refresh />
-                            </IconButton>
-                        </Tooltip>
+                        {canViewStockSummary && (
+                            <Tooltip title="Refresh Stats">
+                                <IconButton onClick={fetchSummary} sx={{ border: '1px solid rgba(255,255,255,0.1)', color: 'white', '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } }}>
+                                    <Refresh />
+                                </IconButton>
+                            </Tooltip>
+                        )}
                         <Button 
                             variant="outlined" 
                             startIcon={<DownloadIcon />}
@@ -614,6 +620,7 @@ const InventoryItemList = ({
                     </Stack>
                 </Stack>
 
+                {canViewStockSummary && (
                 <Grid container spacing={3}>
                     {[
                         { label: 'Total Products', value: summary?.totalItems ?? 0, icon: Inventory2Rounded, color: '#3b82f6', trend: 'All' },
@@ -646,6 +653,7 @@ const InventoryItemList = ({
                         </Grid>
                     ))}
                 </Grid>
+                )}
             </Container>
         </Box>
 
@@ -1032,7 +1040,8 @@ const InventoryItemList = ({
           <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Delete Product</DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="text.secondary">
-              This product record will be removed permanently. Do you want to continue?
+              This product will be removed from the item list and its item code will become free to
+              use again. Documents that already use it keep it. Do you want to continue?
             </Typography>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>

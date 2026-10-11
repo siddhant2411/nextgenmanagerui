@@ -3,7 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import AddUpdateSalesOrder from './AddUpdateSalesOrder';
 import SalesOrderHub from './SalesOrderHub';
 import RoleProtectedRoute from '../../../auth/RoleProtectedRoute';
-import { SALES_MANAGE_ROLES } from '../../../auth/roles';
+import { SALES_ACCESS_ROLES, SALES_MANAGE_ROLES } from '../../../auth/roles';
 import DeliveryNoteHub from '../deliverynote/DeliveryNoteHub';
 import AddUpdateDeliveryNote from '../deliverynote/AddUpdateDeliveryNote';
 import InvoiceHub from '../invoice/InvoiceHub';
@@ -19,7 +19,7 @@ export default function SalesOrder() {
       <Route
         path="/add"
         element={
-          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to create sales orders.">
+          <RoleProtectedRoute allowedRoles={SALES_ACCESS_ROLES} deniedMessage="You are not authorized to create sales orders.">
             <AddUpdateSalesOrder />
           </RoleProtectedRoute>
         }
@@ -29,7 +29,7 @@ export default function SalesOrder() {
       <Route
         path="/edit/:orderId"
         element={
-          <RoleProtectedRoute allowedRoles={SALES_MANAGE_ROLES} deniedMessage="You are not authorized to edit sales orders.">
+          <RoleProtectedRoute allowedRoles={SALES_ACCESS_ROLES} deniedMessage="You are not authorized to view sales orders.">
             <AddUpdateSalesOrder />
           </RoleProtectedRoute>
         }

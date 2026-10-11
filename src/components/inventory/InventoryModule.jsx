@@ -5,6 +5,7 @@ import {
     TextField, Alert, CircularProgress,
 } from '@mui/material';
 import { sendToPlanning } from '../../services/inventoryService';
+import WarehouseSelect from '../common/WarehouseSelect';
 import {
     Add           as AddIcon,
     Dashboard     as DashboardIcon,
@@ -69,6 +70,8 @@ const InventoryModule = () => {
 
     const [planningItem,    setPlanningItem]    = useState(null);
     const [planningQty,     setPlanningQty]     = useState('');
+    // The warehouse the stock is wanted in; '' is the default warehouse.
+    const [planningWarehouse, setPlanningWarehouse] = useState('');
     const [planningLoading, setPlanningLoading] = useState(false);
     const [planningResult,  setPlanningResult]  = useState(null);
     const [planningError,   setPlanningError]   = useState(null);
@@ -85,6 +88,7 @@ const InventoryModule = () => {
         const suggested = Math.max(0, maxStock - available);
         setPlanningItem(item);
         setPlanningQty(suggested > 0 ? suggested.toFixed(2) : '');
+        setPlanningWarehouse('');
         setPlanningResult(null);
         setPlanningError(null);
     };
@@ -101,7 +105,7 @@ const InventoryModule = () => {
         setPlanningLoading(true);
         setPlanningError(null);
         try {
-            const result = await sendToPlanning(planningItem.inventoryItemId, qty, 'STORE');
+            const result = await sendToPlanning(planningItem.inventoryItemId, qty, 'STORE', planningWarehouse);
             setPlanningResult(result);
         } catch (err) {
             setPlanningError(err?.response?.data?.error || 'Failed to send to planning.');
@@ -349,8 +353,10 @@ const InventoryModule = () => {
                             {planningResult.decision === 'WORK_ORDER'    && `Work Order #${planningResult.orderId} created.`}
                             {planningResult.decision === 'PURCHASE_ORDER' && `Purchase Requisition #${planningResult.orderId} created.`}
                             {planningResult.decision === 'UNDECIDED'     && 'Added to the Planning Desk — a planner will decide make/buy.'}
+                            {planningResult.deliverToWarehouse && ` Wanted in ${planningResult.deliverToWarehouse}.`}
                         </Alert>
                     ) : (
+                        <>
                         <TextField
                             label="Replenishment Quantity"
                             type="number"
@@ -368,6 +374,16 @@ const InventoryModule = () => {
                                     : '';
                             })()}
                         />
+                        <WarehouseSelect
+                            label="Wanted in"
+                            fullWidth
+                            size="small"
+                            sx={{ mt: 2 }}
+                            value={planningWarehouse}
+                            onChange={setPlanningWarehouse}
+                            helperText="The work order or requisition raised for this is addressed to this warehouse."
+                        />
+                        </>
                     )}
                     {planningError && <Alert severity="error" sx={{ mt: 1 }}>{planningError}</Alert>}
                 </DialogContent>

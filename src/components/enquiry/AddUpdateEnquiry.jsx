@@ -13,6 +13,7 @@ import { StateNameField } from '../common/GstStateSelect';
 import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { contactLabel, filterContactOptions } from '../../utils/contactLabel';
 import { useParams, useNavigate } from 'react-router-dom';
+import { serverFiltered, renderItemOption } from '../common/itemPicker';
 import {
   Save, ArrowBack, Add, Delete, History, Info, SwapHoriz, OpenInNew, Receipt,
   LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description,
@@ -157,9 +158,13 @@ const AddUpdateEnquiry = ({ onSave }) => {
   };
 
   const handleSearchUsers = async (query) => {
-    const { searchUsers } = await import('../../services/commonAPI');
-    const result = await searchUsers(query);
-    setUserList(result);
+    try {
+      const { searchUsers } = await import('../../services/commonAPI');
+      const result = await searchUsers(query);
+      setUserList(Array.isArray(result) ? result : []);
+    } catch {
+      // keep whatever options are already loaded
+    }
   };
 
   const handleSearchProducts = (query) => {
@@ -482,6 +487,8 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                                     <Autocomplete
                                                                         freeSolo
                                                                         options={productList}
+                                                                        filterOptions={serverFiltered}
+                                                                        renderOption={renderItemOption}
                                                                         getOptionLabel={(opt) => typeof opt === 'string' ? opt : opt?.name || ''}
                                                                         value={formik.values.enquiredProducts[index].inventoryItem || formik.values.enquiredProducts[index].productNameRequired || null}
                                                                         onInputChange={(e, val, reason) => {

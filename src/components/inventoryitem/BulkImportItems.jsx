@@ -9,6 +9,7 @@ import { Upload, DeleteOutline, Download, FileUpload, Close } from "@mui/icons-m
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { createInventoryItemWithFiles } from "../../services/inventoryService";
+import apiService from "../../services/apiService";
 
 const T = {
     primary: '#2563eb',
@@ -32,6 +33,19 @@ const headerCellSx = {
     whiteSpace: 'nowrap',
 };
 
+/*
+ * A row with no item code takes the next number from the series for its item type, the same
+ * numbers the Auto button on the product form hands out. Without a series the backend falls back
+ * to an older generator and the row comes in as something like GEN-GEN-000-GEN-001.
+ */
+const SERIES_FOR_TYPE = {
+    RAW_MATERIAL: 'RM',
+    FINISHED_GOOD: 'FG',
+    SEMI_FINISHED: 'SF',
+    CONSUMABLE: 'CONS',
+    SUB_CONTRACTED: 'PUR',
+};
+
 /* ── Template column definitions ── */
 const TEMPLATE_COLUMNS = [
     { key: 'itemCode',       label: 'Item Code',        sample: '',            note: 'Leave blank for auto-generate' },
@@ -49,6 +63,7 @@ const TEMPLATE_COLUMNS = [
     { key: 'processType',    label: 'Process Type',     sample: 'CNC',         note: 'Free text' },
     { key: 'standardCost',   label: 'Standard Cost',    sample: '250',         note: 'Numeric (₹)' },
     { key: 'sellingPrice',   label: 'Selling Price',    sample: '300',         note: 'Numeric (₹)' },
+    { key: 'minimumSellingPrice', label: 'Minimum Selling Price', sample: '270', note: 'Numeric (₹) — lowest price a sales user can quote; blank = no limit' },
     { key: 'taxCategory',    label: 'Tax Category',     sample: '18',          note: 'GST % — 0 | 3 | 5 | 12 | 18 | 28' },
     { key: 'leadTime',       label: 'Lead Time (days)', sample: '7',           note: 'Numeric' },
     { key: 'reorderLevel',   label: 'Reorder Level',    sample: '50',          note: 'Numeric' },
@@ -142,7 +157,8 @@ export default function BulkImportItems() {
         else reader.readAsBinaryString(file);
     };
 
-    const preparePayload = (row) => ({
+    const preparePayload = (row, series = []) => ({
+        seriesId: row.itemCode ? null : seriesIdFor(row.itemType || 'RAW_MATERIAL', series),
         itemCode: row.itemCode || '',
         name: row.name || '',
         hsnCode: row.hsnCode || '',
@@ -174,17 +190,36 @@ export default function BulkImportItems() {
         productFinanceSettings: {
             standardCost: row.standardCost || '',
             sellingPrice: row.sellingPrice || '',
+            minimumSellingPrice: row.minimumSellingPrice || '',
             taxCategory: row.taxCategory || '',
+            // The form fills the rate in from the slab; a row has only the slab.
+            gstRate: row.taxCategory === '' || row.taxCategory == null || isNaN(Number(row.taxCategory))
+                ? null : Number(row.taxCategory),
         },
         itemGroupCode: row.itemGroupCode || '',
     });
 
+    const seriesIdFor = (itemType, series) => {
+        const wanted = SERIES_FOR_TYPE[itemType] || 'GEN';
+        const match = series.find((x) => x.seriesCode === wanted) || series.find((x) => x.seriesCode === 'GEN');
+        return match ? match.id : null;
+    };
+
     const handleConfirm = async () => {
         setLoading(true);
         const failed = [];
+        let series = [];
+        if (rows.some((r) => !r.itemCode)) {
+            try {
+                const res = await apiService.get('/item-code-series');
+                series = (Array.isArray(res) ? res : []).filter((x) => x.isActive !== false && !x.deletedDate);
+            } catch {
+                series = [];
+            }
+        }
         for (const row of rows) {
             try {
-                await createInventoryItemWithFiles(preparePayload(row), []);
+                await createInventoryItemWithFiles(preparePayload(row, series), []);
             } catch {
                 failed.push(row);
             }

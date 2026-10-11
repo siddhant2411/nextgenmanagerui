@@ -46,6 +46,7 @@ import { ACTION_KEYS } from "../../auth/roles";
 import BomCostBreakdown from "./BomCostBreakdown";
 import BomQaPlan from "./BomQaPlan";
 import {
+    createBomRevision,
     deleteBomAttachment,
     downloadBomAttachment,
     downloadBomJobSheet,
@@ -527,15 +528,29 @@ const AddBom = () => {
 
             try {
                 helpers.setSubmitting(true);
-                if (bomId) {
+                if (bomId && CRITICAL_SAVE_STATUSES.includes(String(values.bomStatus || "").toUpperCase())) {
+                    // A released BOM is not edited in place — the changes on screen go into a new DRAFT revision
+                    const revision = await createBomRevision(bomId, payload);
+                    showSnackbar("New draft revision created with your changes");
+                    baselineSignatureRef.current = buildDirtySignature(values, operations);
+                    setIsDirty(false);
+                    const revisionBomId = revision?.bom?.id;
+                    if (revisionBomId) {
+                        navigate(`/bom/edit/${revisionBomId}`);
+                    }
+                } else if (bomId) {
                     await apiService.put(`/bom/${bomId}`, payload);
                     showSnackbar("BOM updated successfully");
                     await fetchBomDetailsRef.current?.();
                 } else {
-                    await apiService.post("/bom", payload);
+                    const created = await apiService.post("/bom", payload);
                     showSnackbar("BOM created successfully");
                     baselineSignatureRef.current = buildDirtySignature(values, operations);
                     setIsDirty(false);
+                    const createdBomId = created?.bom?.id;
+                    if (createdBomId) {
+                        navigate(`/bom/edit/${createdBomId}`, { replace: true });
+                    }
                 }
             } catch (errorResponse) {
                 showSnackbar(
@@ -1808,7 +1823,7 @@ const AddBom = () => {
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary">
                         {isCriticalStatus
-                            ? "This BOM is in Approved/Active state. For Update create new DRAFT Revision?"
+                            ? "This BOM is in Approved/Active state. Your changes will be saved to a new DRAFT revision; this BOM stays as it is. Create the revision?"
                             : "Do you want to save these BOM changes?"}
                     </Typography>
                 </DialogContent>
@@ -1821,7 +1836,7 @@ const AddBom = () => {
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={()=>isCriticalStatus? handleConfirmDuplicate(bomId): confirmSave()}
+                        onClick={confirmSave}
                         sx={{ textTransform: "none", bgcolor: "#1565c0", "&:hover": { bgcolor: "#0d47a1" } }}
                     >
                        {isCriticalStatus

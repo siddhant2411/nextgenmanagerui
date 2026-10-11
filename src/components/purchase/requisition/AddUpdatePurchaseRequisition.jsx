@@ -19,6 +19,7 @@ import {
 } from '../../../services/purchaseRequisitionService';
 import { filterInventoryItems } from '../../../services/inventoryService';
 import { searchWorkCenters } from '../../../services/machineAssetsService';
+import WarehouseSelect from '../../common/WarehouseSelect';
 import { contactLabel } from '../../../utils/contactLabel';
 import { useAuth } from '../../../auth/AuthContext';
 import { PURCHASE_MANAGE_ROLES } from '../../../auth/roles';
@@ -40,6 +41,8 @@ const EMPTY_HEADER = {
     requestedBy: '',
     department: '',
     workCenterId: null,
+    // Code of the warehouse the goods are to be received into; '' is the default warehouse.
+    deliverToWarehouseCode: '',
     priority: 'NORMAL',
     notes: '',
 };
@@ -218,6 +221,7 @@ export default function AddUpdatePurchaseRequisition() {
                 requestedBy: data.requestedBy ?? '',
                 department: data.department ?? '',
                 workCenterId: data.workCenterId ?? null,
+                deliverToWarehouseCode: data.deliverToWarehouseCode ?? '',
                 priority: data.priority ?? 'NORMAL',
                 notes: data.notes ?? '',
             });
@@ -423,7 +427,7 @@ export default function AddUpdatePurchaseRequisition() {
                                 Convert to PO
                             </Button>
                         )}
-                        {isEdit && pr?.status !== 'CANCELLED' && pr?.status !== 'CLOSED' && (
+                        {isEdit && pr?.status !== 'CANCELLED' && pr?.status !== 'CLOSED' && (isDraft || canApprove) && (
                             <Tooltip title="Cancel Requisition">
                                 <IconButton onClick={() => setDialog({ type: 'cancel' })} sx={{ color: SHELL.heroInk, border: `1px solid ${SHELL.heroLine}`, '&:hover': { bgcolor: SHELL.heroFill } }}>
                                     <Cancel />
@@ -499,7 +503,14 @@ export default function AddUpdatePurchaseRequisition() {
                                 onChange={(_, v) => setHeader(h => ({ ...h, workCenterId: v?.id ?? null }))}
                                 renderInput={(params) => <TextField {...params} label="Work Center" />} />
                         </Grid>
-                        <Grid item xs={12} sm={6} md={6}>
+                        <Grid item xs={12} sm={6} md={3}>
+                            {/* Becomes the ship-to plant of the purchase order raised from this. */}
+                            <WarehouseSelect fullWidth size="small" label="Deliver To"
+                                disabled={!isDraft}
+                                value={header.deliverToWarehouseCode}
+                                onChange={(code) => setHeader(h => ({ ...h, deliverToWarehouseCode: code }))} />
+                        </Grid>
+                        <Grid item xs={12} sm={6} md={3}>
                             <TextField fullWidth size="small" label="Notes" multiline rows={1}
                                 disabled={!isDraft}
                                 value={header.notes}

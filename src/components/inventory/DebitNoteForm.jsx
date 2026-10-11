@@ -23,7 +23,9 @@ import {
     confirmDebitNote, cancelDebitNote,
 } from '../../services/debitNoteService';
 import { format } from 'date-fns';
+import WarehouseSelect from '../common/WarehouseSelect';
 
+import { serverFiltered } from '../common/itemPicker';
 const T = {
     primary: '#2563eb', success: '#059669', error: '#dc2626',
     warning: '#d97706', bg: '#f8fafc', text: '#0f172a', textSec: '#64748b',
@@ -477,6 +479,7 @@ const CreateBody = ({
                                     <TableCell sx={{ minWidth: 200 }}>
                                         <Autocomplete
                                             options={itemOpts[line._key] || []}
+                                            filterOptions={serverFiltered}
                                             value={line.inventoryItem}
                                             getOptionLabel={(o) => `${o.itemCode} — ${o.name || o.itemName || ''}`}
                                             isOptionEqualToValue={(a, b) => a.inventoryItemId === b.inventoryItemId}
@@ -505,10 +508,10 @@ const CreateBody = ({
                                     <TableCell sx={{ fontWeight: 600, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
                                         {tot.total > 0 ? `₹${tot.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
                                     </TableCell>
-                                    <TableCell sx={{ width: 120 }}>
-                                        <TextField size="small" value={line.warehouseFrom}
-                                            onChange={(e) => setLine(line._key, 'warehouseFrom', e.target.value)}
-                                            placeholder="e.g. Main" sx={{ width: 110 }} />
+                                    <TableCell sx={{ width: 170 }}>
+                                        <WarehouseSelect size="small" label="" value={line.warehouseFrom}
+                                            onChange={(code) => setLine(line._key, 'warehouseFrom', code)}
+                                            emptyLabel="Default" sx={{ width: 160 }} />
                                     </TableCell>
                                     <TableCell sx={{ width: 130 }}>
                                         <TextField size="small" value={line.remarks}

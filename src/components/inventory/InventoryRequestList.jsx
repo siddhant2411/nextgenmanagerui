@@ -82,6 +82,7 @@ const InventoryRequestList = ({ refreshKey }) => {
   const [trackedOnly, setTrackedOnly] = useViewState(VIEW_STATE_NS, 'trackedOnly', true); // Default to tracked only as per user request
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [negativeConfirm, setNegativeConfirm] = useState({ open: false, id: null, message: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const debounceTimeout = useRef(null);
@@ -194,7 +195,7 @@ const InventoryRequestList = ({ refreshKey }) => {
             Material Requests
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Approve or reject inventory allocations for Production and Sales
+            Approve or reject material issues for Production
           </Typography>
         </Box>
 
@@ -328,7 +329,8 @@ const InventoryRequestList = ({ refreshKey }) => {
         />
       </Paper>
 
-      <CreateInventoryRequestForm openDialog={openDialog} setOpenDialog={setOpenDialog} canManageInventory={canManageInventory} />
+      <CreateInventoryRequestForm openDialog={openDialog} setOpenDialog={setOpenDialog}
+        selectedItem={selectedItem} setSelectedItem={setSelectedItem} canManageInventory={canManageInventory} />
 
       <Dialog open={negativeConfirm.open} onClose={() => setNegativeConfirm({ open: false, id: null, message: '' })} maxWidth="xs" fullWidth>
         <DialogTitle fontWeight={700} sx={{ color: '#b45309' }}>Negative stock warning</DialogTitle>
