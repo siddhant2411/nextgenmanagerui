@@ -11,6 +11,7 @@ import {
 import { getPendingReceiptPOs, getPurchaseOrder } from '../../services/purchaseOrderService';
 import { createGRN, getGRNsByPO } from '../../services/grnService';
 import { useAuth } from '../../auth/AuthContext';
+import WarehouseSelect from '../common/WarehouseSelect';
 
 const BORDER = '#e2e8f0';
 const BG_SOFT = '#f8fafc';
@@ -234,9 +235,8 @@ function ReceiveForm({ po, existingGrns, onPosted, onCancel, readOnly = false })
                 <TextField label="GRN Date" type="date" size="small" value={grnDate}
                     onChange={e => setGrnDate(e.target.value)}
                     InputLabelProps={{ shrink: true }} sx={{ width: 180 }} />
-                <TextField label="Warehouse" size="small" value={warehouse}
-                    onChange={e => setWarehouse(e.target.value)}
-                    placeholder="e.g. Main Store" sx={{ width: 200 }} />
+                <WarehouseSelect size="small" value={warehouse}
+                    onChange={setWarehouse} sx={{ width: 240 }} />
                 <TextField label="Remarks" size="small" value={remarks}
                     onChange={e => setRemarks(e.target.value)} sx={{ flex: 1 }} />
             </Stack>

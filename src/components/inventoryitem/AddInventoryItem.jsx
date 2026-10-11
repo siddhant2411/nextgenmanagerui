@@ -28,6 +28,8 @@ import {
   INVENTORY_FINANCE_ROLES,
   INVENTORY_MANAGE_ROLES,
   PRODUCTION_ACCESS_ROLES,
+  PURCHASE_MANAGE_ROLES,
+  VENDOR_PRICE_VIEW_ROLES,
   hasAnyRole,
 } from '../../auth/roles';
 import {
@@ -116,6 +118,9 @@ export default function AddInventoryItem() {
   /* ── Role gates ── */
   const canWrite        = hasAnyRole(user?.roles, INVENTORY_MANAGE_ROLES);
   const isFinanceAdmin  = hasAnyRole(user?.roles, INVENTORY_FINANCE_ROLES);
+  const canReadBom      = hasAnyRole(user?.roles, PRODUCTION_ACCESS_ROLES);
+  const canViewVendorPrices   = hasAnyRole(user?.roles, VENDOR_PRICE_VIEW_ROLES);
+  const canManageVendorPrices = hasAnyRole(user?.roles, PURCHASE_MANAGE_ROLES);
   const canViewMfg      = hasAnyRole(user?.roles, [...INVENTORY_ITEM_APPROVAL_ROLES, ...PRODUCTION_ACCESS_ROLES]);
   const canExport       = isFinanceAdmin;
 
@@ -206,6 +211,11 @@ export default function AddInventoryItem() {
     ? ((sellingPriceVal - sellingCostVal) / sellingPriceVal * 100).toFixed(1)
     : null;
   const marginColor = marginPct === null ? '#9ca3af' : parseFloat(marginPct) >= 20 ? '#10b981' : parseFloat(marginPct) >= 5 ? '#f59e0b' : '#ef4444';
+  const minSellingPriceVal = parseFloat(itemData.productFinanceSettings?.minimumSellingPrice) || 0;
+  const minPriceAboveList = minSellingPriceVal > 0 && sellingPriceVal > 0 && minSellingPriceVal > sellingPriceVal;
+  const maxDiscountPct = minSellingPriceVal > 0 && sellingPriceVal > 0 && !minPriceAboveList
+    ? ((sellingPriceVal - minSellingPriceVal) / sellingPriceVal * 100).toFixed(1)
+    : null;
 
   /* ── Revision control derived state ──
      The item is "locked" (engineering fields frozen) whenever it has a current revision and that
@@ -304,7 +314,8 @@ export default function AddInventoryItem() {
 
   /* ── Load BOM / manufacturing data ── */
   const fetchMfgData = useCallback(async () => {
-    if (!id) return;
+    // BOM reads are production-only on the server; other roles see the item without them.
+    if (!id || !canReadBom) return;
     setIsBomLoading(true);
     try {
       const [bomRes, histRes, whereRes] = await Promise.all([
@@ -332,7 +343,7 @@ export default function AddInventoryItem() {
     } finally {
       setIsBomLoading(false);
     }
-  }, [id]);
+  }, [id, canReadBom]);
 
   useEffect(() => { if (id) fetchMfgData(); }, [id, fetchMfgData]);
 
@@ -406,10 +417,11 @@ export default function AddInventoryItem() {
 
   /* ── Unsaved-changes guard ── */
   useEffect(() => {
-    const handler = (e) => { if (!isDirty) return; e.preventDefault(); e.returnValue = ''; };
+    // A viewer has nothing to lose, so they are never held back.
+    const handler = (e) => { if (!isDirty || !canWrite) return; e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty]);
+  }, [isDirty, canWrite]);
 
   /* ── Change handlers ── */
   const handleChange = (e) => {
@@ -727,6 +739,7 @@ export default function AddInventoryItem() {
 
   /* ── Active tab key ── */
   const activeKey = tabs[selectedTab]?.key;
+  const fieldsLocked = !canWrite && ['basic', 'inventory', 'finance', 'mfg'].includes(activeKey);
 
   /* ═════════════════════════════════════════════════════════════════════════
      RENDER
@@ -765,6 +778,7 @@ export default function AddInventoryItem() {
                                     <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
                                         {itemData.itemCode}
                                     </Typography>
+                                    {!canWrite && <Chip label="View only" size="small" sx={{ ml: 1, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '0.65rem', height: 18 }} />}
                                     {itemData.purchased && !itemData.manufactured && <Chip label="Purchased" size="small" sx={{ ml: 1, bgcolor: '#dbeafe', color: '#1e40af', fontSize: '0.65rem', height: 18 }} />}
                                     {itemData.manufactured && !itemData.purchased && <Chip label="Manufactured" size="small" sx={{ ml: 1, bgcolor: '#dcfce7', color: '#166534', fontSize: '0.65rem', height: 18 }} />}
                                     {itemData.purchased && itemData.manufactured && <Chip label="Purchased + Manufactured" size="small" sx={{ ml: 1, bgcolor: '#fef3c7', color: '#92400e', fontSize: '0.65rem', height: 18 }} />}
@@ -833,6 +847,13 @@ export default function AddInventoryItem() {
             </Tabs>
 
             <Box sx={{ p: 5 }}>
+            {/* Without write access the item's own fields are view-only; revisions, documents and
+                vendor prices keep their own controls. */}
+            <Box component="fieldset" disabled={fieldsLocked}
+              sx={{
+                border: 0, p: 0, m: 0, minWidth: 0,
+                ...(fieldsLocked && { '& .MuiSelect-select, & .MuiAutocomplete-root': { pointerEvents: 'none' } }),
+              }}>
 
 
 
@@ -924,7 +945,7 @@ export default function AddInventoryItem() {
               <Chip icon={<LockIcon sx={{ fontSize: 13 }} />} label={`Locked at Rev. ${currentRevision?.revisionCode}`}
                 size="small" sx={{ ml: 1.5, height: 20, fontSize: '0.7rem', bgcolor: '#fee2e2', color: '#991b1b' }} />
             )}</SectionHeading>
-            {engineeringLocked && (
+            {engineeringLocked && canWrite && (
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ fontSize: '0.78rem', py: 0.5 }}>
                   This item is locked at revision {currentRevision?.revisionCode}. Dimension, size, weight, material,
@@ -1167,6 +1188,28 @@ export default function AddInventoryItem() {
                 Track individual units by unique serial number.
               </Typography>
             </Grid>
+
+            <SectionHeading>Quality</SectionHeading>
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={<Checkbox checked={!!itemData.productInventorySettings?.finalInspectionRequired}
+                  onChange={handleChange} name="productInventorySettings.finalInspectionRequired" size="small" />}
+                label={<Typography variant="body2">Final Inspection Required</Typography>}
+              />
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ ml: 4 }}>
+                A work order cannot book this product into stock until a final inspection has passed or been waived.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={<Checkbox checked={!!itemData.productInventorySettings?.packageInspectionRequired}
+                  onChange={handleChange} name="productInventorySettings.packageInspectionRequired" size="small" />}
+                label={<Typography variant="body2">Package Inspection Required</Typography>}
+              />
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ ml: 4 }}>
+                A packing slip cannot be closed while a box holding this product has no passed or waived inspection.
+              </Typography>
+            </Grid>
           </Grid>
         )}
 
@@ -1237,6 +1280,24 @@ export default function AddInventoryItem() {
                     </Tooltip>
                   </Box>
                 )}
+              </Grid>
+
+              {/* Minimum Selling Price — the floor a sales user may quote down to */}
+              <Grid item xs={12} sm={6} md={4}>
+                <TextField
+                  size="small" type="number" label="Minimum Selling Price (₹)" fullWidth
+                  name="productFinanceSettings.minimumSellingPrice"
+                  value={itemData.productFinanceSettings?.minimumSellingPrice ?? ''} onChange={handleChange} sx={fieldSx}
+                  error={minPriceAboveList}
+                  InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+                />
+                <Typography variant="caption" sx={{ mt: 0.5, display: 'block', color: minPriceAboveList ? '#ef4444' : 'text.secondary' }}>
+                  {minPriceAboveList
+                    ? 'Higher than the selling price — sales users could not quote this item at list price.'
+                    : maxDiscountPct !== null
+                      ? `Sales users can quote down to this — up to ${maxDiscountPct}% off the selling price. Below it needs a sales admin.`
+                      : 'The lowest price a sales user can quote. Leave blank for no limit.'}
+                </Typography>
               </Grid>
 
               {/* GST Slab / Tax Category */}
@@ -1440,6 +1501,7 @@ export default function AddInventoryItem() {
           <DocsTab
             images={images} setImages={setImages}
             pdfFiles={pdfFiles} setPdfFiles={setPdfFiles}
+            canEdit={canWrite}
           />
         )}
 
@@ -1447,18 +1509,20 @@ export default function AddInventoryItem() {
             TAB 5 — VENDOR PRICES  (restricted, edit mode only)
             ══════════════════════════════════════════════════════════════════ */}
         {activeKey === 'vendors' && isEditMode && (
-          isFinanceAdmin ? (
+          canViewVendorPrices ? (
             <VendorPricesTab
               itemId={id}
               setSnackbar={showSnackbar}
               purchased={itemData.purchased}
               manufactured={itemData.manufactured}
+              canManage={canManageVendorPrices}
             />
           ) : (
-            <RestrictedTabPlaceholder reason="Vendor pricing is restricted to Inventory Admins and Managers." />
+            <RestrictedTabPlaceholder reason="Vendor pricing is restricted to the purchase team and admins." />
           )
         )}
 
+            </Box>
             </Box>
           </Paper>
         </Container>
@@ -1687,7 +1751,7 @@ export default function AddInventoryItem() {
 /* ═══════════════════════════════════════════════════════════════════════════
    DocsTab — inline file manager replacing the old upload box components
    ═══════════════════════════════════════════════════════════════════════════ */
-function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
+function DocsTab({ images, setImages, pdfFiles, setPdfFiles, canEdit = true }) {
   const imgRef = useRef(null);
   const pdfRef = useRef(null);
   const [imgDrag, setImgDrag] = useState(false);
@@ -1723,7 +1787,7 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
               <Typography variant="subtitle2" fontWeight={600} color="#0f2744" fontSize="0.8rem">
                 Product Images <Chip label={`${images.length}/5`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
               </Typography>
-              {images.length < 5 && (
+              {canEdit && images.length < 5 && (
                 <Button size="small" startIcon={<AddPhotoAlternate fontSize="small" />} onClick={() => imgRef.current?.click()}
                   sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}>
                   Add Image
@@ -1732,7 +1796,10 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
             </Box>
 
             {/* Drop zone (compact, shown when empty) */}
-            {images.length === 0 && (
+            {images.length === 0 && !canEdit && (
+              <Typography variant="body2" color="text.secondary" fontSize="0.8rem" sx={{ m: 1.5, py: 2, textAlign: 'center' }}>No images</Typography>
+            )}
+            {images.length === 0 && canEdit && (
               <Box
                 onDragOver={(e) => { e.preventDefault(); setImgDrag(true); }}
                 onDragLeave={() => setImgDrag(false)}
@@ -1760,14 +1827,14 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
                     <Box key={i} sx={{ position: 'relative', width: 80, height: 80, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #e5e7eb', cursor: 'pointer', '&:hover .del-btn': { opacity: 1 } }}
                       onClick={() => setLightbox(src)}>
                       <Box component="img" src={src} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <Box className="del-btn" onClick={(e) => { e.stopPropagation(); removeImg(i); }}
+                      {canEdit && <Box className="del-btn" onClick={(e) => { e.stopPropagation(); removeImg(i); }}
                         sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(0,0,0,0.55)', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: '0.15s', cursor: 'pointer' }}>
                         <Typography sx={{ color: '#fff', fontSize: 13, lineHeight: 1, fontWeight: 700 }}>×</Typography>
-                      </Box>
+                      </Box>}
                     </Box>
                   );
                 })}
-                {images.length < 5 && (
+                {canEdit && images.length < 5 && (
                   <Box onClick={() => imgRef.current?.click()} sx={{ width: 80, height: 80, border: '2px dashed #d1d5db', borderRadius: 1.5, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', '&:hover': { borderColor: '#1565c0', bgcolor: '#eff6ff' } }}>
                     <AddPhotoAlternate sx={{ fontSize: 22, color: '#9ca3af' }} />
                     <Typography variant="caption" color="text.secondary" fontSize="0.65rem" mt={0.25}>Add</Typography>
@@ -1787,14 +1854,19 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
               <Typography variant="subtitle2" fontWeight={600} color="#0f2744" fontSize="0.8rem">
                 Technical Documents <Chip label={`${pdfFiles.length}`} size="small" sx={{ ml: 0.5, height: 18, fontSize: '0.65rem' }} />
               </Typography>
-              <Button size="small" startIcon={<PdfIcon fontSize="small" />} onClick={() => pdfRef.current?.click()}
-                sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}>
-                Add PDF
-              </Button>
+              {canEdit && (
+                <Button size="small" startIcon={<PdfIcon fontSize="small" />} onClick={() => pdfRef.current?.click()}
+                  sx={{ textTransform: 'none', fontSize: '0.75rem', py: 0.25 }}>
+                  Add PDF
+                </Button>
+              )}
             </Box>
 
             {/* Drop zone (compact, shown when empty) */}
-            {pdfFiles.length === 0 && (
+            {pdfFiles.length === 0 && !canEdit && (
+              <Typography variant="body2" color="text.secondary" fontSize="0.8rem" sx={{ m: 1.5, py: 2, textAlign: 'center' }}>No documents</Typography>
+            )}
+            {pdfFiles.length === 0 && canEdit && (
               <Box
                 onDragOver={(e) => { e.preventDefault(); setPdfDrag(true); }}
                 onDragLeave={() => setPdfDrag(false)}
@@ -1817,7 +1889,7 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
             {pdfFiles.length > 0 && (
               <Box sx={{ p: 1 }}>
                 {/* Drop-more zone */}
-                <Box
+                {canEdit && <Box
                   onDragOver={(e) => { e.preventDefault(); setPdfDrag(true); }}
                   onDragLeave={() => setPdfDrag(false)}
                   onDrop={(e) => { e.preventDefault(); setPdfDrag(false); addPdfs(e.dataTransfer.files); }}
@@ -1828,13 +1900,13 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles }) {
                   }}
                 >
                   <Typography variant="caption" color="text.secondary">Drop more PDFs here</Typography>
-                </Box>
+                </Box>}
 
                 <List dense disablePadding>
                   {pdfFiles.map((f, i) => (
                     <ListItem key={i} disablePadding
                       sx={{ borderRadius: 1, mb: 0.5, px: 1, py: 0.5, bgcolor: '#fff', border: '1px solid #f0f0f0', '&:hover': { bgcolor: '#f9fafb' } }}
-                      secondaryAction={
+                      secondaryAction={canEdit &&
                         <IconButton edge="end" size="small" onClick={() => removePdf(i)}>
                           <Delete sx={{ fontSize: 16, color: '#ef4444' }} />
                         </IconButton>

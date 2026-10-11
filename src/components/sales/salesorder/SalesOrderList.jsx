@@ -10,6 +10,8 @@ import {
 } from '@mui/icons-material';
 import FilterBar from '../../ui/filterbar/FilterBar';
 import { deleteSalesOrder, downloadSOPdf } from '../../../services/salesOrderService';
+import { useAuth } from '../../../auth/AuthContext';
+import { SALES_MANAGE_ROLES } from '../../../auth/roles';
 
 const STATUS_CONFIG = {
   DRAFT:                { label: 'Draft',             color: '#64748b', bg: '#f8fafc' },
@@ -37,6 +39,9 @@ const SalesOrderList = ({
   handlePageChange, activeFilters, handleApplyFilters, refreshList, loading
 }) => {
   const navigate = useNavigate();
+  const { hasAnyRole } = useAuth();
+  // Deleting an order is a sales-admin action; the server refuses it for anyone else.
+  const canDelete = hasAnyRole(SALES_MANAGE_ROLES);
   const [deleting, setDeleting] = useState(null);
 
   const handleEdit = (id) => navigate(`/sales/sales-order/edit/${id}`);
@@ -200,13 +205,15 @@ const SalesOrderList = ({
                             <EditOutlined sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" disabled={deleting === row.id}
-                            onClick={(e) => handleDelete(row.id, e)}
-                            sx={{ color: '#64748b', '&:hover': { color: '#dc2626' } }}>
-                            {deleting === row.id ? <CircularProgress size={14} /> : <DeleteForever sx={{ fontSize: 16 }} />}
-                          </IconButton>
-                        </Tooltip>
+                        {canDelete && (
+                          <Tooltip title="Delete">
+                            <IconButton size="small" disabled={deleting === row.id}
+                              onClick={(e) => handleDelete(row.id, e)}
+                              sx={{ color: '#64748b', '&:hover': { color: '#dc2626' } }}>
+                              {deleting === row.id ? <CircularProgress size={14} /> : <DeleteForever sx={{ fontSize: 16 }} />}
+                            </IconButton>
+                          </Tooltip>
+                        )}
                       </Stack>
                     </TableCell>
                   </TableRow>

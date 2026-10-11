@@ -11,6 +11,7 @@ import {
 import Autocomplete from "@mui/material/Autocomplete";
 import { inventoryItemSearch } from "../../../services/commonAPI";
 
+import { serverFiltered, itemLabel } from '../../common/itemPicker';
 export default function AddItemDialog({ open, onClose, onSave }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [qty, setQty] = useState("");
@@ -51,7 +52,8 @@ export default function AddItemDialog({ open, onClose, onSave }) {
           <Grid item xs={12}>
             <Autocomplete
               options={productList}
-              getOptionLabel={(opt) => opt?.itemCode || ""}
+              getOptionLabel={(opt) => itemLabel(opt)}
+              filterOptions={serverFiltered}
               value={selectedProduct}
               onChange={(e, val) => setSelectedProduct(val)}
               onInputChange={(e, val, reason) => {
@@ -61,7 +63,7 @@ export default function AddItemDialog({ open, onClose, onSave }) {
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="Search Item Code"
+                  label="Search by item code, name or HSN"
                   size="small"
                   fullWidth
                 />

@@ -93,12 +93,19 @@ export function AuthProvider({ children }) {
         }
     }, [location.pathname, navigate]);
 
-    const refreshCurrentUser = useCallback(async (fallbackSession) => {
-        const safeFallbackSession = normalizeAuthSession(fallbackSession || loadAuthSession() || {});
+    const refreshCurrentUser = useCallback(async () => {
         const me = await getMe();
-        const currentUser = normalizeUser(me, safeFallbackSession?.user);
+        // /auth/me may have rotated the tokens on its way (expired access token -> silent refresh).
+        // Build on what is stored now, never on a session read before the call: that would write
+        // the old, already-revoked refresh token back and the next request would sign the user out.
+        const storedSession = loadAuthSession();
+        if (!storedSession?.accessToken) {
+            // Signed out while the call was in flight; don't bring the session back.
+            return null;
+        }
+        const currentUser = normalizeUser(me, storedSession.user);
         const nextSession = {
-            ...safeFallbackSession,
+            ...storedSession,
             user: currentUser,
             roles: currentUser.roles,
         };
@@ -132,7 +139,7 @@ export function AuthProvider({ children }) {
             applySession(baseSession, false);
 
             try {
-                await refreshCurrentUser(baseSession);
+                await refreshCurrentUser();
             } catch (error) {
                 // handled
             }
@@ -208,7 +215,7 @@ export function AuthProvider({ children }) {
         const normalizedSession = normalizeAuthSession(session);
         applySession(normalizedSession, false);
 
-        refreshCurrentUser(normalizedSession)
+        refreshCurrentUser()
             .catch((error) => {
                 const status = error?.response?.status;
                 if (status === 401 || status === 403) {

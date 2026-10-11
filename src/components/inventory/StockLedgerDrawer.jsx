@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { searchInventoryItems } from '../../services/inventoryService';
 import { getStockHistory, getOpeningBalance } from '../../services/grnService';
+import { warehouseCode } from '../common/WarehouseSelect';
 
 /* ─── transaction metadata ────────────────────────────────────────────────── */
 
@@ -194,7 +195,7 @@ const StockLedgerDrawer = ({ open, onClose, initialItem = null }) => {
                 Type:           txLabel(e.transactionType),
                 'Ref Type':     e.referenceType  || '',
                 'Reference No': e.referenceDocNo || '',
-                Warehouse:      e.warehouse      || '',
+                Warehouse:      warehouseCode(e.warehouse),
                 Inward:         dir === 'in'  ? qty : '',
                 Outward:        dir === 'out' ? qty : '',
                 'Closing Bal':  e.closingBalance,
@@ -530,7 +531,7 @@ const StockLedgerDrawer = ({ open, onClose, initialItem = null }) => {
 
                                                 <TableCell>
                                                     <Typography variant="body2" color="text.secondary">
-                                                        {e.warehouse || '—'}
+                                                        {warehouseCode(e.warehouse) || '—'}
                                                     </Typography>
                                                 </TableCell>
 

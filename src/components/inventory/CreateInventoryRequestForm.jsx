@@ -4,6 +4,7 @@ import { inventoryItemSearch } from '../../services/commonAPI';
 import { useAuth } from '../../auth/AuthContext';
 import { createInventoryRequest } from '../../services/inventoryService';
 
+import { serverFiltered } from '../common/itemPicker';
 export default function CreateInventoryRequestForm({
     openDialog,
     setOpenDialog,
@@ -90,9 +91,10 @@ export default function CreateInventoryRequestForm({
             <DialogContent>
                 <Autocomplete
                     options={itemList}
+                    filterOptions={serverFiltered}
                     value={selectedItem}
                     onChange={(e, newValue) => setSelectedItem(newValue)}
-                    getOptionLabel={(option) => option.name || ''} // still needed for filtering
+                    getOptionLabel={(option) => option.name || ''}
                     isOptionEqualToValue={(option, value) => option.inventoryItemId === value?.inventoryItemId}
                     inputValue={inputValue}
                     onInputChange={(e, newInputValue) => setInputValue(newInputValue)}
@@ -143,7 +145,6 @@ export default function CreateInventoryRequestForm({
                 >
                     <MenuItem value="MANUAL">Manual</MenuItem>
                     <MenuItem value="WORK_ORDER">Work Order</MenuItem>
-                    <MenuItem value="SALES_ORDER">Sales Order</MenuItem>
                     <MenuItem value="PURCHASE_ORDER">Purchase Order</MenuItem>
                 </TextField>
                 <TextField

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Alert, Autocomplete, Box, Button, CircularProgress, Dialog, DialogActions,
     DialogContent, DialogTitle, Divider, IconButton, InputAdornment,
@@ -6,9 +6,14 @@ import {
     Typography,
 } from '@mui/material';
 import { Close } from '@mui/icons-material';
-import { createGRN, getPurchaseOrders, getPurchaseOrder, resolveApiErrorMessage } from '../../services/grnService';
+import { createGRN, getPurchaseOrder, resolveApiErrorMessage } from '../../services/grnService';
+import { getPendingReceiptPOs } from '../../services/purchaseOrderService';
+import { searchInventoryItems } from '../../services/inventoryService';
 import { useAuth } from '../../auth/AuthContext';
 import { format } from 'date-fns';
+import WarehouseSelect from '../common/WarehouseSelect';
+import { listWarehouses } from '../../services/warehouseService';
+import { serverFiltered, renderItemOption, itemLabel } from '../common/itemPicker';
 
 const emptyLine = () => ({
     inventoryItemId: null,
@@ -28,7 +33,21 @@ const emptyLine = () => ({
     rejectionReason: '',
 });
 
-const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
+// A line for an item picked from the search, or handed in by the screen that opened the form.
+const lineForItem = (item) => ({
+    ...emptyLine(),
+    inventoryItemId: item.inventoryItemId,
+    itemCode: item.itemCode || '',
+    itemName: item.name || '',
+    uom: item.uom || '',
+    rate: item.standardCost || 0,
+});
+
+/*
+ * `initialItem` starts a new GRN with that item already on the first line (the "Receive" button
+ * on a stock row). Without a purchase order the lines are picked from the item search.
+ */
+const GRNForm = ({ open, onClose, existingGRN, onSuccess, initialItem = null }) => {
     const { user } = useAuth();
     const isView = !!existingGRN;
 
@@ -43,6 +62,8 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
         remarks: '',
     });
     const [lines, setLines] = useState([emptyLine()]);
+    const [itemOptions, setItemOptions] = useState([]);
+    const itemSearchTimeout = useRef(null);
 
     useEffect(() => {
         if (!open) return;
@@ -58,18 +79,20 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                 : null);
         } else {
             setForm({ grnDate: format(new Date(), 'yyyy-MM-dd'), warehouse: '', remarks: '' });
-            setLines([emptyLine()]);
+            setLines([initialItem ? lineForItem(initialItem) : emptyLine()]);
             setSelectedPO(null);
             setError('');
         }
+        setItemOptions([]);
         fetchPOs();
-    }, [open, existingGRN]);
+    }, [open, existingGRN, initialItem]);
 
     const fetchPOs = async () => {
         setPoLoading(true);
         try {
-            const data = await getPurchaseOrders();
-            setPoList(data || []);
+            // Only orders still awaiting goods: a draft or fully received order is not receivable.
+            const data = await getPendingReceiptPOs();
+            setPoList(Array.isArray(data) ? data : []);
         } catch {
             // non-critical
         } finally {
@@ -77,23 +100,53 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
         }
     };
 
+    const handleItemSearch = (query) => {
+        clearTimeout(itemSearchTimeout.current);
+        if (!query || query.length < 2) return;
+        itemSearchTimeout.current = setTimeout(async () => {
+            try {
+                const resp = await searchInventoryItems({ query, page: 0, size: 20 });
+                setItemOptions(resp?.content || []);
+            } catch {
+                // non-critical
+            }
+        }, 400);
+    };
+
+    const pickItem = (idx, item) => {
+        setLines((prev) => prev.map((l, i) => (i === idx ? (item ? lineForItem(item) : emptyLine()) : l)));
+    };
+
     const handlePOChange = async (po) => {
         setSelectedPO(po);
         if (!po) { setLines([emptyLine()]); return; }
         try {
             const detail = await getPurchaseOrder(po.id);
+            // Receive into the plant the order said to deliver to. It can still be changed below --
+            // the gate knows where the goods actually arrived -- and left blank the server applies
+            // the same plant.
+            if (detail?.shipToWarehouseId) {
+                listWarehouses(true)
+                    .then((plants) => {
+                        const plant = (Array.isArray(plants) ? plants : []).find((w) => w.id === detail.shipToWarehouseId);
+                        if (plant) setForm((f) => ({ ...f, warehouse: plant.code }));
+                    })
+                    .catch(() => { /* non-critical: the server defaults to the same plant */ });
+            }
             if (detail?.items?.length) {
+                // Default to what is still outstanding, so a second receipt does not repeat the first.
+                const due = (poi) => Math.max(0, (poi.quantityOrdered || 0) - (poi.quantityReceived || 0));
                 setLines(detail.items.map((poi) => ({
-                    inventoryItemId: poi.item?.inventoryItemId || null,
-                    itemCode: poi.item?.itemCode || '',
-                    itemName: poi.item?.name || '',
-                    uom: poi.item?.uom || '',
+                    inventoryItemId: poi.itemId ?? poi.item?.inventoryItemId ?? null,
+                    itemCode: poi.itemCode || poi.item?.itemCode || '',
+                    itemName: poi.itemName || poi.item?.name || '',
+                    uom: poi.uom || poi.item?.uom || '',
                     orderedQty: poi.quantityOrdered || 0,
-                    receivedQty: poi.quantityOrdered || 0,
-                    acceptedQty: poi.quantityOrdered || 0,
+                    receivedQty: due(poi),
+                    acceptedQty: due(poi),
                     rejectedQty: 0,
                     rate: poi.unitPrice || 0,
-                    amount: (poi.quantityOrdered || 0) * (poi.unitPrice || 0),
+                    amount: due(poi) * (poi.unitPrice || 0),
                     batchNo: '',
                     manufacturingDate: '',
                     expiryDate: '',
@@ -184,12 +237,14 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                         sx={{ flex: 2 }}
                         options={poList}
                         loading={poLoading}
-                        getOptionLabel={(o) => `${o.purchaseOrderNumber || ''}${o.vendor ? ' — ' + (o.vendor.companyName || '') : ''}`}
+                        getOptionLabel={(o) => `${o.purchaseOrderNumber || ''}${o.vendorName ? ' — ' + o.vendorName : ''}`}
+                        isOptionEqualToValue={(o, v) => o.id === v.id}
                         value={selectedPO}
                         onChange={(_, v) => handlePOChange(v)}
                         disabled={isView}
                         renderInput={(params) => (
-                            <TextField {...params} label="Purchase Order (optional)" size="small"
+                            <TextField {...params} label="Purchase Order" size="small"
+                                helperText={isView ? undefined : 'Leave empty only for goods that arrived without a purchase order'}
                                 InputProps={{ ...params.InputProps, endAdornment: <>{poLoading && <CircularProgress size={16} />}{params.InputProps.endAdornment}</> }} />
                         )}
                     />
@@ -203,11 +258,11 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                         InputLabelProps={{ shrink: true }}
                         sx={{ flex: 1 }}
                     />
-                    <TextField
+                    <WarehouseSelect
                         label="Warehouse"
                         size="small"
                         value={form.warehouse}
-                        onChange={(e) => setForm((f) => ({ ...f, warehouse: e.target.value }))}
+                        onChange={(code) => setForm((f) => ({ ...f, warehouse: code }))}
                         disabled={isView}
                         sx={{ flex: 1 }}
                     />
@@ -251,27 +306,23 @@ const GRNForm = ({ open, onClose, existingGRN, onSuccess }) => {
                             {lines.map((line, idx) => (
                                 <TableRow key={idx}>
                                     <TableCell>
-                                        {isView ? line.itemCode : (
-                                            <TextField
+                                        {(isView || selectedPO) ? line.itemCode : (
+                                            <Autocomplete
                                                 size="small"
-                                                value={line.itemCode}
-                                                onChange={(e) => updateLine(idx, 'itemCode', e.target.value)}
-                                                placeholder="Code"
-                                                sx={{ width: 110 }}
+                                                options={itemOptions}
+                                                filterOptions={serverFiltered}
+                                                renderOption={renderItemOption}
+                                                getOptionLabel={itemLabel}
+                                                isOptionEqualToValue={(o, v) => o.inventoryItemId === v.inventoryItemId}
+                                                value={line.inventoryItemId ? { inventoryItemId: line.inventoryItemId, itemCode: line.itemCode, name: line.itemName } : null}
+                                                onInputChange={(_, v, reason) => { if (reason === 'input') handleItemSearch(v); }}
+                                                onChange={(_, v) => pickItem(idx, v)}
+                                                renderInput={(params) => <TextField {...params} placeholder="Search code or name" />}
+                                                sx={{ width: 240 }}
                                             />
                                         )}
                                     </TableCell>
-                                    <TableCell>
-                                        {isView ? line.itemName : (
-                                            <TextField
-                                                size="small"
-                                                value={line.itemName}
-                                                onChange={(e) => updateLine(idx, 'itemName', e.target.value)}
-                                                placeholder="Item name"
-                                                sx={{ width: 150 }}
-                                            />
-                                        )}
-                                    </TableCell>
+                                    <TableCell>{line.itemName || '-'}</TableCell>
                                     <TableCell>{line.uom || '-'}</TableCell>
                                     {['orderedQty', 'receivedQty', 'acceptedQty', 'rejectedQty', 'rate'].map((field) => (
                                         <TableCell key={field} align="right">

@@ -416,7 +416,7 @@ const InspectionLotDetailPage = () => {
                                     Record Result
                                 </Button>
                             )}
-                            {isFailed && (
+                            {(isFailed || (lot.status === "PASSED" && Number(lot.quantityRejected) > 0)) && (
                                 <Button
                                     variant="contained"
                                     disableElevation
@@ -634,6 +634,47 @@ const InspectionLotDetailPage = () => {
                                                 {n.approvedBy ? `, approved by ${n.approvedBy}` : ""}
                                                 {n.dispositionNotes ? ` — ${n.dispositionNotes}` : ""}
                                             </Typography>
+                                        )}
+                                        {n.status !== "OPEN" && n.disposition === "RETURN_TO_VENDOR" && (
+                                            <Alert
+                                                severity="info"
+                                                sx={{ mt: 1, borderRadius: 2 }}
+                                                action={
+                                                    <Button
+                                                        size="small"
+                                                        color="inherit"
+                                                        onClick={() => navigate("/purchase/debit-notes")}
+                                                        sx={{ textTransform: "none", fontWeight: 700 }}
+                                                    >
+                                                        Debit notes
+                                                    </Button>
+                                                }
+                                            >
+                                                The goods stay in quarantine until a debit note returns them to the vendor.
+                                            </Alert>
+                                        )}
+                                        {n.status !== "OPEN" && n.disposition === "SCRAP" && (
+                                            <Alert
+                                                severity="info"
+                                                sx={{ mt: 1, borderRadius: 2 }}
+                                                action={
+                                                    <Button
+                                                        size="small"
+                                                        color="inherit"
+                                                        onClick={() => navigate("/inventory")}
+                                                        sx={{ textTransform: "none", fontWeight: 700 }}
+                                                    >
+                                                        Inventory
+                                                    </Button>
+                                                }
+                                            >
+                                                The goods stay on the books as failed stock until a stock count or adjustment writes them off.
+                                            </Alert>
+                                        )}
+                                        {n.status !== "OPEN" && n.disposition === "REWORK" && (
+                                            <Alert severity="info" sx={{ mt: 1, borderRadius: 2 }}>
+                                                The goods are held as waiting for inspection. Raise a new inspection once they have been put right.
+                                            </Alert>
                                         )}
                                         {n.status === "OPEN" && (
                                             <Button

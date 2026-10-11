@@ -165,7 +165,7 @@ const attachInterceptors = (client) => {
                     "Session expired. Please sign in again."
                 );
                 handleUnauthorized(message);
-            } else if (status === 403 && !isLoginRequest && !isRefreshRequest) {
+            } else if (status === 403 && !isLoginRequest && !isRefreshRequest && !originalRequest.quietForbidden) {
                 const message = resolveApiErrorMessage(
                     error,
                     "Not authorized to perform this action."
@@ -204,8 +204,10 @@ const saveBlobResponse = (response, fallbackName) => {
 };
 
 const apiService = {
-    get: async (endpoint, params = {}) => {
-        const response = await apiClient.get(endpoint, { params });
+    // `config.quietForbidden` keeps a 403 from raising the global "not authorized" toast, for
+    // background reads (dashboard tiles) where the caller already handles a missing figure.
+    get: async (endpoint, params = {}, config = {}) => {
+        const response = await apiClient.get(endpoint, { params, ...config });
         return response.data;
     },
 

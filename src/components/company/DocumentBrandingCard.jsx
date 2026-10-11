@@ -65,6 +65,8 @@ export default function DocumentBrandingCard({ canEdit }) {
     const [busy, setBusy] = useState("");
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
+    // Which image tile the message belongs to; empty for the card as a whole.
+    const [messageKind, setMessageKind] = useState("");
     const fileInputs = useRef({});
     const thumbnailUrls = useRef({});
 
@@ -105,10 +107,13 @@ export default function DocumentBrandingCard({ canEdit }) {
         return () => Object.values(urls).forEach((url) => URL.revokeObjectURL(url));
     }, [apply]);
 
-    const run = async (name, action, doneMessage) => {
+    // A message about one image is shown in that image's tile, beside the button that caused it:
+    // the top of the card is usually scrolled out of view by the time the user reaches the buttons.
+    const run = async (name, action, doneMessage, kind = "") => {
         setBusy(name);
         setError("");
         setSuccess("");
+        setMessageKind(kind);
         try {
             await action();
             if (doneMessage) setSuccess(doneMessage);
@@ -131,7 +136,8 @@ export default function DocumentBrandingCard({ canEdit }) {
                 const res = await apiClientFile.post("/company/branding/image", formData, { params: { kind } });
                 apply(res.data, [kind]);
             },
-            kind === "LOGO" ? "Logo uploaded." : "Letterhead uploaded."
+            kind === "LOGO" ? "Logo uploaded." : "Letterhead uploaded.",
+            kind
         );
     };
 
@@ -142,7 +148,8 @@ export default function DocumentBrandingCard({ canEdit }) {
                 const res = await apiClient.delete("/company/branding/image", { params: { kind } });
                 apply(res.data, [kind]);
             },
-            kind === "LOGO" ? "Logo removed." : "Letterhead removed."
+            kind === "LOGO" ? "Logo removed." : "Letterhead removed.",
+            kind
         );
 
     const handleApplyMode = () =>
@@ -191,12 +198,12 @@ export default function DocumentBrandingCard({ canEdit }) {
                 {!canEdit && " Contact an admin to make changes."}
             </Typography>
 
-            {error && (
+            {error && !messageKind && (
                 <Alert severity="error" sx={{ mb: 2 }}>
                     {error}
                 </Alert>
             )}
-            {success && (
+            {success && !messageKind && (
                 <Alert severity="success" sx={{ mb: 2 }}>
                     {success}
                 </Alert>
@@ -242,6 +249,11 @@ export default function DocumentBrandingCard({ canEdit }) {
                                     {image.hint}
                                     {present && ` Stored at ${branding[image.width]} × ${branding[image.height]} px.`}
                                 </Typography>
+                                {messageKind === image.kind && (error || success) && (
+                                    <Alert severity={error ? "error" : "success"} sx={{ mb: 1.5 }}>
+                                        {error || success}
+                                    </Alert>
+                                )}
                                 {canEdit && (
                                     <Box sx={{ display: "flex", gap: 1 }}>
                                         <input

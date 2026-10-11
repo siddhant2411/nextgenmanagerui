@@ -720,7 +720,13 @@ const PickListPage = () => {
                             options={salesOrders}
                             loading={soLoading}
                             value={newPick.salesOrder}
-                            onChange={(_, v) => setNewPick((p) => ({ ...p, salesOrder: v }))}
+                            // An order that names the warehouse it is dispatched from is picked from there:
+                            // that is where whatever was made or bought for it was sent.
+                            onChange={(_, v) => setNewPick((p) => ({
+                                ...p,
+                                salesOrder: v,
+                                warehouseCode: v?.dispatchWarehouseCode || p.warehouseCode,
+                            }))}
                             getOptionLabel={(o) => (o ? `${o.orderNumber} — ${o.status}` : "")}
                             isOptionEqualToValue={(a, b) => a?.id === b?.id}
                             disabled={!soLoading && salesOrders.length === 0}

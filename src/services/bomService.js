@@ -25,6 +25,10 @@ export const duplicateBom = (bomId) => {
     return apiService.post(`/bom/${bomId}/duplicate`, {})
 }
 
+export const createBomRevision = (bomId, payload) => {
+    return apiService.post(`/bom/${bomId}/revision`, payload)
+}
+
 export const downloadFlatBomExcel = (ids) => {
     return apiService.download(
         `/bom/export/flat`,

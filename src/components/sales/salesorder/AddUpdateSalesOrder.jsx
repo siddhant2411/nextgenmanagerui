@@ -20,6 +20,7 @@ import { inventoryItemSearch, searchContacts, searchQuotations } from '../../../
 import { contactLabel } from '../../../utils/contactLabel';
 import SalesOrderPartiesSection, { partyDefaultsFor } from './SalesOrderPartiesSection';
 import GstStateSelect from '../../common/GstStateSelect';
+import WarehouseSelect from '../../common/WarehouseSelect';
 import {
     getSalesOrder, createSalesOrder, updateSalesOrder,
     submitSalesOrder, approveSalesOrder, rejectSalesOrder,
@@ -32,6 +33,10 @@ import {
 import SendSalesOrderDialog from './SendSalesOrderDialog';
 import RecordPaymentDialog from './RecordPaymentDialog';
 
+import { serverFiltered, renderItemOption } from '../../common/itemPicker';
+import PriceFloorHint, { floorOf, isBelowFloor } from '../../common/PriceFloorHint';
+import { useAuth } from '../../../auth/AuthContext';
+import { SALES_MANAGE_ROLES } from '../../../auth/roles';
 /* ── Premium Design Tokens ── */
 const T = {
     primary: '#2563eb',
@@ -70,6 +75,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const navigate   = useNavigate();
     const location   = useLocation();
     const { orderId } = useParams();
+    const { hasAnyRole } = useAuth();
     const isEdit     = Boolean(orderId);
     const debounce   = useRef(null);
 
@@ -124,6 +130,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             shipToStateCode: '',
             dispatchThrough: '',
             transportMode: '',
+            // Code of the warehouse the order is dispatched from; '' is the default warehouse.
+            dispatchWarehouseCode: '',
             deliveryDate: '',
             remarks: '',
             discountPercentage: 0,
@@ -258,6 +266,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                 cgstAmount: i.cgstAmount ?? 0,
                 sgstAmount: i.sgstAmount ?? 0,
                 igstAmount: i.igstAmount ?? 0,
+                minimumSellingPrice: i.minimumSellingPrice ?? null,
             })),
             currency:    data.currency    ?? 'INR',
             taxType:     data.taxType     ?? 'CGST_SGST',
@@ -272,6 +281,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             shipToStateCode:        data.shipToStateCode ?? '',
             dispatchThrough:        data.dispatchThrough ?? '',
             transportMode:          data.transportMode ?? '',
+            dispatchWarehouseCode:  data.dispatchWarehouseCode ?? '',
             deliveryDate:           data.deliveryDate ?? '',
             remarks:     data.remarks ?? '',
             discountPercentage:     data.discountPercentage ?? 0,
@@ -303,8 +313,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             getTaxInvoicesBySalesOrder(orderId).then(setLinkedInvoices).catch(() => {});
             listDeliveryNotes({ salesOrderId: orderId }).then(res => setLinkedChallans(res.content || [])).catch(() => {});
             
-            // Fetch profitability (only works for authorized roles)
-            getSalesOrderProfitability(orderId).then(setProfitability).catch(() => {});
+            // Profitability is sales-admin only. Asking for it as anyone else is refused, and that
+            // refusal raised the "no permission" toast on an order the user had just saved.
+            if (hasAnyRole(SALES_MANAGE_ROLES)) {
+                getSalesOrderProfitability(orderId).then(setProfitability).catch(() => {});
+            }
 
             // Fetch advance payments
             getPaymentsForOrder(orderId).then(setPayments).catch(() => {});
@@ -359,6 +372,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         shipToStateCode:     v.shipToStateCode,
         dispatchThrough:     v.dispatchThrough,
         transportMode:       v.transportMode,
+        dispatchWarehouseCode: v.dispatchWarehouseCode || '',
         deliveryDate:        v.deliveryDate || null,
         remarks:             v.remarks,
         discountPercentage:  parseFloat(v.discountPercentage) || 0,
@@ -445,6 +459,15 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     const isCompleted  = formik.values.status === 'COMPLETED';
     const isDispatched = ['FULLY_DISPATCHED','INVOICED','COMPLETED'].includes(formik.values.status);
     const readOnly     = !isDraft || isCancelled || isCompleted;
+    // Approving or rejecting is a sales-admin action; the server refuses it for anyone else.
+    const canApprove   = hasAnyRole(SALES_MANAGE_ROLES);
+
+    // Lines priced under the item's minimum selling price once the order discount is taken off.
+    // The order is not blocked for it; the approver is told before they approve.
+    const belowFloorCount = formik.values.items.filter(i =>
+        isBelowFloor(i.minimumSellingPrice ?? floorOf(i.inventoryItem), i.pricePerUnit, 0, formik.values.discountPercentage)
+    ).length;
+    const belowFloorText = `${belowFloorCount} line${belowFloorCount > 1 ? 's are' : ' is'} priced below the minimum selling price`;
 
     const ss = STATUS_STYLE[formik.values.status]          ?? STATUS_STYLE.DRAFT;
     const as = APPROVAL_STYLE[formik.values.approvalStatus] ?? APPROVAL_STYLE.DRAFT;
@@ -531,11 +554,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 Submit for Approval
                                             </Button>
                                         )}
-                                        {isPending && (
+                                        {isPending && canApprove && (
                                             <>
                                                 <Button size="small" variant="contained" color="success" disableElevation startIcon={<CheckCircle />}
                                                     sx={{ borderRadius: 2.5, fontWeight: 800, textTransform: 'none' }}
-                                                    onClick={() => setDialog({ type: 'approve', title: 'Approve Order', body: 'This will authorize the order and reserve inventory.' })}>
+                                                    onClick={() => setDialog({ type: 'approve', title: 'Approve Order', body: `${belowFloorCount > 0 ? `${belowFloorText}. ` : ''}This will authorize the order and reserve inventory.` })}>
                                                     Approve
                                                 </Button>
                                                 <Button size="small" variant="outlined" color="error" startIcon={<Cancel />}
@@ -649,7 +672,13 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                         </Button>
                                     )}
                                 </Stack>
-                                
+
+                                {belowFloorCount > 0 && (
+                                    <Alert severity="warning" sx={{ mb: 3, borderRadius: 3, fontWeight: 600 }}>
+                                        {belowFloorText}. A sales admin will see this when the order comes for approval.
+                                    </Alert>
+                                )}
+
                                 <TableContainer sx={{ border: `1px solid ${T.border}`, borderRadius: 4, overflow: 'hidden' }}>
                                     <Table size="small">
                                         <TableHead sx={{ bgcolor: T.bg }}>
@@ -664,6 +693,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 <TableRow key={idx} sx={{ '&:hover': { bgcolor: `${T.bg}50` } }}>
                                                     <TableCell sx={{ width: '35%', py: 2 }}>
                                                         <Autocomplete options={productOptions} getOptionLabel={(o) => o.name || ''}
+                                                            filterOptions={serverFiltered} renderOption={renderItemOption}
                                                             value={item.inventoryItem}
                                                             onInputChange={(_, v) => handleSearch('product', v)}
                                                             onChange={(_, v) => {
@@ -673,7 +703,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                                     inventoryItem: v, 
                                                                     pricePerUnit: v?.productFinanceSettings?.sellingPrice || 0, 
                                                                     gstRatePct: v?.productFinanceSettings?.gstRate || 18,
-                                                                    hsnCode: v?.hsnCode || '' 
+                                                                    hsnCode: v?.hsnCode || '',
+                                                                    minimumSellingPrice: null
                                                                 };
                                                                 formik.setFieldValue('items', u);
                                                             }}
@@ -683,7 +714,10 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                     </TableCell>
                                                     <TableCell><TextField variant="standard" value={item.hsnCode} disabled={readOnly} sx={{ width: 70 }} /></TableCell>
                                                     <TableCell><TextField variant="standard" type="number" value={item.qty} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].qty = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'center', fontWeight: 700 } }} sx={{ width: 60 }} /></TableCell>
-                                                    <TableCell><TextField variant="standard" type="number" value={item.pricePerUnit} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].pricePerUnit = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'right', fontWeight: 700 } }} sx={{ width: 80 }} /></TableCell>
+                                                    <TableCell><TextField variant="standard" type="number" value={item.pricePerUnit} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].pricePerUnit = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'right', fontWeight: 700 } }} sx={{ width: 80 }} />
+                                                        <PriceFloorHint item={item.inventoryItem} floor={item.minimumSellingPrice} price={item.pricePerUnit}
+                                                            documentDiscountPct={formik.values.discountPercentage} align="left" />
+                                                    </TableCell>
                                                     <TableCell><TextField variant="standard" type="number" value={item.gstRatePct} disabled={readOnly} sx={{ width: 50 }} inputProps={{ style: { textAlign: 'center' } }} /></TableCell>
                                                     <TableCell align="right" sx={{ fontWeight: 900, color: T.text }}>
                                                         ₹{(parseNum(item.qty) * parseNum(item.pricePerUnit)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -711,6 +745,13 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 <Grid item xs={6}><TextField fullWidth label="Dispatch Through" name="dispatchThrough" value={formik.values.dispatchThrough} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                                 <Grid item xs={6}><TextField fullWidth label="Transport Mode" name="transportMode" value={formik.values.transportMode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                             </Grid>
+                                            {/* Anything this order is short of is made or bought for this warehouse, and it is picked from here. */}
+                                            <WarehouseSelect fullWidth label="Dispatch From"
+                                                value={formik.values.dispatchWarehouseCode}
+                                                onChange={(code) => formik.setFieldValue('dispatchWarehouseCode', code)}
+                                                disabled={readOnly}
+                                                helperText="Work orders and requisitions raised for this order deliver here."
+                                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                             <TextField fullWidth multiline rows={2} label="Internal Remarks" name="remarks" value={formik.values.remarks} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }} />
                                         </Stack>
                                     </Grid>
@@ -758,6 +799,11 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
                                             const rows = [];
                                             rows.push(['Total Item Amount', parseNum(formik.values.subTotal)]);
+                                            // The order discount is why Taxable Amount is lower than the line subtotals.
+                                            const discountPct = parseNum(formik.values.discountPercentage);
+                                            if (discountPct > 0) {
+                                                rows.push([`Discount (${fmtPct(discountPct)}%)`, -(parseNum(formik.values.subTotal) * discountPct / 100)]);
+                                            }
                                             if (freightAmt > 0) {
                                                 rows.push(['Freight Charges', freightAmt]);
                                             }
@@ -773,7 +819,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                         })().map(([label, val]) => (
                                             <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>{label}</Typography>
-                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>₹{parseNum(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>{parseNum(val) < 0 ? '−' : ''}₹{Math.abs(parseNum(val)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
                                             </Box>
                                         ))}
                                         <Divider sx={{ my: 1 }} />

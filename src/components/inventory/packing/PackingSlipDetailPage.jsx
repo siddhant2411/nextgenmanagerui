@@ -310,9 +310,10 @@ const PackingSlipDetailPage = () => {
     const isDraft = slip.status === "DRAFT";
     const isPacked = slip.status === "PACKED";
     const qcOpen = isDraft || isPacked;
-    const canCancel = isDraft || isPacked;
     // A closed slip with no delivery note is packed and waiting for a lorry.
     const canShip = slip.status === "CLOSED" && !slip.deliveryNoteId;
+    // Until it ships, a closed slip can still be cancelled so the pick can be boxed again.
+    const canCancel = isDraft || isPacked || canShip;
     const closeBlocked = blocking.length > 0;
 
     return (

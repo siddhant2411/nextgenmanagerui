@@ -92,6 +92,8 @@ export const ITEM_CODE_MAPPING_ACCESS_ROLES = [
     ROLE_SALES_ADMIN,
     ROLE_SALES_USER,
 ];
+// Everyone who can list items can open one; only INVENTORY_MANAGE_ROLES can change it.
+export const INVENTORY_ITEM_VIEW_ROLES = ITEM_CODE_MAPPING_ACCESS_ROLES;
 export const ITEM_CODE_MAPPING_MANAGE_ROLES = [
     ...ADMIN_ROLES,
     ROLE_PRODUCTION_ADMIN,
@@ -109,6 +111,16 @@ export const PURCHASE_ACCESS_ROLES = [
     ROLE_PURCHASE_USER,
 ];
 export const PURCHASE_MANAGE_ROLES = [...ADMIN_ROLES, ROLE_PURCHASE_ADMIN];
+
+// The purchase team reads vendor prices; maintaining them is PURCHASE_MANAGE_ROLES.
+export const VENDOR_PRICE_VIEW_ROLES = [
+    ...INVENTORY_FINANCE_ROLES,
+    ROLE_PURCHASE_ADMIN,
+    ROLE_PURCHASE_USER,
+];
+// A purchase user enters the vendor's bill as a draft; posting and paying it stays with an admin.
+export const VENDOR_INVOICE_POST_ROLES = [...ADMIN_ROLES, ROLE_INVENTORY_ADMIN, ROLE_PURCHASE_ADMIN];
+export const VENDOR_INVOICE_ENTRY_ROLES = [...VENDOR_INVOICE_POST_ROLES, ROLE_PURCHASE_USER];
 
 export const ACCOUNTING_ACCESS_ROLES = [
     ...ADMIN_ROLES,

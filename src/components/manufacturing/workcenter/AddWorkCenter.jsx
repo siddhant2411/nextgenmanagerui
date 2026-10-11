@@ -112,7 +112,7 @@ const AddWorkCenter = () => {
           formChanged.current = false;
           navigate('/manufacturing/work-center');
         })
-        .catch(() => showSnackbar('Failed to save work center', 'error'));
+        .catch((e) => showSnackbar(e?.response?.data?.error || e?.response?.data?.message || 'Failed to save work center', 'error'));
     },
   });
 

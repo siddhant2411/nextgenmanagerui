@@ -6,12 +6,18 @@ import {
     SwapVert     as RegisterIcon,
 } from '@mui/icons-material';
 import GRNList               from './GRNList';
-import InventoryRequestList  from './InventoryRequestList';
+import MaterialRequestRegister from './MaterialRequestRegister';
 import InwardOutwardRegister from './InwardOutwardRegister';
+
+/* The same register as the Material Requests page, with its own remembered filters. Nested under
+   /inventory so clearing that section clears this tab too. */
+const MaterialRequestsTab = ({ refreshKey }) => (
+    <MaterialRequestRegister namespace="/inventory/requests-tab" refreshKey={refreshKey} />
+);
 
 const INNER_TABS = [
     { label: 'GRN / Receipts',         icon: <GRNIcon      fontSize="small" />, component: GRNList },
-    { label: 'Material Requests',       icon: <RequestIcon  fontSize="small" />, component: InventoryRequestList },
+    { label: 'Material Requests',       icon: <RequestIcon  fontSize="small" />, component: MaterialRequestsTab },
     { label: 'Inward/Outward Register', icon: <RegisterIcon fontSize="small" />, component: InwardOutwardRegister },
 ];
 

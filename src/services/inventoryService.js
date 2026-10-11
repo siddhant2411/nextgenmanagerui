@@ -2,7 +2,9 @@ import apiService, { postFile, putWithFile, resolveApiErrorMessage } from './api
 
 export { resolveApiErrorMessage };
 
-export const getInventorySummary = () => apiService.get('/inventory/summary');
+// Feeds the stat cards above the item list, which every module can open but only inventory roles
+// can read stock totals for — so a 403 here leaves the cards empty rather than raising a toast.
+export const getInventorySummary = () => apiService.get('/inventory/summary', {}, { quietForbidden: true });
 
 export const searchInventoryItems = (params = {}) =>
     apiService.get('/inventory_item/search', params);
@@ -97,8 +99,9 @@ export const submitStockCount = (payload) =>
 export const getStockValuation = (params = {}) =>
     apiService.get('/inventory/valuation-report', params);
 
-export const sendToPlanning = (itemId, qty, requestedBy) =>
-    apiService.post(`/inventory/items/${itemId}/send-to-planning`, { qty, requestedBy });
+// `warehouse` is the code of the warehouse the stock is wanted in; blank is the default warehouse.
+export const sendToPlanning = (itemId, qty, requestedBy, warehouse = '') =>
+    apiService.post(`/inventory/items/${itemId}/send-to-planning`, { qty, requestedBy, warehouse });
 
 // ── Sprint 2-C: Low Stock (for reorder alerts drawer) ────────────────────────
 export const getLowStockItems = (params = {}) =>
@@ -107,6 +110,16 @@ export const getLowStockItems = (params = {}) =>
 // ── Work Order Material Requests ──────────────────────────────────────────────
 export const getPendingMaterialRequests = (params = {}) =>
     apiService.get('/material-requests/pending', params);
+
+// The stores' register: every request in any state, with filters.
+//   status: OPEN (pending + partly issued) | PENDING | PARTIAL | APPROVED | REJECTED | ALL
+//   source: STORES (all the stores act on) | WORK_ORDER | MANUAL | REORDER | SALES_ORDER (read-only)
+//   q: part of an item code, item name or reference;  from / to: yyyy-MM-dd raised dates
+export const getMaterialRequestRegister = (params = {}) =>
+    apiService.get('/material-requests/register', params);
+
+export const getMaterialRequestSummary = () =>
+    apiService.get('/material-requests/summary');
 
 export const getMaterialRequestsForWorkOrder = (workOrderId) =>
     apiService.get(`/material-requests/work-order/${workOrderId}`);

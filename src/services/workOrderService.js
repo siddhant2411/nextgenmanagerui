@@ -33,6 +33,15 @@ export const updateWorkOrder = async (id, data) => {
     return apiService.put(`/production/work-order/${id}`, data);
 }
 
+// Changes where the finished goods are wanted. Allowed after the order is issued, until the goods
+// are booked. `warehouse` is a warehouse code; '' sends them back to the work centre's own store.
+export const changeProduceInto = async (id, warehouse) => {
+    if (!id) {
+        throw new Error('Work order id is required');
+    }
+    return apiService.patch(`/production/work-order/${id}/produce-into`, { warehouse: warehouse || '' });
+}
+
 export const releaseWorkOrder = async (id) => {
     if (!id) {
         throw new Error('Work order id is required');

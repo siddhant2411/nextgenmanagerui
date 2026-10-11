@@ -1,368 +1,247 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions,
-    DialogContent, DialogTitle, Fade, IconButton, InputAdornment, MenuItem,
-    Paper, Select, Stack, Table, TableBody, TableCell, TableContainer,
-    TableHead, TablePagination, TableRow, TextField, Tooltip, Typography,
+    Alert, Box, CircularProgress, Container, Grid, IconButton, Paper, Stack, Tooltip, Typography,
 } from '@mui/material';
-import { CheckCircle, Cancel, Splitscreen, Refresh, Search } from '@mui/icons-material';
 import {
-    getPendingMaterialRequests,
-    approveMaterialRequest,
-    partialApproveMaterialRequest,
-    rejectMaterialRequest,
+    AssignmentTurnedInOutlined, BlockOutlined, HourglassEmptyOutlined, Inventory2Outlined,
+    PendingActions, Refresh, ShoppingBagOutlined, Splitscreen, Warning,
+} from '@mui/icons-material';
+import {
+    getMaterialRequestRegister,
+    getMaterialRequestSummary,
 } from '../../services/inventoryService';
 import { resolveApiErrorMessage } from '../../services/apiService';
-import { useViewState } from '../../commonTools/useViewState';
+import MaterialRequestRegister, { waitingFor } from './MaterialRequestRegister';
+import {
+    alertPanelSx, heroIconButtonSx, heroSx, MUTED, statCardSx, T,
+} from './warehouse/listStyles';
 
-/* Route namespace for preserved page state — see commonTools/useViewState.
+/* Route namespace for preserved filters — see commonTools/useViewState.
    Matches this page's own sidebar route, so that nav item clears just this list. */
 const VIEW_STATE_NS = '/inventory/material-requests';
 
-const HEADER_BG = '#f8fafc';
-const BORDER_COLOR = '#e5e7eb';
+const num = (v) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 }));
 
-const REJECTION_REASONS = [
-    'Out of Stock',
-    'Quality Hold',
-    'Incorrect Item',
-    'Purchase Order Pending',
-    'Item Damaged',
-    'Other',
-];
-
-const headerCellSx = {
-    background: HEADER_BG,
-    color: '#475569',
-    fontWeight: 700,
-    fontSize: '0.75rem',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    py: 1.5,
-    borderBottom: `2px solid ${BORDER_COLOR}`,
-};
-
-const statusChip = (status) => {
-    if (status === 'APPROVED') return <Chip label="Approved" color="success" size="small" sx={{ fontWeight: 700, fontSize: '0.65rem' }} />;
-    if (status === 'PARTIAL') return <Chip label="Partial" color="warning" size="small" sx={{ fontWeight: 700, fontSize: '0.65rem' }} />;
-    if (status === 'REJECTED') return <Chip label="Rejected" color="error" size="small" sx={{ fontWeight: 700, fontSize: '0.65rem' }} />;
-    return <Chip label="Pending" sx={{ bgcolor: '#fef9c3', color: '#92400e', fontWeight: 700, fontSize: '0.65rem', border: '1px solid #fde68a' }} size="small" />;
-};
-
+/*
+ * The stores' desk for material requests.
+ *
+ * Above: how much is waiting and how the last week went. Left: the requests that need a second
+ * look before anyone presses Approve -- ones the shelf cannot cover, and ones that have sat
+ * longest. Right: the register itself, queue and history together.
+ */
 export default function MaterialRequestDashboard() {
-    const [requests, setRequests] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [page, setPage] = useViewState(VIEW_STATE_NS, 'page', 0);
-    const [rowsPerPage, setRowsPerPage] = useViewState(VIEW_STATE_NS, 'pageSize', 20);
-    const [total, setTotal] = useState(0);
+    const [summary, setSummary] = useState(null);
+    const [queue, setQueue] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    // Bumped to make the register refetch; `command` points it at a view.
+    const [refreshKey, setRefreshKey] = useState(0);
+    const [command, setCommand] = useState({ nonce: 0, patch: {} });
 
-    // Action dialogs
-    const [partialDialog, setPartialDialog] = useState({ open: false, request: null, qty: '' });
-    const [rejectDialog, setRejectDialog] = useState({ open: false, request: null, reason: '', customReason: '' });
-    // qty === null → confirm a full approve; qty set → confirm a partial approve.
-    const [negativeConfirm, setNegativeConfirm] = useState({ open: false, message: '', requestId: null, qty: null });
-    const [actionLoading, setActionLoading] = useState(false);
-
-    const isNegativeStockPrompt = (e) =>
-        e?.response?.status === 409 && e?.response?.data?.requiresConfirmation;
-
-    const fetchRequests = useCallback(async () => {
-        setLoading(true);
+    const loadDesk = useCallback(async () => {
         setError(null);
         try {
-            const res = await getPendingMaterialRequests({ page, size: rowsPerPage });
-            setRequests(res.content || []);
-            setTotal(res.totalElements || 0);
+            const [counts, open] = await Promise.all([
+                getMaterialRequestSummary(),
+                // The head of the queue, oldest first: enough to say what is stuck and what is short.
+                getMaterialRequestRegister({ status: 'OPEN', source: 'STORES', page: 0, size: 50 }),
+            ]);
+            setSummary(counts || null);
+            setQueue(open?.content || []);
         } catch (e) {
-            setError('Failed to load material requests.');
+            setError(resolveApiErrorMessage(e, 'Could not load the material request summary.'));
         } finally {
             setLoading(false);
         }
-    }, [page, rowsPerPage]);
+    }, []);
 
-    useEffect(() => { fetchRequests(); }, [fetchRequests]);
+    useEffect(() => { loadDesk(); }, [loadDesk]);
 
-    const handleApprove = async (requestId, force = false) => {
-        setActionLoading(true);
-        try {
-            await approveMaterialRequest(requestId, force);
-            fetchRequests();
-        } catch (e) {
-            if (isNegativeStockPrompt(e)) {
-                setNegativeConfirm({ open: true, message: e.response.data.message, requestId, qty: null });
-                return;
-            }
-            setError(resolveApiErrorMessage(e, 'Approval failed.'));
-        } finally {
-            setActionLoading(false);
-        }
+    const refreshAll = () => {
+        loadDesk();
+        setRefreshKey((k) => k + 1);
     };
 
-    const handlePartialSubmit = async (force = false) => {
-        const qty = parseFloat(partialDialog.qty);
-        if (!qty || qty <= 0) return;
-        const requestId = partialDialog.request.id;
-        setActionLoading(true);
-        try {
-            await partialApproveMaterialRequest(requestId, qty, force);
-            setPartialDialog({ open: false, request: null, qty: '' });
-            fetchRequests();
-        } catch (e) {
-            if (isNegativeStockPrompt(e)) {
-                setPartialDialog({ open: false, request: null, qty: '' });
-                setNegativeConfirm({ open: true, message: e.response.data.message, requestId, qty });
-                return;
-            }
-            setError(resolveApiErrorMessage(e, 'Partial approval failed.'));
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    const show = (patch) => setCommand((c) => ({ nonce: c.nonce + 1, patch }));
+    const allDates = { search: '', from: '', to: '' };
 
-    const handleConfirmNegative = async () => {
-        const { requestId, qty } = negativeConfirm;
-        setNegativeConfirm({ open: false, message: '', requestId: null, qty: null });
-        if (requestId == null) return;
-        setActionLoading(true);
-        try {
-            if (qty == null) {
-                await approveMaterialRequest(requestId, true);
-            } else {
-                await partialApproveMaterialRequest(requestId, qty, true);
-            }
-            fetchRequests();
-        } catch (e) {
-            setError(resolveApiErrorMessage(e, 'Approval failed.'));
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    const oldestAge = waitingFor(summary?.oldestWaiting);
+    const statCards = [
+        {
+            label: 'Waiting On Stores', value: summary?.waiting, icon: HourglassEmptyOutlined, color: '#f59e0b',
+            tag: summary?.waiting ? (oldestAge === 'today' ? 'Oldest: today' : `Oldest: ${oldestAge || '—'}`) : 'Clear',
+            view: { status: 'OPEN', source: 'STORES', ...allDates },
+        },
+        {
+            label: 'Partly Issued', value: summary?.partlyIssued, icon: Splitscreen, color: '#8b5cf6',
+            tag: summary?.partlyIssued ? 'Balance owed' : 'None',
+            view: { status: 'OPEN', source: 'STORES', ...allDates },
+        },
+        {
+            label: 'Approved', value: summary?.approvedLast7Days, icon: AssignmentTurnedInOutlined, color: '#10b981',
+            tag: 'Last 7 days',
+            view: { status: 'APPROVED', source: 'STORES', ...allDates },
+        },
+        {
+            label: 'Rejected', value: summary?.rejectedLast7Days, icon: BlockOutlined, color: '#ef4444',
+            tag: 'Last 7 days',
+            view: { status: 'REJECTED', source: 'STORES', ...allDates },
+        },
+    ];
 
-    const handleRejectSubmit = async () => {
-        const reason = rejectDialog.reason === 'Other' ? rejectDialog.customReason : rejectDialog.reason;
-        if (!reason) return;
-        setActionLoading(true);
-        try {
-            await rejectMaterialRequest(rejectDialog.request.id, reason);
-            setRejectDialog({ open: false, request: null, reason: '', customReason: '' });
-            fetchRequests();
-        } catch (e) {
-            setError(resolveApiErrorMessage(e, 'Rejection failed.'));
-        } finally {
-            setActionLoading(false);
-        }
-    };
+    const shortRows = queue.filter((r) => r.stockShort);
+    // Anything raised before today that the shelf could cover: nothing is stopping it but attention.
+    const staleRows = queue.filter((r) => !r.stockShort && waitingFor(r.requestedDate) !== 'today').slice(0, 5);
+    const reservations = summary?.salesOrderReservations || 0;
+    const railVisible = shortRows.length > 0 || staleRows.length > 0 || reservations > 0;
 
     return (
-        <Fade in timeout={400}>
-            <Box>
-                <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: `1px solid ${BORDER_COLOR}`, bgcolor: '#fff' }}>
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-end" mb={3} gap={2} flexWrap="wrap">
+        <Box sx={{ bgcolor: T.bg, minHeight: '100vh', pb: 8 }}>
+            <Box sx={heroSx}>
+                <Container maxWidth="xl">
+                    <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between"
+                        alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} mb={6}>
                         <Box>
-                            <Typography variant="h5" fontWeight={800} sx={{ color: '#0f172a' }}>
+                            <Typography variant="h4" sx={{ fontWeight: 900, letterSpacing: '-0.02em', mb: 1 }}>
                                 Material Requests
                             </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                                Approve or reject material requests raised against Work Orders
+                            <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 500 }}>
+                                What production is waiting on from the stores, and everything already issued or turned down.
                             </Typography>
                         </Box>
                         <Tooltip title="Refresh">
-                            <IconButton onClick={fetchRequests} disabled={loading} sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 1.5 }}>
+                            <IconButton onClick={refreshAll} sx={heroIconButtonSx} aria-label="Refresh">
                                 <Refresh />
                             </IconButton>
                         </Tooltip>
-                    </Box>
+                    </Stack>
 
-                    {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
-
-                    <TableContainer sx={{ border: `1px solid ${BORDER_COLOR}`, borderRadius: 2 }}>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={headerCellSx}>Work Order</TableCell>
-                                    <TableCell sx={headerCellSx}>Item</TableCell>
-                                    <TableCell align="right" sx={headerCellSx}>Requested Qty</TableCell>
-                                    <TableCell align="right" sx={headerCellSx}>Approved Qty</TableCell>
-                                    <TableCell align="center" sx={headerCellSx}>Status</TableCell>
-                                    <TableCell sx={headerCellSx}>Requested On</TableCell>
-                                    <TableCell sx={headerCellSx}>Remarks / Reason</TableCell>
-                                    <TableCell align="center" sx={headerCellSx}>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {loading ? (
-                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 10 }}><CircularProgress size={28} /></TableCell></TableRow>
-                                ) : requests.length === 0 ? (
-                                    <TableRow><TableCell colSpan={8} align="center" sx={{ py: 8, color: 'text.secondary' }}>No pending material requests.</TableCell></TableRow>
-                                ) : requests.map((req) => (
-                                    <TableRow key={req.id} hover sx={{ '&:hover': { bgcolor: '#f9fafb !important' } }}>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={700} color="primary.main">
-                                                {req.referenceNumber?.split('-MAT-')[0] || `WO-${req.sourceId}`}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">Ref: {req.referenceNumber}</Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" fontWeight={600}>{req.inventoryItem?.itemCode}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{req.inventoryItem?.name}</Typography>
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            <Typography variant="body2" fontWeight={600}>{req.requestedQuantity ?? '-'}</Typography>
-                                            <Typography variant="caption" color="text.secondary">{req.inventoryItem?.uom}</Typography>
-                                        </TableCell>
-                                        <TableCell align="right">
-                                            {req.approvedQuantity != null ? (
-                                                <Typography variant="body2" fontWeight={600} color="success.main">{req.approvedQuantity}</Typography>
-                                            ) : (
-                                                <Typography variant="caption" color="text.secondary">—</Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="center">{statusChip(req.approvalStatus)}</TableCell>
-                                        <TableCell>
-                                            <Typography variant="caption">{req.requestedDate ? new Date(req.requestedDate).toLocaleDateString('en-IN') : '—'}</Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            {req.rejectionReason ? (
-                                                <Tooltip title={req.rejectionReason} arrow>
-                                                    <Typography variant="caption" color="error.main" sx={{ cursor: 'help' }}>
-                                                        {req.rejectionReason.length > 22 ? req.rejectionReason.slice(0, 22) + '…' : req.rejectionReason}
-                                                    </Typography>
-                                                </Tooltip>
-                                            ) : (
-                                                <Typography variant="caption" color="text.secondary">{req.requestRemarks || '—'}</Typography>
-                                            )}
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Stack direction="row" spacing={0.5} justifyContent="center">
-                                                <Tooltip title="Full Approve">
-                                                    <span>
-                                                        <IconButton size="small" color="success"
-                                                            onClick={() => handleApprove(req.id)}
-                                                            disabled={actionLoading || req.approvalStatus === 'APPROVED'}>
-                                                            <CheckCircle fontSize="small" />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
-                                                <Tooltip title="Partial Approve">
-                                                    <span>
-                                                        <IconButton size="small" color="warning"
-                                                            onClick={() => setPartialDialog({ open: true, request: req, qty: '' })}
-                                                            disabled={actionLoading || req.approvalStatus === 'APPROVED'}>
-                                                            <Splitscreen fontSize="small" />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
-                                                <Tooltip title="Reject">
-                                                    <span>
-                                                        <IconButton size="small" color="error"
-                                                            onClick={() => setRejectDialog({ open: true, request: req, reason: '', customReason: '' })}
-                                                            disabled={actionLoading || req.approvalStatus === 'REJECTED'}>
-                                                            <Cancel fontSize="small" />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
-                                            </Stack>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-
-                    <TablePagination
-                        component="div"
-                        count={total}
-                        page={page}
-                        onPageChange={(_, p) => setPage(p)}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-                        rowsPerPageOptions={[10, 20, 50]}
-                        sx={{ mt: 1 }}
-                    />
-                </Paper>
-
-                {/* Partial Approve Dialog */}
-                <Dialog open={partialDialog.open} onClose={() => setPartialDialog({ open: false, request: null, qty: '' })} maxWidth="xs" fullWidth>
-                    <DialogTitle fontWeight={700}>Partial Approve</DialogTitle>
-                    <DialogContent>
-                        <Typography variant="body2" mb={2} color="text.secondary">
-                            Requested: <strong>{partialDialog.request?.requestedQuantity} {partialDialog.request?.inventoryItem?.uom}</strong> of{' '}
-                            <strong>{partialDialog.request?.inventoryItem?.itemCode}</strong>
-                        </Typography>
-                        <TextField
-                            label="Approved Quantity"
-                            type="number"
-                            fullWidth
-                            size="small"
-                            value={partialDialog.qty}
-                            onChange={(e) => setPartialDialog((prev) => ({ ...prev, qty: e.target.value }))}
-                            inputProps={{ min: 0.001, max: partialDialog.request?.requestedQuantity, step: '0.001' }}
-                        />
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setPartialDialog({ open: false, request: null, qty: '' })}>Cancel</Button>
-                        <Button variant="contained" color="warning" onClick={() => handlePartialSubmit()} disabled={actionLoading || !partialDialog.qty}>
-                            {actionLoading ? 'Approving…' : 'Approve Partial'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-
-                {/* Negative-stock confirmation */}
-                <Dialog open={negativeConfirm.open} onClose={() => setNegativeConfirm({ open: false, message: '', requestId: null, qty: null })} maxWidth="xs" fullWidth>
-                    <DialogTitle fontWeight={700} sx={{ color: '#b45309' }}>Negative stock warning</DialogTitle>
-                    <DialogContent>
-                        <Typography variant="body2" sx={{ color: '#334155' }}>
-                            {negativeConfirm.message || 'Approving this request will take available stock below zero.'}
-                        </Typography>
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setNegativeConfirm({ open: false, message: '', requestId: null, qty: null })}>Cancel</Button>
-                        <Button variant="contained" color="warning" onClick={handleConfirmNegative} disabled={actionLoading}>
-                            {actionLoading ? 'Approving…' : 'Approve anyway'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-
-                {/* Reject Dialog */}
-                <Dialog open={rejectDialog.open} onClose={() => setRejectDialog({ open: false, request: null, reason: '', customReason: '' })} maxWidth="xs" fullWidth>
-                    <DialogTitle fontWeight={700}>Reject Material Request</DialogTitle>
-                    <DialogContent>
-                        <Typography variant="body2" mb={2} color="text.secondary">
-                            Item: <strong>{rejectDialog.request?.inventoryItem?.itemCode}</strong>
-                        </Typography>
-                        <Select
-                            fullWidth
-                            size="small"
-                            value={rejectDialog.reason}
-                            onChange={(e) => setRejectDialog((prev) => ({ ...prev, reason: e.target.value, customReason: '' }))}
-                            displayEmpty
-                            sx={{ mb: 2 }}
-                        >
-                            <MenuItem value="" disabled>Select reason</MenuItem>
-                            {REJECTION_REASONS.map((r) => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                        </Select>
-                        {rejectDialog.reason === 'Other' && (
-                            <TextField
-                                label="Describe reason"
-                                fullWidth
-                                size="small"
-                                multiline
-                                rows={2}
-                                value={rejectDialog.customReason}
-                                onChange={(e) => setRejectDialog((prev) => ({ ...prev, customReason: e.target.value }))}
-                            />
-                        )}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setRejectDialog({ open: false, request: null, reason: '', customReason: '' })}>Cancel</Button>
-                        <Button variant="contained" color="error" onClick={handleRejectSubmit}
-                            disabled={actionLoading || !rejectDialog.reason || (rejectDialog.reason === 'Other' && !rejectDialog.customReason)}>
-                            {actionLoading ? 'Rejecting…' : 'Reject'}
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                    <Grid container spacing={3}>
+                        {statCards.map((stat) => (
+                            <Grid item xs={12} sm={6} md={3} key={stat.label}>
+                                <Paper elevation={0} onClick={() => show(stat.view)}
+                                    sx={{
+                                        ...statCardSx, cursor: 'pointer', transition: 'border-color 0.15s',
+                                        '&:hover': { borderColor: `${stat.color}80` },
+                                    }}>
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                        <Box sx={{ p: 1, borderRadius: 2, bgcolor: `${stat.color}20`, color: stat.color, display: 'flex' }}>
+                                            <stat.icon />
+                                        </Box>
+                                        <Typography sx={{
+                                            color: stat.color, fontSize: '0.7rem', fontWeight: 800,
+                                            bgcolor: `${stat.color}10`, px: 1, borderRadius: 1,
+                                        }}>
+                                            {stat.tag}
+                                        </Typography>
+                                    </Stack>
+                                    <Typography variant="h5" sx={{ fontWeight: 900, mt: 2, color: 'white' }}>
+                                        {loading ? <CircularProgress size={20} color="inherit" /> : (stat.value ?? '—')}
+                                    </Typography>
+                                    <Typography variant="caption"
+                                        sx={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600, textTransform: 'uppercase' }}>
+                                        {stat.label}
+                                    </Typography>
+                                </Paper>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </Container>
             </Box>
-        </Fade>
+
+            <Container maxWidth="xl" sx={{ mt: -6 }}>
+                {error && (
+                    <Alert severity="error" sx={{ mb: 3, borderRadius: 3 }} onClose={() => setError(null)}>{error}</Alert>
+                )}
+
+                <Grid container spacing={4}>
+                    {railVisible && (
+                        <Grid item xs={12} lg={3}>
+                            <Stack spacing={3}>
+                                {shortRows.length > 0 && (
+                                    <Paper elevation={0} sx={alertPanelSx('#fecaca', '#fff5f5')}>
+                                        <Box sx={{ p: 2, bgcolor: '#fee2e2', borderBottom: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Warning sx={{ color: T.error, fontSize: 18 }} />
+                                            <Typography sx={{ fontWeight: 800, color: '#991b1b', fontSize: '0.85rem' }}>
+                                                Not Enough Stock ({shortRows.length})
+                                            </Typography>
+                                        </Box>
+                                        {shortRows.slice(0, 5).map((r) => (
+                                            <Box key={r.id} onClick={() => show({ status: 'OPEN', source: 'STORES', ...allDates, search: r.itemCode || '' })}
+                                                sx={{ p: 2, borderBottom: '1px solid #fecaca', cursor: 'pointer', '&:hover': { bgcolor: '#fef2f2' } }}>
+                                                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{r.itemCode}</Typography>
+                                                    <Typography sx={{ color: T.error, fontWeight: 700, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                        short {num(Number(r.remainingQty) - Number(r.availableQty))}
+                                                    </Typography>
+                                                </Stack>
+                                                <Typography sx={{ color: MUTED, fontSize: '0.75rem' }}>
+                                                    {r.sourceNumber || 'Request'} · needs {num(r.remainingQty)}, {num(r.availableQty)} free
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                    </Paper>
+                                )}
+
+                                {staleRows.length > 0 && (
+                                    <Paper elevation={0} sx={alertPanelSx('#fde68a', '#fffbeb')}>
+                                        <Box sx={{ p: 2, bgcolor: '#fef3c7', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <PendingActions sx={{ color: T.warning, fontSize: 18 }} />
+                                            <Typography sx={{ fontWeight: 800, color: '#92400e', fontSize: '0.85rem' }}>
+                                                Waiting Longest
+                                            </Typography>
+                                        </Box>
+                                        {staleRows.map((r) => (
+                                            <Box key={r.id} onClick={() => show({ status: 'OPEN', source: 'STORES', ...allDates, search: r.itemCode || '' })}
+                                                sx={{ p: 2, borderBottom: '1px solid #fde68a', cursor: 'pointer', '&:hover': { bgcolor: '#fffaf0' } }}>
+                                                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                                                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{r.itemCode}</Typography>
+                                                    <Typography sx={{ color: T.warning, fontWeight: 700, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                                        {waitingFor(r.requestedDate)}
+                                                    </Typography>
+                                                </Stack>
+                                                <Typography sx={{ color: MUTED, fontSize: '0.75rem' }}>
+                                                    {r.sourceNumber || 'Request'} · {num(r.remainingQty)} {r.uom} · stock is there
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                    </Paper>
+                                )}
+
+                                {reservations > 0 && (
+                                    <Paper elevation={0} sx={alertPanelSx('#bfdbfe', '#eff6ff')}>
+                                        <Box sx={{ p: 2, bgcolor: '#dbeafe', borderBottom: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <ShoppingBagOutlined sx={{ color: T.primary, fontSize: 18 }} />
+                                            <Typography sx={{ fontWeight: 800, color: '#1e40af', fontSize: '0.85rem' }}>
+                                                Sales Order Reservations ({reservations})
+                                            </Typography>
+                                        </Box>
+                                        <Box onClick={() => show({ status: 'OPEN', source: 'SALES_ORDER', ...allDates })}
+                                            sx={{ p: 2, cursor: 'pointer', '&:hover': { bgcolor: '#e0edff' } }}>
+                                            <Stack direction="row" spacing={1} alignItems="flex-start">
+                                                <Inventory2Outlined sx={{ fontSize: 16, color: T.primary, mt: 0.25 }} />
+                                                <Typography sx={{ color: '#334155', fontSize: '0.78rem' }}>
+                                                    Stock held for approved sales orders. Nothing to approve — see what each
+                                                    order has reserved and what it is still short of.
+                                                </Typography>
+                                            </Stack>
+                                        </Box>
+                                    </Paper>
+                                )}
+                            </Stack>
+                        </Grid>
+                    )}
+
+                    <Grid item xs={12} lg={railVisible ? 9 : 12}>
+                        <MaterialRequestRegister
+                            namespace={VIEW_STATE_NS}
+                            command={command}
+                            refreshKey={refreshKey}
+                            onChanged={loadDesk}
+                        />
+                    </Grid>
+                </Grid>
+            </Container>
+        </Box>
     );
 }

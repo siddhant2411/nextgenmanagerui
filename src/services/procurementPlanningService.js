@@ -7,11 +7,16 @@ export { resolveApiErrorMessage };
 export const getPlanningQueue = () =>
     apiService.get('/procurement-planning/queue');
 
-export const decideMake = (procurementOrderId) =>
-    apiService.post(`/procurement-planning/${procurementOrderId}/make`);
+// `deliverToWarehouse` is the code of the warehouse the goods are wanted in. Left out, the need
+// keeps the warehouse it was raised with.
+const deliverTo = (deliverToWarehouse) =>
+    (deliverToWarehouse ? { params: { deliverToWarehouse } } : {});
 
-export const decideBuy = (procurementOrderId) =>
-    apiService.post(`/procurement-planning/${procurementOrderId}/buy`);
+export const decideMake = (procurementOrderId, deliverToWarehouse) =>
+    apiService.post(`/procurement-planning/${procurementOrderId}/make`, null, deliverTo(deliverToWarehouse));
+
+export const decideBuy = (procurementOrderId, deliverToWarehouse) =>
+    apiService.post(`/procurement-planning/${procurementOrderId}/buy`, null, deliverTo(deliverToWarehouse));
 
 export const deferNeed = (procurementOrderId) =>
     apiService.post(`/procurement-planning/${procurementOrderId}/defer`);
