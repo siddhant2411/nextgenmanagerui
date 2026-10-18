@@ -14,3 +14,13 @@ export const lockPeriod = (periodId) =>
 
 export const unlockPeriod = (periodId) =>
     apiService.patch(`/accounting/financial-years/periods/${periodId}/unlock`);
+
+// ── Year-end close (Phase 5) ─────────────────────────────────────────────────
+export const getYearEndClosePreview = (fyId) =>
+    apiService.get(`/accounting/financial-years/${fyId}/close-preview`);
+
+export const closeFinancialYear = (fyId) =>
+    apiService.post(`/accounting/financial-years/${fyId}/close`);
+
+export const reopenFinancialYear = (fyId, reason) =>
+    apiService.post(`/accounting/financial-years/${fyId}/reopen`, { reason });

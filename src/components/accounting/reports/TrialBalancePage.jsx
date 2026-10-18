@@ -1,11 +1,14 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert, Box, Button, Chip, CircularProgress, Divider,
     Paper, Skeleton, Stack, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import { CheckCircleOutlined, WarningAmberOutlined } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 import { getTrialBalance } from "../../../services/accounting/accountingReportService";
+import { useFinancialYears } from "../gst/gstCommon";
+import { Kbd, fyStartFor, rowSx, useRowKeys } from "../common/accountingUi";
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
@@ -48,14 +51,16 @@ const fmtStat = (n) =>
     n == null ? "—" : new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
 
 const TrialBalancePage = () => {
+    const navigate = useNavigate();
+    const { fys } = useFinancialYears();
     const [asOf, setAsOf] = useState(todayStr);
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    const run = async () => {
+    const run = useCallback(async () => {
+        if (!asOf) return;
         setError("");
-        setData(null);
         setLoading(true);
         try {
             setData(await getTrialBalance(asOf));
@@ -64,16 +69,28 @@ const TrialBalancePage = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [asOf]);
+
+    // The report opens filled in and follows the date — no "Run Report" step.
+    useEffect(() => { run(); }, [run]);
 
     // Group lines by nature, sorted by NATURE_META.order
-    const grouped = data ? Object.entries(
+    const grouped = useMemo(() => data ? Object.entries(
         data.lines.reduce((acc, l) => {
             const key = l.nature || "ASSET";
             (acc[key] = acc[key] || []).push(l);
             return acc;
         }, {})
-    ).sort(([a], [b]) => (NATURE_META[a]?.order ?? 9) - (NATURE_META[b]?.order ?? 9)) : [];
+    ).sort(([a], [b]) => (NATURE_META[a]?.order ?? 9) - (NATURE_META[b]?.order ?? 9)) : [], [data]);
+
+    // Ledger rows in the order they are drawn, so arrow keys walk them top to bottom.
+    const flat = useMemo(() => grouped.flatMap(([, lines]) => lines), [grouped]);
+    const indexOf = useMemo(() => new Map(flat.map((l, i) => [l.accountId, i])), [flat]);
+    const openLedger = useCallback((l) => {
+        navigate(`/accounting/reports/ledger?accountId=${l.accountId}&from=${fyStartFor(asOf, fys)}&to=${asOf}`);
+    }, [navigate, asOf, fys]);
+    const openAt = useCallback((i) => flat[i] && openLedger(flat[i]), [flat, openLedger]);
+    const { active, rowRef } = useRowKeys(flat.length, openAt);
 
     const subtotal = (lines) => lines.reduce(
         (s, l) => ({ dr: s.dr + (l.closingDr || 0), cr: s.cr + (l.closingCr || 0) }),
@@ -114,11 +131,14 @@ const TrialBalancePage = () => {
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-end" sx={{ mb: 3 }}>
                     <TextField label="As of Date" type="date" size="small" value={asOf}
                         onChange={(e) => setAsOf(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 200 }} />
-                    <Button variant="contained" disableElevation onClick={run} disabled={loading}
+                    <Button variant="outlined" disableElevation onClick={run} disabled={loading}
                         startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
-                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, bgcolor: "#10b981", "&:hover": { bgcolor: "#059669" }, height: 40 }}>
-                        {loading ? "Loading…" : "Run Report"}
+                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#e2e8f0", color: "#475569", height: 40 }}>
+                        {loading ? "Loading…" : "Refresh"}
                     </Button>
+                    <Typography sx={{ fontSize: "0.6875rem", color: "#94a3b8", pb: 1.25 }}>
+                        Click a ledger, or <Kbd>↑</Kbd><Kbd>↓</Kbd> then <Kbd>Enter</Kbd>, to open its statement
+                    </Typography>
                 </Stack>
 
                 {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 1.5 }}>{error}</Alert>}
@@ -136,7 +156,7 @@ const TrialBalancePage = () => {
                 )}
 
                 {/* Table */}
-                {loading && (
+                {loading && !data && (
                     <Box>
                         {[...Array(8)].map((_, i) => <Skeleton key={i} height={44} sx={{ mb: 0.5 }} />)}
                     </Box>
@@ -181,9 +201,10 @@ const TrialBalancePage = () => {
                                             </TableRow>
 
                                             {lines.map((l) => (
-                                                <TableRow key={l.accountId} sx={{ "&:hover": { bgcolor: "#f8fafc" } }}>
+                                                <TableRow key={l.accountId} ref={rowRef(indexOf.get(l.accountId))}
+                                                    onClick={() => openLedger(l)} sx={rowSx(indexOf.get(l.accountId) === active)}>
                                                     <TableCell sx={{ ...CELL, fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.75rem", color: "#64748b" }}>{l.accountCode}</TableCell>
-                                                    <TableCell sx={{ ...CELL, fontWeight: 500, color: "#0f172a" }}>{l.accountName}</TableCell>
+                                                    <TableCell sx={{ ...CELL, fontWeight: 600, color: "#2563eb" }}>{l.accountName}</TableCell>
                                                     <TableCell sx={{ ...CELL, color: "#64748b" }}>{l.groupName}</TableCell>
                                                     <AmtCell value={l.openingDr} />
                                                     <AmtCell value={l.openingCr} />

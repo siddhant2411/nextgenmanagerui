@@ -59,8 +59,9 @@ const ModuleSubSidebar = ({
                     location.pathname.startsWith(c.path)
                 ) ?? false);
         });
-        if (!Object.values(initial).some(Boolean) && nav.length > 0) {
-            initial[nav[0].text] = true;
+        const firstGroup = nav.find((s) => s.children);
+        if (!Object.values(initial).some(Boolean) && firstGroup) {
+            initial[firstGroup.text] = true;
         }
         return initial;
     });
@@ -80,6 +81,13 @@ const ModuleSubSidebar = ({
 
     const pathMatches = (path) =>
         location.pathname === path || location.pathname.startsWith(path + "/");
+
+    // Only the closest entry is highlighted: on /accounting/vouchers/new that is "New Voucher",
+    // not also "Voucher Register" (/accounting/vouchers) or "Home" (/accounting).
+    const activePath = nav
+        .flatMap((s) => (s.children ? s.children.map((c) => c.path) : s.path ? [s.path] : []))
+        .filter(pathMatches)
+        .sort((a, b) => b.length - a.length)[0];
 
     const handleNavigate = (path) => {
         // Re-clicking the current section clears its preserved filters/sort/page.
@@ -186,14 +194,17 @@ const ModuleSubSidebar = ({
                 {nav.map((section) => {
                     const isSoon = Boolean(section.comingSoon);
                     const isOpen = Boolean(openSections[section.text]);
+                    const isLeaf = !section.children && Boolean(section.path);
                     const isChildActive =
                         !isSoon &&
-                        section.children?.some((c) => pathMatches(c.path));
+                        (isLeaf
+                            ? section.path === activePath
+                            : section.children?.some((c) => c.path === activePath));
                     const { Icon: SectionIcon } = section;
 
                     const sectionButton = (
                         <ListItemButton
-                            onClick={() => handleSectionClick(section, isSoon)}
+                            onClick={() => (isLeaf ? handleNavigate(section.path) : handleSectionClick(section, isSoon))}
                             sx={{
                                 m: "2px 8px",
                                 borderRadius: 1.5,
@@ -254,7 +265,7 @@ const ModuleSubSidebar = ({
                                                 "& .MuiChip-label": { px: 0.75 },
                                             }}
                                         />
-                                    ) : isOpen ? (
+                                    ) : isLeaf ? null : isOpen ? (
                                         <ExpandLess sx={{ fontSize: 16, color: "#64748b" }} />
                                     ) : (
                                         <ExpandMore sx={{ fontSize: 16, color: "#64748b" }} />
@@ -280,11 +291,11 @@ const ModuleSubSidebar = ({
                                 )}
                             </ListItem>
 
-                            {!isSoon && showText && (
+                            {!isSoon && !isLeaf && showText && (
                                 <Collapse in={isOpen} timeout="auto" unmountOnExit>
                                     <List component="div" disablePadding>
                                         {section.children.map((child) => {
-                                            const active = pathMatches(child.path);
+                                            const active = child.path === activePath;
                                             return (
                                                 <ListItemButton
                                                     key={child.path}

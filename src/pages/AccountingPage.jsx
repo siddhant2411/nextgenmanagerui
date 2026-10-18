@@ -5,15 +5,18 @@ import ChartOfAccountsPage from "../components/accounting/coa/ChartOfAccountsPag
 import FinancialYearsPage from "../components/accounting/period/FinancialYearsPage";
 import OpeningBalancesPage from "../components/accounting/opening/OpeningBalancesPage";
 import VoucherRegister from "../components/accounting/voucher/VoucherRegister";
-import JournalVoucherForm from "../components/accounting/voucher/JournalVoucherForm";
-import ReceiptVoucherForm from "../components/accounting/voucher/ReceiptVoucherForm";
-import PaymentVoucherForm from "../components/accounting/voucher/PaymentVoucherForm";
-import ContraVoucherForm from "../components/accounting/voucher/ContraVoucherForm";
+import VoucherEntryPage from "../components/accounting/voucher/VoucherEntryPage";
+import VoucherDetailPage from "../components/accounting/voucher/VoucherDetailPage";
+import AccountingHome from "../components/accounting/home/AccountingHome";
+import AccountingSearch from "../components/accounting/common/AccountingSearch";
 import TrialBalancePage from "../components/accounting/reports/TrialBalancePage";
 import DayBookPage from "../components/accounting/reports/DayBookPage";
 import LedgerStatementPage from "../components/accounting/reports/LedgerStatementPage";
 import AgeingReportPage from "../components/accounting/reports/AgeingReportPage";
 import StockGlReconciliationPage from "../components/accounting/reports/StockGlReconciliationPage";
+import ProfitLossPage from "../components/accounting/reports/ProfitLossPage";
+import BalanceSheetPage from "../components/accounting/reports/BalanceSheetPage";
+import BankReconciliationPage from "../components/accounting/bank/BankReconciliationPage";
 import Gstr1Page from "../components/accounting/gst/Gstr1Page";
 import Gstr3bPage from "../components/accounting/gst/Gstr3bPage";
 import HsnSummaryPage from "../components/accounting/gst/HsnSummaryPage";
@@ -26,8 +29,11 @@ import PayrollVoucherForm from "../components/accounting/voucher/PayrollVoucherF
 import DepreciationVoucherForm from "../components/accounting/voucher/DepreciationVoucherForm";
 
 const AccountingPage = () => (
+    <>
+    {/* Ctrl+K search, available on every accounting screen */}
+    <AccountingSearch />
     <Routes>
-        <Route index element={<Navigate to="masters/coa" replace />} />
+        <Route index element={<AccountingHome />} />
 
         {/* Masters */}
         <Route
@@ -45,10 +51,13 @@ const AccountingPage = () => (
 
         {/* Vouchers */}
         <Route path="vouchers" element={<VoucherRegister />} />
-        <Route path="vouchers/journal" element={<JournalVoucherForm />} />
-        <Route path="vouchers/receipt" element={<ReceiptVoucherForm />} />
-        <Route path="vouchers/payment" element={<PaymentVoucherForm />} />
-        <Route path="vouchers/contra" element={<ContraVoucherForm />} />
+        <Route path="vouchers/new" element={<VoucherEntryPage />} />
+        <Route path="vouchers/:id" element={<VoucherDetailPage />} />
+        {/* The four manual vouchers share one screen now; old links open it on the right type. */}
+        <Route path="vouchers/journal" element={<Navigate to="/accounting/vouchers/new?type=journal" replace />} />
+        <Route path="vouchers/receipt" element={<Navigate to="/accounting/vouchers/new?type=receipt" replace />} />
+        <Route path="vouchers/payment" element={<Navigate to="/accounting/vouchers/new?type=payment" replace />} />
+        <Route path="vouchers/contra" element={<Navigate to="/accounting/vouchers/new?type=contra" replace />} />
         <Route path="vouchers/payroll" element={<PayrollVoucherForm />} />
         <Route path="vouchers/depreciation" element={<DepreciationVoucherForm />} />
 
@@ -59,6 +68,12 @@ const AccountingPage = () => (
         <Route path="reports/debtors-ageing"   element={<AgeingReportPage variant="DEBTORS" />} />
         <Route path="reports/creditors-ageing" element={<AgeingReportPage variant="CREDITORS" />} />
         <Route path="reports/stock-gl"         element={<StockGlReconciliationPage />} />
+        <Route path="reports/profit-loss"      element={<ProfitLossPage />} />
+        <Route path="reports/balance-sheet"    element={<BalanceSheetPage />} />
+
+        {/* Bank */}
+        <Route path="bank/reconciliation"      element={<BankReconciliationPage />} />
+        <Route path="bank/accounts"            element={<Navigate to="/accounting/bank/reconciliation" replace />} />
 
         {/* GST */}
         <Route path="gst/gstr1"            element={<Gstr1Page />} />
@@ -84,8 +99,9 @@ const AccountingPage = () => (
         />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="masters/coa" replace />} />
+        <Route path="*" element={<Navigate to="/accounting" replace />} />
     </Routes>
+    </>
 );
 
 export default AccountingPage;

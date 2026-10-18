@@ -34,6 +34,9 @@ import {
     lockPeriod,
     unlockPeriod,
 } from "../../../services/accounting/accountingFyService";
+import { useAuth } from "../../../auth/AuthContext";
+import { GST_FILE_ROLES } from "../gst/gstCommon";
+import YearEndCloseDialog from "./YearEndCloseDialog";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -153,7 +156,7 @@ const PeriodCard = ({ period, onLock, onUnlock, loadingId }) => {
 
 // ─── FY card ──────────────────────────────────────────────────────────────────
 
-const FyCard = ({ fy, expanded, onToggle, onLock, onUnlock, loadingPeriodId }) => {
+const FyCard = ({ fy, expanded, onToggle, onLock, onUnlock, loadingPeriodId, canClose, onCloseYear, onReopenYear }) => {
     const statusMeta = FY_STATUS_META[fy.status] || FY_STATUS_META.ACTIVE;
     const openCount = fy.periods?.filter((p) => p.status === "OPEN").length ?? 0;
     const lockedCount = fy.periods?.filter((p) => p.status === "LOCKED").length ?? 0;
@@ -252,6 +255,30 @@ const FyCard = ({ fy, expanded, onToggle, onLock, onUnlock, loadingPeriodId }) =
                             No periods found for this financial year.
                         </Typography>
                     )}
+
+                    {/* Year-end close */}
+                    <Stack direction={{ xs: "column", sm: "row" }} alignItems={{ xs: "flex-start", sm: "center" }}
+                        justifyContent="space-between" spacing={1.5}
+                        sx={{ mt: 2, pt: 2, borderTop: "1px solid #f1f5f9" }}>
+                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
+                            {fy.status === "CLOSED"
+                                ? <>Closed{fy.closedBy ? ` by ${fy.closedBy}` : ""}{fy.closedAt ? ` on ${fmtDate(fy.closedAt)}` : ""}.</>
+                                : fy.reopenedAt
+                                    ? <>Reopened by {fy.reopenedBy} on {fmtDate(fy.reopenedAt)}: {fy.reopenReason}</>
+                                    : "Year-end close moves the year's income and expenses into Retained Earnings."}
+                        </Typography>
+                        {canClose && (fy.status === "CLOSED" ? (
+                            <Button size="small" variant="outlined" onClick={() => onReopenYear(fy)}
+                                sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, color: "#b45309", borderColor: "#fde68a", flexShrink: 0 }}>
+                                Reopen Year…
+                            </Button>
+                        ) : (
+                            <Button size="small" variant="outlined" onClick={() => onCloseYear(fy)}
+                                sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, color: "#0f172a", borderColor: "#cbd5e1", flexShrink: 0 }}>
+                                Close Year…
+                            </Button>
+                        ))}
+                    </Stack>
                 </Box>
             )}
         </Paper>
@@ -365,6 +392,10 @@ const FinancialYearsPage = () => {
     const [loadingPeriodId, setLoadingPeriodId] = useState(null);
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [snack, setSnack] = useState({ open: false, message: "", severity: "success" });
+    const [yearDialog, setYearDialog] = useState(null);   // { fy, mode: "close" | "reopen" }
+    // Mirrors @RequiresAccountsHead on the close / reopen endpoints.
+    const { hasAnyRole } = useAuth();
+    const canCloseYears = hasAnyRole(GST_FILE_ROLES);
 
     const showSnack = useCallback(
         (message, severity = "success") => setSnack({ open: true, message, severity }),
@@ -554,6 +585,9 @@ const FinancialYearsPage = () => {
                                 onLock={handleLock}
                                 onUnlock={handleUnlock}
                                 loadingPeriodId={loadingPeriodId}
+                                canClose={canCloseYears}
+                                onCloseYear={(y) => setYearDialog({ fy: y, mode: "close" })}
+                                onReopenYear={(y) => setYearDialog({ fy: y, mode: "reopen" })}
                             />
                         ))}
                     </Stack>
@@ -564,6 +598,17 @@ const FinancialYearsPage = () => {
                 open={addDialogOpen}
                 onClose={() => setAddDialogOpen(false)}
                 onSave={handleAddFy}
+            />
+
+            <YearEndCloseDialog
+                fy={yearDialog?.fy}
+                mode={yearDialog?.mode}
+                open={!!yearDialog}
+                onClose={() => setYearDialog(null)}
+                onDone={(updated, message) => {
+                    setYears((prev) => prev.map((y) => (y.id === updated.id ? updated : y)));
+                    showSnack(message);
+                }}
             />
 
             <Snackbar

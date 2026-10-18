@@ -38,3 +38,17 @@ export const getStockGlReconciliation = (asOf, from) =>
 
 export const downloadStockGlReconciliationExcel = (asOf, from) =>
     apiService.download("/accounting/reports/stock-gl-reconciliation/excel", stockGlParams(asOf, from), `Stock_GL_Reconciliation_${asOf || ""}.xlsx`);
+
+// ── Financial statements (Phase 5) ───────────────────────────────────────────
+// The comparative column defaults server-side to the same dates a year earlier.
+export const getProfitLoss = (from, to) =>
+    apiService.get("/accounting/reports/profit-loss", { from, to });
+
+export const downloadProfitLossExcel = (from, to) =>
+    apiService.download("/accounting/reports/profit-loss/excel", { from, to }, `Profit_Loss_${from}_to_${to}.xlsx`);
+
+export const getBalanceSheet = (asOf) =>
+    apiService.get("/accounting/reports/balance-sheet", asOf ? { asOf } : {});
+
+export const downloadBalanceSheetExcel = (asOf) =>
+    apiService.download("/accounting/reports/balance-sheet/excel", asOf ? { asOf } : {}, `Balance_Sheet_${asOf || ""}.xlsx`);

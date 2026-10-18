@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert, Box, Button, Chip, CircularProgress, Collapse,
     Divider, IconButton, Paper, Skeleton, Stack,
@@ -7,6 +7,9 @@ import {
 } from "@mui/material";
 import { ExpandMoreOutlined, ExpandLessOutlined } from "@mui/icons-material";
 import { getDayBook } from "../../../services/accounting/accountingReportService";
+import { Kbd, rowSx, useRowKeys } from "../common/accountingUi";
+import { useNavigate } from "react-router-dom";
+import { voucherPath } from "../voucher/VoucherDetailPage";
 
 const firstOfMonth = () => { const d = new Date(); d.setDate(1); return d.toISOString().split("T")[0]; };
 const todayStr    = () => new Date().toISOString().split("T")[0];
@@ -57,22 +60,21 @@ const StatCard = ({ label, value, accent }) => (
     </Paper>
 );
 
-const VoucherRow = ({ v }) => {
+const VoucherRow = ({ v, onOpen, isActive, rowRef }) => {
     const [open, setOpen] = useState(false);
     return (
         <>
-            <TableRow
-                onClick={() => setOpen(!open)}
-                sx={{ cursor: "pointer", "&:hover": { bgcolor: "#f8fafc" }, bgcolor: open ? "#fafafa" : "white" }}>
+            <TableRow ref={rowRef} onClick={() => onOpen(v.voucherId)}
+                sx={{ ...rowSx(isActive), bgcolor: isActive ? "#ecfdf5" : open ? "#fafafa" : "white" }}>
                 <TableCell sx={{ ...CELL, py: 1.25 }}>
-                    <Tooltip title={open ? "Collapse" : "Expand lines"}>
-                        <IconButton size="small" sx={{ mr: 0.5, color: "#94a3b8" }}>
+                    <Tooltip title={open ? "Hide lines" : "Show lines here"}>
+                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); setOpen(!open); }} sx={{ mr: 0.5, color: "#94a3b8" }}>
                             {open ? <ExpandLessOutlined sx={{ fontSize: 16 }} /> : <ExpandMoreOutlined sx={{ fontSize: 16 }} />}
                         </IconButton>
                     </Tooltip>
                 </TableCell>
                 <TableCell sx={{ ...CELL, color: "#94a3b8" }}>{fmtDate(v.date)}</TableCell>
-                <TableCell sx={{ ...CELL, fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.75rem", color: "#475569", fontWeight: 600 }}>{v.voucherNumber}</TableCell>
+                <TableCell sx={{ ...CELL, fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.75rem", color: "#475569", fontWeight: 600 }}><Box component="span" sx={{ color: "#2563eb" }}>{v.voucherNumber}</Box></TableCell>
                 <TableCell sx={CELL}><TypeBadge type={v.voucherType} /></TableCell>
                 <TableCell sx={{ ...CELL, color: "#64748b", maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.narration || "—"}</TableCell>
                 <TableCell sx={{ ...CELL_NUM, color: "#2563eb", fontWeight: 600 }}>{fmtAmt(v.totalDr)}</TableCell>
@@ -119,12 +121,23 @@ const DayBookPage = () => {
     const [loading, setLoading] = useState(false);
     const [error,   setError]   = useState("");
 
-    const run = async () => {
-        setError(""); setData(null); setLoading(true);
+    const navigate = useNavigate();
+
+    const run = useCallback(async () => {
+        if (!from || !to) return;
+        setError(""); setLoading(true);
         try { setData(await getDayBook(from, to)); }
-        catch (e) { setError(e?.response?.data?.message || "Failed to load day book."); }
+        catch (e) { setData(null); setError(e?.response?.data?.message || "Failed to load day book."); }
         finally { setLoading(false); }
-    };
+    }, [from, to]);
+
+    // Opens filled in and follows the dates — no "Run Report" step.
+    useEffect(() => { run(); }, [run]);
+
+    const vouchers = useMemo(() => data?.vouchers || [], [data]);
+    const openVoucher = useCallback((id) => navigate(voucherPath(id), { state: { ledgerRange: { from, to } } }), [navigate, from, to]);
+    const openAt = useCallback((i) => vouchers[i] && openVoucher(vouchers[i].voucherId), [vouchers, openVoucher]);
+    const { active, rowRef } = useRowKeys(vouchers.length, openAt);
 
     return (
         <Box sx={{ p: { xs: 2, md: 3 }, bgcolor: "#f8fafc", minHeight: "100vh" }}>
@@ -135,7 +148,7 @@ const DayBookPage = () => {
                         Day Book
                     </Typography>
                     <Typography sx={{ fontSize: "0.875rem", color: "#64748b", mt: 0.5 }}>
-                        All posted vouchers in chronological order — click a row to expand lines
+                        All posted vouchers in date order — click a row (or <Kbd>↑</Kbd><Kbd>↓</Kbd> <Kbd>Enter</Kbd>) to open it, or the arrow to see its lines here
                     </Typography>
                 </Box>
 
@@ -146,10 +159,10 @@ const DayBookPage = () => {
                         onChange={(e) => setFrom(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 200 }} />
                     <TextField label="To" type="date" size="small" value={to}
                         onChange={(e) => setTo(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 200 }} />
-                    <Button variant="contained" disableElevation onClick={run} disabled={loading}
+                    <Button variant="outlined" disableElevation onClick={run} disabled={loading}
                         startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
-                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, bgcolor: "#10b981", "&:hover": { bgcolor: "#059669" }, height: 40 }}>
-                        {loading ? "Loading…" : "Run Report"}
+                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#e2e8f0", color: "#475569", height: 40 }}>
+                        {loading ? "Loading…" : "Refresh"}
                     </Button>
                 </Stack>
 
@@ -164,7 +177,7 @@ const DayBookPage = () => {
                     </Stack>
                 )}
 
-                {loading && [...Array(6)].map((_, i) => <Skeleton key={i} height={52} sx={{ mb: 0.5 }} />)}
+                {loading && !data && [...Array(6)].map((_, i) => <Skeleton key={i} height={52} sx={{ mb: 0.5 }} />)}
 
                 {data && data.vouchers?.length === 0 && (
                     <Box sx={{ textAlign: "center", py: 8 }}>
@@ -187,7 +200,9 @@ const DayBookPage = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {data.vouchers.map((v) => <VoucherRow key={v.voucherId} v={v} />)}
+                                {data.vouchers.map((v, i) => (
+                                    <VoucherRow key={v.voucherId} v={v} onOpen={openVoucher} isActive={i === active} rowRef={rowRef(i)} />
+                                ))}
                                 {/* Grand total */}
                                 <TableRow sx={{ bgcolor: "#f1f5f9" }}>
                                     <TableCell colSpan={5} sx={{ ...CELL, fontWeight: 800, fontSize: "0.8125rem", color: "#0f172a", py: 1.5 }}>Grand Total</TableCell>
