@@ -52,6 +52,7 @@ const fmtWhen = (t) =>
 
 // Turns camelCase field names into words: openingBalanceDrCr -> "Opening balance dr cr".
 const humanField = (k) => {
+    if (k === "openingBalanceDrCr") return "Opening balance side";
     const s = k.replace(/([A-Z])/g, " $1").toLowerCase();
     return s.charAt(0).toUpperCase() + s.slice(1);
 };
