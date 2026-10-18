@@ -376,7 +376,7 @@ const AccountingHome = () => {
                                                                     <Box component="span" sx={{ ml: 1, fontFamily: "monospace", fontWeight: 700, color: T.accent }}>{v.voucherNumber}</Box>
                                                                 </TableCell>
                                                                 <TableCell sx={{ ...TABLE.cell, maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.narration || "—"}</TableCell>
-                                                                <TableCell sx={{ ...TABLE.cell, color: T.ink2, whiteSpace: "nowrap" }}>{src ? src.label : "Entered by hand"}</TableCell>
+                                                                <TableCell sx={{ ...TABLE.cell, color: T.ink2, whiteSpace: "nowrap" }}>{src ? src.label : v.reversalOfId ? "Reversal" : "Entered by hand"}</TableCell>
                                                             </TableRow>
                                                         );
                                                     })}

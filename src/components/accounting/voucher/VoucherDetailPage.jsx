@@ -125,7 +125,7 @@ const VoucherDetailPage = () => {
                                 <Grid item xs={6} md={3}><Fact label="Entered by">{voucher.createdBy || "—"}</Fact></Grid>
                                 <Grid item xs={6} md={3}>
                                     <Fact label="Raised by">
-                                        {!src ? "Entered by hand" : src.path ? (
+                                        {!src ? (voucher.reversalOfId ? "Reversal of another voucher" : "Entered by hand") : src.path ? (
                                             <Button size="small" variant="outlined" endIcon={<OpenInNewOutlined sx={{ fontSize: 14 }} />}
                                                 onClick={() => navigate(src.path)}
                                                 sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, py: 0.25, borderColor: T.rule, color: T.ink }}>
