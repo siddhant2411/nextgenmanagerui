@@ -134,7 +134,9 @@ export const LedgerPicker = ({ ledgers, value, onChange, onPicked, label, placeh
             options={ledgers}
             value={value}
             autoHighlight
-            openOnFocus
+            // A journal line's list waits for typing: opened on focus, the first line's list (focused
+            // after every save) covers the "Saved just now" list below the form.
+            openOnFocus={!dense}
             onChange={(_, v) => { onChange(v); if (v) onPicked?.(v); }}
             getOptionLabel={(l) => l.name}
             isOptionEqualToValue={(a, b) => a.id === b.id}
