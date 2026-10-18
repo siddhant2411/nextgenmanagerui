@@ -7,6 +7,7 @@ import {
 import { OpenInNewOutlined, ReplayOutlined } from "@mui/icons-material";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { getVoucher, reverseVoucher } from "../../../services/accounting/accountingVoucherService";
+import { getAuditHistory } from "../../../services/accounting/auditTrailService";
 import ModuleHero from "../../ui/moduleshell/ModuleHero";
 import ModuleBody from "../../ui/moduleshell/ModuleBody";
 import { EYEBROW, T, TABLE, heroButtonSx, panelSx } from "../../../theme/moduleTokens";
@@ -56,6 +57,7 @@ const VoucherDetailPage = () => {
     const [reason, setReason] = useState("");
     const [reversing, setReversing] = useState(false);
     const [reverseError, setReverseError] = useState("");
+    const [history, setHistory] = useState([]);
 
     useEscBack();
 
@@ -66,6 +68,8 @@ const VoucherDetailPage = () => {
             .then(setVoucher)
             .catch((e) => setError(e?.response?.data?.message || "This voucher could not be loaded."))
             .finally(() => setLoading(false));
+        // Who posted, approved and reversed it — from the audit trail, which nothing can edit.
+        getAuditHistory("VOUCHER", id).then((h) => setHistory(h || [])).catch(() => setHistory([]));
     }, [id]);
     useEffect(() => { load(); }, [load]);
 
@@ -179,6 +183,20 @@ const VoucherDetailPage = () => {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
+                            {history.length > 0 && (
+                                <Box sx={{ mt: 3 }}>
+                                    <Typography sx={{ ...EYEBROW, mb: 1 }}>History</Typography>
+                                    {history.map((h) => (
+                                        <Stack key={h.id} direction="row" spacing={1.5} sx={{ py: 0.5, fontSize: "0.8125rem" }}>
+                                            <Box sx={{ color: T.ink3, minWidth: 150, whiteSpace: "nowrap" }}>
+                                                {new Date(h.eventTime).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                            </Box>
+                                            <Box sx={{ fontWeight: 600, color: T.ink, minWidth: 100 }}>{h.username || "—"}</Box>
+                                            <Box sx={{ color: "#475569" }}>{h.summary}</Box>
+                                        </Stack>
+                                    ))}
+                                </Box>
+                            )}
                             <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5 }}>
                                 <Typography sx={{ fontSize: "0.75rem", color: T.ink3 }}>Click an account to open its ledger.</Typography>
                                 <Typography sx={{ fontSize: "0.75rem", color: T.ink3 }}><Kbd>Esc</Kbd> back</Typography>

@@ -67,6 +67,7 @@ export const MODULES = [
                     { text: "Debtors Ageing", path: "/accounting/reports/debtors-ageing" },
                     { text: "Creditors Ageing", path: "/accounting/reports/creditors-ageing" },
                     { text: "Stock vs GL", path: "/accounting/reports/stock-gl" },
+                    { text: "Audit Trail", path: "/accounting/reports/audit-trail" },
                 ],
             },
             {

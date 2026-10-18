@@ -16,6 +16,7 @@ import AgeingReportPage from "../components/accounting/reports/AgeingReportPage"
 import StockGlReconciliationPage from "../components/accounting/reports/StockGlReconciliationPage";
 import ProfitLossPage from "../components/accounting/reports/ProfitLossPage";
 import BalanceSheetPage from "../components/accounting/reports/BalanceSheetPage";
+import AuditTrailPage from "../components/accounting/reports/AuditTrailPage";
 import BankReconciliationPage from "../components/accounting/bank/BankReconciliationPage";
 import Gstr1Page from "../components/accounting/gst/Gstr1Page";
 import Gstr3bPage from "../components/accounting/gst/Gstr3bPage";
@@ -70,6 +71,7 @@ const AccountingPage = () => (
         <Route path="reports/stock-gl"         element={<StockGlReconciliationPage />} />
         <Route path="reports/profit-loss"      element={<ProfitLossPage />} />
         <Route path="reports/balance-sheet"    element={<BalanceSheetPage />} />
+        <Route path="reports/audit-trail"      element={<AuditTrailPage />} />
 
         {/* Bank */}
         <Route path="bank/reconciliation"      element={<BankReconciliationPage />} />

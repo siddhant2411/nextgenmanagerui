@@ -16,6 +16,7 @@ import { listLedgers } from "../../../services/accounting/accountingCoaService";
 import { listVouchers } from "../../../services/accounting/accountingVoucherService";
 import { listBankAccounts } from "../../../services/accounting/bankService";
 import { listGstReturns } from "../../../services/accounting/gstService";
+import { getFailedReversals } from "../../../services/accounting/auditTrailService";
 import {
     getCreditorsAgeing, getDebtorsAgeing, getProfitLoss, getStockGlReconciliation, getTrialBalance,
 } from "../../../services/accounting/accountingReportService";
@@ -140,6 +141,7 @@ const AccountingHome = () => {
         banks: listBankAccounts,
         stock: () => getStockGlReconciliation(today),
         recent: () => listVouchers({ from: isoAddDays(today, -30), to: today }),
+        failedReversals: getFailedReversals,
     }, []);
     // These need the year's start, so they wait for the financial years.
     const yearly = useSettled(fyLoading ? null : {
@@ -180,6 +182,12 @@ const AccountingHome = () => {
 
     const attention = useMemo(() => {
         const items = [];
+        // A cancelled document whose voucher could not be reversed: the books still carry it.
+        (base.failedReversals || []).forEach((f) => {
+            items.push({ severity: "critical", title: `${f.entityLabel || "A voucher"} is still in the books`,
+                detail: `Its document was cancelled but the automatic reversal failed${f.username ? ` (cancelled by ${f.username})` : ""}. Reverse it by hand.`,
+                action: "Open", path: f.voucherId ? voucherPath(f.voucherId) : "/accounting/reports/audit-trail" });
+        });
         if (base.tb && !base.tb.balanced) {
             items.push({ severity: "critical", title: "Trial balance does not tie",
                 detail: `Debits and credits differ by ${fmtBalance(num(base.tb.totalDr) - num(base.tb.totalCr))}.`,
