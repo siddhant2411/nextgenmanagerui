@@ -965,7 +965,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
     ? (completedOperations / operations.length) * 100
     : 0;
   const canIssueWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
-  const canScheduleWorkOrder = ['CREATED', 'SCHEDULED'].includes(workOrderStatus);
+  // Same list as the scheduler's. A started order keeps its finished and running operations where they are; only the rest are planned again.
+  const canScheduleWorkOrder = ['CREATED', 'SCHEDULED', 'IN_PROGRESS', 'MATERIAL_PENDING', 'READY_FOR_PRODUCTION', 'PARTIALLY_READY', 'MATERIAL_REORDER', 'HOLD'].includes(workOrderStatus);
   const canCompleteWorkOrderStatus = ['RELEASED', 'IN_PROGRESS', 'READY', 'READY_FOR_PRODUCTION'].includes(workOrderStatus);
   const canCloseWorkOrderStatus = workOrderStatus === 'COMPLETED';
   const canCancelWorkOrderStatus = ['CREATED', 'SCHEDULED', 'RELEASED', 'IN_PROGRESS','MATERIAL_PENDING','READY_FOR_PRODUCTION','PARTIALLY_READY'].includes(workOrderStatus);
@@ -978,12 +979,12 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
   const isPurchasedOnly = formik.values.bom?.parentInventoryItem?.purchased && !formik.values.bom?.parentInventoryItem?.manufactured;
   const isUpdateDisabled = isPurchasedOnly || (Boolean(workOrderId) && !['DRAFT', 'CREATED', 'SCHEDULED'].includes(workOrderStatus));
 
-  const handleAutoSchedule = async () => {
+  const handleAutoSchedule = async (direction = 'FORWARD') => {
     if (!workOrderId) return;
     try {
       setIsScheduleLoading(true);
       setError('');
-      const result = await scheduleWorkOrder(workOrderId);
+      const result = await scheduleWorkOrder(workOrderId, direction);
       setScheduleResult(result);
       setScheduleDialogOpen(true);
       await reloadWorkOrder();
@@ -1159,7 +1160,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                     <FileDownload fontSize="small" /> Move Tickets (Tags)
                   </MenuItem>
                   <Divider sx={{ my: 0.5 }} />
-                  <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''} placement="left">
+                  <Tooltip title={!canScheduleWorkOrder ? `Not available for a work order that is ${workOrderStatus}` : ''} placement="left">
                     <span>
                       <MenuItem dense disabled={isScheduleLoading || !canScheduleWorkOrder}
                         onClick={() => { setActionsMenuAnchor(null); handleAutoSchedule(); }}
@@ -1168,7 +1169,16 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
                       </MenuItem>
                     </span>
                   </Tooltip>
-                  <Tooltip title={!canScheduleWorkOrder ? `Only available when status is CREATED or SCHEDULED (current: ${workOrderStatus})` : ''} placement="left">
+                  <Tooltip title={!canScheduleWorkOrder ? `Not available for a work order that is ${workOrderStatus}` : 'Finish by the due date and start as late as that allows. Falls back to Auto Schedule when there is no due date or it cannot be met.'} placement="left">
+                    <span>
+                      <MenuItem dense disabled={isScheduleLoading || !canScheduleWorkOrder}
+                        onClick={() => { setActionsMenuAnchor(null); handleAutoSchedule('BACKWARD'); }}
+                        sx={{ fontSize: '0.8125rem', color: '#1565c0', gap: 1 }}>
+                        <Schedule fontSize="small" /> Schedule Just in Time
+                      </MenuItem>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={!canScheduleWorkOrder ? `Not available for a work order that is ${workOrderStatus}` : ''} placement="left">
                     <span>
                       <MenuItem dense disabled={isScheduleLoading || !canScheduleWorkOrder}
                         onClick={() => { setActionsMenuAnchor(null); setRescheduleDialogOpen(true); }}
@@ -1282,8 +1292,8 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
           </Box>
         )}
 
-        {/* ── Compact Schedule Card (shown when WO is SCHEDULED or a result exists) ── */}
-        {workOrderId && (formik.values.status === 'SCHEDULED' || scheduleResult) && (
+        {/* ── Compact Schedule Card (shown once the scheduler has planned the order, whatever its status now) ── */}
+        {workOrderId && (formik.values.status === 'SCHEDULED' || (formik.values.autoScheduled && canScheduleWorkOrder) || scheduleResult) && (
           <Paper
             variant="outlined"
             sx={{
@@ -1292,7 +1302,7 @@ export default function AddUpdateWorkOrder({ setError, setSnackbar }) {
               bgcolor: '#f0f7ff', borderColor: '#91caff',
             }}
           >
-            <Chip size="small" label="SCHEDULED" color="info" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+            <Chip size="small" label={workOrderStatus === 'SCHEDULED' ? 'SCHEDULED' : 'PLANNED'} color="info" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
             {(formik.values.plannedStartDate || formik.values.plannedEndDate) && (
               <Typography variant="body2" fontWeight={600} color="#0d47a1" sx={{ fontSize: '0.8rem' }}>
                 {formik.values.plannedStartDate

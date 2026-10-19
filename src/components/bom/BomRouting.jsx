@@ -497,6 +497,38 @@ export default function BomRouting({
                                 </Grid>
                             </Grid>
 
+                            {/* Scheduling: time between operations */}
+                            <SectionLabel>Between Operations</SectionLabel>
+                            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                                <Grid item xs={4}>
+                                    <Tooltip title="Minimum wait after material arrives before this operation can start (staging, inspection, cooling). Clock minutes." arrow>
+                                        <TextField fullWidth size="small" type="number" label="Queue (min)" sx={fieldSx}
+                                            inputProps={{ min: 0 }}
+                                            value={selectedOperation.queueTime ?? ""}
+                                            onChange={(e) => setSelectedOperation({ ...selectedOperation, queueTime: e.target.value === "" ? null : e.target.value })}
+                                        />
+                                    </Tooltip>
+                                </Grid>
+                                <Grid item xs={4}>
+                                    <Tooltip title="Time to carry this operation's output to the next one. Clock minutes." arrow>
+                                        <TextField fullWidth size="small" type="number" label="Move (min)" sx={fieldSx}
+                                            inputProps={{ min: 0 }}
+                                            value={selectedOperation.moveTime ?? ""}
+                                            onChange={(e) => setSelectedOperation({ ...selectedOperation, moveTime: e.target.value === "" ? null : e.target.value })}
+                                        />
+                                    </Tooltip>
+                                </Grid>
+                                <Grid item xs={4}>
+                                    <Tooltip title="Pass output on in batches of this size so the next operation can start before this one finishes. Leave blank to move the whole lot at once." arrow>
+                                        <TextField fullWidth size="small" type="number" label="Transfer batch" sx={fieldSx}
+                                            inputProps={{ min: 0 }}
+                                            value={selectedOperation.transferQuantity ?? ""}
+                                            onChange={(e) => setSelectedOperation({ ...selectedOperation, transferQuantity: e.target.value === "" ? null : e.target.value })}
+                                        />
+                                    </Tooltip>
+                                </Grid>
+                            </Grid>
+
                             <TextField select fullWidth size="small" label="Cost Type" sx={{ ...fieldSx, mb: 1.5 }}
                                 value={selectedOperation.costType || "CALCULATED"}
                                 onChange={(e) => {
