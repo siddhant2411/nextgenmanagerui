@@ -66,12 +66,13 @@ const LedgerFormDialog = ({ open, onClose, onSave, ledger, groups = [], defaultG
                 openingBalance:     ledger.openingBalance != null ? String(ledger.openingBalance) : "",
                 openingBalanceDrCr: ledger.openingBalanceDrCr || "DR",
                 subLedgerType:      ledger.subLedgerType || "NONE",
-                isControlAccount:   ledger.isControlAccount || false,
+                // The API names these flags without the "is" (bankAccount, not isBankAccount).
+                isControlAccount:   Boolean(ledger.controlAccount ?? ledger.isControlAccount),
                 gstApplicable:      ledger.gstApplicable || false,
                 gstRate:            ledger.gstRate != null ? String(ledger.gstRate) : "",
-                isBankAccount:      ledger.isBankAccount || false,
-                isCashAccount:      ledger.isCashAccount || false,
-                isReconcilable:     ledger.isReconcilable || false,
+                isBankAccount:      Boolean(ledger.bankAccount ?? ledger.isBankAccount),
+                isCashAccount:      Boolean(ledger.cashAccount ?? ledger.isCashAccount),
+                isReconcilable:     Boolean(ledger.reconcilable ?? ledger.isReconcilable),
             });
         } else {
             setForm({ ...EMPTY, groupId: defaultGroupId });
@@ -99,8 +100,15 @@ const LedgerFormDialog = ({ open, onClose, onSave, ledger, groups = [], defaultG
         if (!validate()) return;
         setSaving(true);
         try {
+            const { isControlAccount, isBankAccount, isCashAccount, isReconcilable, ...rest } = form;
+            // The server reads these as controlAccount / bankAccount / cashAccount / reconcilable and
+            // treats a missing one as false — sending the "is" names cleared them on every save.
             const dto = {
-                ...form,
+                ...rest,
+                controlAccount: isControlAccount,
+                bankAccount: isBankAccount,
+                cashAccount: isCashAccount,
+                reconcilable: isReconcilable,
                 openingBalance: form.openingBalance !== "" ? parseFloat(form.openingBalance) : null,
                 gstRate: form.gstApplicable && form.gstRate !== "" ? parseFloat(form.gstRate) : null,
             };

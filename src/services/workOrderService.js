@@ -191,9 +191,10 @@ export const getTestReport = async (id) => {
 
 // ── Production Scheduling ──
 
-export const scheduleWorkOrder = async (id) => {
+/** direction: 'FORWARD' (as soon as possible) or 'BACKWARD' (finish by the due date). */
+export const scheduleWorkOrder = async (id, direction = 'FORWARD') => {
     if (!id) throw new Error('Work order id is required');
-    return apiService.post(`/production/work-order/${id}/schedule`);
+    return apiService.post(`/production/work-order/${id}/schedule`, null, { params: { direction } });
 }
 
 export const rescheduleWorkOrder = async (id, startDate) => {
@@ -217,11 +218,17 @@ export const getMachineScheduleToday = async (machineId) => {
     return apiService.get(`/production/work-order/machine/${machineId}/schedule/today`);
 };
 
-export const scheduleAllWorkOrders = async () => {
-    return apiService.post('/production/work-order/schedule-all');
+/** rule: PRIORITY | EDD | CRITICAL_RATIO | ATC — which orders claim capacity first. */
+export const scheduleAllWorkOrders = async (rule = 'PRIORITY', direction = 'FORWARD') => {
+    return apiService.post('/production/work-order/schedule-all', null, { params: { rule, direction } });
 };
 
 // ── Plant Manager Schedule Views ──
+
+/** The planner board between two dates (yyyy-MM-dd, 'to' inclusive). */
+export const getScheduleBoard = async (from, to) => {
+    return apiService.get('/production/work-order/schedule/board', { params: { from, to } });
+};
 
 export const getProductionScheduleCombined = async (from, to) => {
     const params = {};

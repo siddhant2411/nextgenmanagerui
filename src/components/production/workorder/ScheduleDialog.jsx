@@ -41,6 +41,26 @@ function getPathColor(path, allPaths) {
     return PATH_PALETTE[Math.max(idx, 0) % PATH_PALETTE.length];
 }
 
+// ─── Operations the scheduler held where they are instead of planning ────────
+const KEPT = {
+    COMPLETED: { label: 'Done', bg: '#94a3b8' },
+    IN_PROGRESS: { label: 'Running', bg: '#0f766e' },
+    HOLD: { label: 'On hold', bg: '#b45309' },
+};
+const kept = (op) => (op.pinned ? KEPT[op.status] || { label: 'Kept', bg: '#64748b' } : null);
+
+function KeptChip({ op }) {
+    const k = kept(op);
+    if (!k) return null;
+    return (
+        <Chip
+            size="small"
+            label={k.label}
+            sx={{ bgcolor: k.bg, color: '#fff', fontWeight: 700, fontSize: '0.62rem', height: 18, ml: 0.75 }}
+        />
+    );
+}
+
 // ─── Extract "missed by N days" from warning strings ──────────────────────────
 function extractMissedDays(warnings = []) {
     for (const w of warnings) {
@@ -104,6 +124,7 @@ function GanttChart({ operations, scheduleStart, scheduleEnd }) {
                                     {op.sequence}. {op.operationName}
                                     {op.workCenterCode ? ` (${op.workCenterCode})` : ''}
                                 </Typography>
+                                <KeptChip op={op} />
                             </Box>
                         );
                     })}
@@ -182,14 +203,16 @@ function GanttChart({ operations, scheduleStart, scheduleEnd }) {
                             Math.min((durMins / totalMins) * 100, 100 - leftPct),
                         );
 
-                        const pathColor = getPathColor(op.parallelPath, allPaths);
+                        const k = kept(op);
+                        const pathColor = k ? k.bg : getPathColor(op.parallelPath, allPaths);
                         const hasPath = Boolean(op.parallelPath);
 
                         const tooltipText =
                             `${fmtDateTime(op.plannedStartDate)} → ${fmtDateTime(op.plannedEndDate)}\n` +
                             `Duration: ${fmtDurHrs(op.durationMinutes)}` +
                             (op.machineCode ? `\nMachine: ${op.machineCode}` : '') +
-                            (op.parallelPath ? `\nPath: ${op.parallelPath}` : '');
+                            (op.parallelPath ? `\nPath: ${op.parallelPath}` : '') +
+                            (k ? `\n${k.label} — kept where it is, not re-planned` : '');
 
                         return (
                             <Box
@@ -219,6 +242,10 @@ function GanttChart({ operations, scheduleStart, scheduleEnd }) {
                                             top: 4,
                                             bottom: 4,
                                             bgcolor: pathColor,
+                                            // Held operations are hatched so they read as fixed, not planned.
+                                            backgroundImage: k
+                                                ? 'repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 6px, transparent 6px 12px)'
+                                                : 'none',
                                             borderRadius: 1,
                                             opacity: 0.88,
                                             borderLeft: hasPath ? `3px solid ${pathColor}` : 'none',
@@ -301,12 +328,13 @@ function OperationsTable({ operations, allPaths }) {
                         <TableCell sx={hdrSx}>End (IST)</TableCell>
                         <TableCell sx={hdrSx}>Duration</TableCell>
                         <TableCell sx={hdrSx}>Path</TableCell>
+                        <TableCell sx={hdrSx}>Plan</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {operations.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                            <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                                 <Typography variant="body2" color="text.secondary">
                                     No operation schedules available.
                                 </Typography>
@@ -360,6 +388,15 @@ function OperationsTable({ operations, allPaths }) {
                                         <Typography variant="caption" color="text.disabled">–</Typography>
                                     )}
                                 </TableCell>
+                                <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                                    {kept(op) ? (
+                                        <Tooltip title="Already done, running or on hold, so it was kept where it is">
+                                            <span><KeptChip op={op} /></span>
+                                        </Tooltip>
+                                    ) : (
+                                        <Typography variant="caption" color="text.secondary">Planned</Typography>
+                                    )}
+                                </TableCell>
                             </TableRow>
                         ))
                     )}
@@ -379,6 +416,7 @@ export default function ScheduleDialog({ open, onClose, result }) {
     const allPaths = [...new Set(operations.map((o) => o.parallelPath).filter(Boolean))];
     const warnings = result.warnings || [];
     const missedDays = extractMissedDays(warnings);
+    const keptCount = operations.filter((o) => o.pinned).length;
 
     const totalHrs = result.estimatedProductionMinutes != null
         ? Math.round(result.estimatedProductionMinutes / 60 * 10) / 10
@@ -476,8 +514,21 @@ export default function ScheduleDialog({ open, onClose, result }) {
                         <Typography fontWeight={700} fontSize="0.88rem" sx={{ mt: 0.25 }}>
                             {operations.length}
                         </Typography>
+                        {keptCount > 0 && (
+                            <Typography variant="caption" color="text.secondary" display="block">
+                                {operations.length - keptCount} planned · {keptCount} kept
+                            </Typography>
+                        )}
                     </Paper>
                 </Box>
+
+                {keptCount > 0 && (
+                    <Alert severity="info" sx={{ mb: 2, borderRadius: 1.5, fontSize: '0.8rem' }}>
+                        {keptCount === 1 ? '1 operation is' : `${keptCount} operations are`} already done, running or
+                        on hold, so {keptCount === 1 ? 'it was' : 'they were'} kept where {keptCount === 1 ? 'it is' : 'they are'}.
+                        Only the rest of the order was planned again.
+                    </Alert>
+                )}
 
                 <Divider sx={{ mb: 1.5 }} />
 

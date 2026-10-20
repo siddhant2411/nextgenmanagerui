@@ -4,6 +4,7 @@ import {
   TableRow, Divider, CircularProgress, Checkbox, Toolbar, Tooltip,
   useMediaQuery, useTheme, TableBody, IconButton, TablePagination,
   Menu, MenuItem, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions, Alert,
+  TextField,
 } from "@mui/material";
 import {
   Tune as TuneIcon, ArrowUpward, ArrowDownward,
@@ -20,6 +21,18 @@ import FilterBar from "../../ui/filterbar/FilterBar";
 import { useAuth } from "../../../auth/AuthContext";
 import { useViewState, useViewStateResetSignal } from "../../../commonTools/useViewState";
 import { PRODUCTION_MANAGE_ROLES } from "../../../auth/roles";
+
+const DISPATCH_RULES = [
+  { value: "PRIORITY", label: "Priority, then due date", help: "Urgent orders take capacity first; among equals, the earliest due." },
+  { value: "EDD", label: "Earliest due date", help: "The order due soonest goes first, whatever its priority." },
+  { value: "CRITICAL_RATIO", label: "Critical ratio", help: "Least time left for the work still to do goes first; overdue orders lead." },
+  { value: "ATC", label: "Least weighted lateness (ATC)", help: "Short, high-priority orders first while they have slack; an order rises as its slack runs out. Best when the shop is overloaded." },
+];
+
+const SCHEDULE_DIRECTIONS = [
+  { value: "FORWARD", label: "Forward — as soon as possible", help: "Each operation in the earliest free slot." },
+  { value: "BACKWARD", label: "Backward — just in time", help: "Finish by the due date and start as late as that allows. Orders without a due date, or that cannot make it, are scheduled forward." },
+];
 
 dayjs.extend(isSameOrBefore);
 
@@ -201,6 +214,9 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
   const [isScheduleAllLoading, setIsScheduleAllLoading] = useState(false);
   const [scheduleAllResult, setScheduleAllResult] = useState(null);
   const [scheduleAllDialogOpen, setScheduleAllDialogOpen] = useState(false);
+  const [scheduleOptionsOpen, setScheduleOptionsOpen] = useState(false);
+  const [dispatchRule, setDispatchRule] = useViewState(VIEW_STATE_NS, "dispatchRule", "PRIORITY");
+  const [scheduleDirection, setScheduleDirection] = useViewState(VIEW_STATE_NS, "scheduleDirection", "FORWARD");
   const [anchorEl, setAnchorEl] = useState(null);
   const [columnWidths, setColumnWidths] = useState(
     allColumns.reduce((acc, col) => { acc[col.field] = col.width || 150; return acc; }, {})
@@ -262,9 +278,10 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
 
   const handleScheduleAll = async () => {
     try {
+      setScheduleOptionsOpen(false);
       setIsScheduleAllLoading(true);
-      const result = await scheduleAllWorkOrders();
-      setScheduleAllResult(result);
+      const result = await scheduleAllWorkOrders(dispatchRule, scheduleDirection);
+      setScheduleAllResult(Array.isArray(result) ? result : []);
       setScheduleAllDialogOpen(true);
       handleApplyFilters(filters, currentPage, sortBy, sortDir);
     } catch (err) {
@@ -449,7 +466,7 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
             <Button
               size="small"
               variant="outlined"
-              onClick={handleScheduleAll}
+              onClick={() => setScheduleOptionsOpen(true)}
               disabled={!canManageWorkOrders || isScheduleAllLoading}
               startIcon={isScheduleAllLoading ? <CircularProgress size={14} /> : null}
               sx={{
@@ -730,33 +747,69 @@ export default function WorkOrderList({ setLoading, loading, setError }) {
         )}
       </Paper>
 
+      {/* ── Schedule All Options Dialog ── */}
+      <Dialog open={scheduleOptionsOpen} onClose={() => setScheduleOptionsOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Schedule all new work orders</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField select fullWidth size="small" label="Who goes first" value={dispatchRule}
+              onChange={(e) => setDispatchRule(e.target.value)}
+              helperText={DISPATCH_RULES.find((r) => r.value === dispatchRule)?.help}>
+              {DISPATCH_RULES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+            </TextField>
+            <TextField select fullWidth size="small" label="Direction" value={scheduleDirection}
+              onChange={(e) => setScheduleDirection(e.target.value)}
+              helperText={SCHEDULE_DIRECTIONS.find((d) => d.value === scheduleDirection)?.help}>
+              {SCHEDULE_DIRECTIONS.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+            </TextField>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setScheduleOptionsOpen(false)} sx={{ textTransform: 'none', color: '#374151' }}>Cancel</Button>
+          <Button variant="contained" onClick={handleScheduleAll} sx={{ textTransform: 'none', fontWeight: 600 }}>Schedule</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* ── Schedule All Result Dialog ── */}
       <Dialog open={scheduleAllDialogOpen} onClose={() => setScheduleAllDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Batch Schedule Results</DialogTitle>
         <DialogContent>
-          {scheduleAllResult && (
-            <Box>
-              <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
-                {scheduleAllResult.scheduledCount ?? 0} work order(s) scheduled
-              </Typography>
-              {scheduleAllResult.warnings?.length > 0 && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="subtitle2" color="warning.main" sx={{ mb: 0.5 }}>Warnings:</Typography>
-                  {scheduleAllResult.warnings.map((w, i) => (
-                    <Alert key={i} severity="warning" sx={{ mb: 0.5, fontSize: '0.8rem' }}>{w}</Alert>
-                  ))}
-                </Box>
-              )}
-              {scheduleAllResult.failures?.length > 0 && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="subtitle2" color="error" sx={{ mb: 0.5 }}>Failures:</Typography>
-                  {scheduleAllResult.failures.map((f, i) => (
-                    <Alert key={i} severity="error" sx={{ mb: 0.5, fontSize: '0.8rem' }}>{f}</Alert>
-                  ))}
-                </Box>
-              )}
-            </Box>
-          )}
+          {scheduleAllResult && (() => {
+            const isFailure = (r) => (r.warnings || []).some((w) => w.startsWith('Scheduling failed'));
+            const failed = scheduleAllResult.filter(isFailure);
+            const scheduled = scheduleAllResult.filter((r) => !isFailure(r));
+            const withWarnings = scheduled.filter((r) => r.warnings?.length > 0);
+            return (
+              <Box>
+                <Typography variant="h6" sx={{ mb: 1, fontWeight: 600 }}>
+                  {scheduled.length} work order(s) scheduled
+                </Typography>
+                {scheduleAllResult.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">There were no new work orders to schedule.</Typography>
+                )}
+                {withWarnings.length > 0 && (
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="subtitle2" color="warning.main" sx={{ mb: 0.5 }}>Warnings:</Typography>
+                    {withWarnings.flatMap((r) => r.warnings.map((w, i) => (
+                      <Alert key={`${r.workOrderId}-${i}`} severity="warning" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
+                        <strong>{r.workOrderNumber}</strong>: {w}
+                      </Alert>
+                    )))}
+                  </Box>
+                )}
+                {failed.length > 0 && (
+                  <Box sx={{ mt: 1 }}>
+                    <Typography variant="subtitle2" color="error" sx={{ mb: 0.5 }}>Failures:</Typography>
+                    {failed.map((r) => (
+                      <Alert key={r.workOrderId} severity="error" sx={{ mb: 0.5, fontSize: '0.8rem' }}>
+                        <strong>{r.workOrderNumber}</strong>: {r.warnings.join(' ')}
+                      </Alert>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setScheduleAllDialogOpen(false)} sx={{ textTransform: 'none', color: '#374151' }}>Close</Button>
