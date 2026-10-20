@@ -225,6 +225,11 @@ export const scheduleAllWorkOrders = async (rule = 'PRIORITY', direction = 'FORW
 
 // ── Plant Manager Schedule Views ──
 
+/** The planner board between two dates (yyyy-MM-dd, 'to' inclusive). */
+export const getScheduleBoard = async (from, to) => {
+    return apiService.get('/production/work-order/schedule/board', { params: { from, to } });
+};
+
 export const getProductionScheduleCombined = async (from, to) => {
     const params = {};
     if (from) params.from = from;
