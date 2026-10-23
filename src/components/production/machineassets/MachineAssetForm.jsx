@@ -106,7 +106,7 @@ export default function MachineAssetForm({ onSuccess, onError }) {
                     : await createMachineDetails(payload);
                 if (onSuccess) onSuccess(isEditMode ? "Machine updated successfully." : "Machine created successfully.");
                 const nextId = response?.id || machineId;
-                navigate(nextId ? `/production/machine-assets/${nextId}` : "/production/machine-assets");
+                navigate(nextId ? `/manufacturing/machine-assets/${nextId}` : "/manufacturing/machine-assets");
             } catch (error) {
                 if (onError) onError(resolveMachineErrorMessage(error, "Failed to save machine details."));
             } finally {
@@ -163,7 +163,7 @@ export default function MachineAssetForm({ onSuccess, onError }) {
 
     const handleBack = () => {
         if (isDirty) { setShowLeaveDialog(true); return; }
-        navigate("/production/machine-assets");
+        navigate("/manufacturing/machine-assets");
     };
 
     if (isLoading) return (
@@ -281,7 +281,7 @@ export default function MachineAssetForm({ onSuccess, onError }) {
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
                     <Button onClick={() => setShowLeaveDialog(false)} sx={{ textTransform: 'none', color: '#374151' }}>Stay</Button>
-                    <Button variant="contained" color="error" onClick={() => navigate("/production/machine-assets")}
+                    <Button variant="contained" color="error" onClick={() => navigate("/manufacturing/machine-assets")}
                         sx={{ textTransform: 'none' }}>Leave</Button>
                 </DialogActions>
             </Dialog>
