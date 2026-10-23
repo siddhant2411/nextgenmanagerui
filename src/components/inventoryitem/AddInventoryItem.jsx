@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import {
   PictureAsPdf, PictureAsPdf as PdfIcon, FileDownload, OpenInNew, Sync, InfoOutlined,
-  Lock as LockIcon, LockOpen as LockOpenIcon, EditNote,
+  Lock as LockIcon, LockOpen as LockOpenIcon, EditNote, Star, StarBorder,
   CloudUpload, AddPhotoAlternate, Delete, InsertDriveFile, ContentCopy,
   ArrowBack, Save
 } from '@mui/icons-material';
@@ -41,7 +41,11 @@ import {
   updateDraftRevision,
   submitRevisionForApproval,
   releaseRevision,
+  deleteUnreleasedRevision,
+  setItemDrawingAttachment,
+  clearItemDrawingAttachment,
 } from '../../services/inventoryService';
+import useUnsavedChangesGuard from '../../commonTools/useUnsavedChangesGuard';
 
 /* ── Premium Design Tokens ── */
 const T = {
@@ -76,6 +80,36 @@ const UOM_OPTIONS = ['NOS', 'KG', 'GRAM', 'TON', 'METER', 'CENTIMETER', 'INCH', 
 
 /* ── Autocomplete filter that allows "add new" option ───────────────────────── */
 const autoFilter = createFilterOptions();
+
+/* ── A lookup field (material, process type) that offers the saved values and adds a new one
+      when picked as `Add "..."`. Used by the item form and the draft-revision dialog alike. ── */
+const LookupAutocomplete = ({ label, helperText, options, value, onValueChange, onAdd, disabled, sx }) => (
+  <Autocomplete
+    freeSolo
+    selectOnFocus
+    clearOnBlur
+    handleHomeEndKeys
+    disabled={disabled}
+    options={options}
+    value={value || ''}
+    filterOptions={(opts, params) => {
+      const filtered = autoFilter(opts, params);
+      if (params.inputValue && !opts.includes(params.inputValue)) {
+        filtered.push(`Add "${params.inputValue}"`);
+      }
+      return filtered;
+    }}
+    onChange={async (_, val) => {
+      let finalVal = val || '';
+      if (val && val.startsWith('Add "')) {
+        finalVal = await onAdd(val.slice(5, -1));
+      }
+      onValueChange(finalVal);
+    }}
+    onInputChange={(_, val) => onValueChange(val)}
+    renderInput={params => <TextField {...params} size="small" label={label} sx={sx} helperText={helperText} />}
+  />
+);
 
 /* ── Helpers ─────────────────────────────────────────────────────────────────── */
 const SectionHeading = ({ children }) => (
@@ -132,6 +166,10 @@ export default function AddInventoryItem() {
   const [isDirty, setIsDirty] = useState(false);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [showDeleteRevisionConfirm, setShowDeleteRevisionConfirm] = useState(false);
+  // The saved attachment the drawing number opens. Kept apart from the file lists so marking it
+  // (saved straight away) does not count as an unsaved change to the item.
+  const [drawingAttachmentId, setDrawingAttachmentId] = useState(null);
   const [savedItem, setSavedItem] = useState(null); // { itemCode, name } for success dialog
   const [itemCodeError, setItemCodeError] = useState('');
   const [nameError, setNameError] = useState('');
@@ -402,6 +440,7 @@ export default function AddInventoryItem() {
     if (!itemData?.fileAttachments) return;
     hydrationDoneRef.current = true;
     hydratingRef.current = true;
+    setDrawingAttachmentId(itemData.fileAttachments.find(fa => fa.primaryDrawing)?.id ?? null);
     if (itemData.fileAttachments.length > 0) {
       const imgs = [], pdfs = [];
       itemData.fileAttachments.forEach(fa => {
@@ -415,13 +454,10 @@ export default function AddInventoryItem() {
     setTimeout(() => { hydratingRef.current = false; }, 0);
   }, [isEditMode, itemData?.fileAttachments]);
 
-  /* ── Unsaved-changes guard ── */
-  useEffect(() => {
-    // A viewer has nothing to lose, so they are never held back.
-    const handler = (e) => { if (!isDirty || !canWrite) return; e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [isDirty, canWrite]);
+  /* ── Unsaved-changes guard ──
+     Asks before leaving with unsaved changes: in-app navigation, browser Back, closing the tab.
+     A viewer has nothing to lose, so they are never held back. */
+  const { guardDialog } = useUnsavedChangesGuard(isDirty && canWrite);
 
   /* ── Change handlers ── */
   const handleChange = (e) => {
@@ -474,6 +510,8 @@ export default function AddInventoryItem() {
       return name;
     }
   };
+  const addMaterial = (name) => createLookupValue('/item-lookups/materials', name, setMaterialOptions);
+  const addProcessType = (name) => createLookupValue('/item-lookups/process-types', name, setProcessTypeOptions);
 
   /* ── Standard cost sync ──────────────────────────────────────────────────────
      Priority: if manufactured (or both) → pull totalCost from active BOM.
@@ -593,6 +631,34 @@ export default function AddInventoryItem() {
       showSnackbar(resolveApiErrorMessage(err, 'Failed to submit for approval'), 'error');
     } finally {
       setRevisionBusy(false);
+    }
+  };
+
+  const confirmDeleteRevision = async () => {
+    if (!openRevision) return;
+    setRevisionBusy(true);
+    try {
+      await deleteUnreleasedRevision(openRevision.id);
+      showSnackbar(`Revision ${openRevision.revisionCode} deleted — the item stays at Rev. ${currentRevision?.revisionCode || '-'}.`);
+      setShowDeleteRevisionConfirm(false);
+      await fetchRevisionHistory();
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to delete revision'), 'error');
+    } finally {
+      setRevisionBusy(false);
+    }
+  };
+
+  const toggleDrawingAttachment = async (fileId) => {
+    const unmark = fileId === drawingAttachmentId;
+    try {
+      if (unmark) await clearItemDrawingAttachment(id);
+      else await setItemDrawingAttachment(id, fileId);
+      setDrawingAttachmentId(unmark ? null : fileId);
+      showSnackbar(unmark ? 'Drawing unmarked — the drawing number links to the best match again.'
+        : 'Marked as the drawing — the drawing number now opens this file.');
+    } catch (err) {
+      showSnackbar(resolveApiErrorMessage(err, 'Failed to set the drawing'), 'error');
     }
   };
 
@@ -972,68 +1038,22 @@ export default function AddInventoryItem() {
 
             {/* Material — creatable autocomplete */}
             <Grid item xs={12} sm={6} md={4}>
-              <Autocomplete
-                freeSolo
-                selectOnFocus
-                clearOnBlur
-                handleHomeEndKeys
+              <LookupAutocomplete label="Material" helperText="Select or type to add new" sx={fieldSx}
                 disabled={engineeringLocked}
                 options={materialOptions}
-                value={itemData.productSpecification?.basicMaterial || ''}
-                filterOptions={(opts, params) => {
-                  const filtered = autoFilter(opts, params);
-                  if (params.inputValue && !opts.includes(params.inputValue)) {
-                    filtered.push(`Add "${params.inputValue}"`);
-                  }
-                  return filtered;
-                }}
-                onChange={async (_, val) => {
-                  let finalVal = val || '';
-                  if (val && val.startsWith('Add "')) {
-                    const raw = val.slice(5, -1);
-                    finalVal = await createLookupValue('/item-lookups/materials', raw, setMaterialOptions);
-                  }
-                  handleAutocompleteChange('productSpecification', 'basicMaterial', finalVal);
-                }}
-                onInputChange={(_, val) => handleAutocompleteChange('productSpecification', 'basicMaterial', val)}
-                renderInput={params => (
-                  <TextField {...params} size="small" label="Material" sx={fieldSx}
-                    helperText="Select or type to add new" />
-                )}
-              />
+                value={itemData.productSpecification?.basicMaterial}
+                onAdd={addMaterial}
+                onValueChange={val => handleAutocompleteChange('productSpecification', 'basicMaterial', val)} />
             </Grid>
 
             {/* Process Type — creatable autocomplete */}
             <Grid item xs={12} sm={6} md={4}>
-              <Autocomplete
-                freeSolo
-                selectOnFocus
-                clearOnBlur
-                handleHomeEndKeys
+              <LookupAutocomplete label="Process" helperText="Select or type to add new" sx={fieldSx}
                 disabled={engineeringLocked}
                 options={processTypeOptions}
-                value={itemData.productSpecification?.processType || ''}
-                filterOptions={(opts, params) => {
-                  const filtered = autoFilter(opts, params);
-                  if (params.inputValue && !opts.includes(params.inputValue)) {
-                    filtered.push(`Add "${params.inputValue}"`);
-                  }
-                  return filtered;
-                }}
-                onChange={async (_, val) => {
-                  let finalVal = val || '';
-                  if (val && val.startsWith('Add "')) {
-                    const raw = val.slice(5, -1);
-                    finalVal = await createLookupValue('/item-lookups/process-types', raw, setProcessTypeOptions);
-                  }
-                  handleAutocompleteChange('productSpecification', 'processType', finalVal);
-                }}
-                onInputChange={(_, val) => handleAutocompleteChange('productSpecification', 'processType', val)}
-                renderInput={params => (
-                  <TextField {...params} size="small" label="Fabrication Process" sx={fieldSx}
-                    helperText="e.g. CNC Machining, Welding, Casting" />
-                )}
-              />
+                value={itemData.productSpecification?.processType}
+                onAdd={addProcessType}
+                onValueChange={val => handleAutocompleteChange('productSpecification', 'processType', val)} />
             </Grid>
 
             <Grid item xs={12} sm={6} md={4}>
@@ -1102,6 +1122,12 @@ export default function AddInventoryItem() {
                   <Button size="small" variant="contained" startIcon={<LockIcon sx={{ fontSize: 15 }} />} onClick={openReleaseDialog}
                     sx={{ textTransform: 'none', borderRadius: 1.5, bgcolor: T.primary }}>
                     Release Rev. {openRevision.revisionCode}
+                  </Button>
+                  {/* Only a revision that was never released can go; released history is kept. */}
+                  <Button size="small" variant="outlined" color="error" startIcon={<Delete sx={{ fontSize: 16 }} />}
+                    onClick={() => setShowDeleteRevisionConfirm(true)} disabled={revisionBusy}
+                    sx={{ textTransform: 'none', borderRadius: 1.5 }}>
+                    Delete Rev. {openRevision.revisionCode}
                   </Button>
                 </Stack>
               )}
@@ -1502,6 +1528,8 @@ export default function AddInventoryItem() {
             images={images} setImages={setImages}
             pdfFiles={pdfFiles} setPdfFiles={setPdfFiles}
             canEdit={canWrite}
+            drawingAttachmentId={drawingAttachmentId}
+            onToggleDrawing={isEditMode ? toggleDrawingAttachment : null}
           />
         )}
 
@@ -1584,12 +1612,18 @@ export default function AddInventoryItem() {
                 onChange={e => setDraftForm(f => ({ ...f, weight: e.target.value }))} sx={fieldSx} />
             </Grid>
             <Grid item xs={6}>
-              <TextField size="small" label="Material" fullWidth value={draftForm.basicMaterial || ''}
-                onChange={e => setDraftForm(f => ({ ...f, basicMaterial: e.target.value }))} sx={fieldSx} />
+              <LookupAutocomplete label="Material" helperText="Select or type to add new" sx={fieldSx}
+                options={materialOptions}
+                value={draftForm.basicMaterial}
+                onAdd={addMaterial}
+                onValueChange={val => setDraftForm(f => ({ ...f, basicMaterial: val }))} />
             </Grid>
             <Grid item xs={6}>
-              <TextField size="small" label="Fabrication Process" fullWidth value={draftForm.processType || ''}
-                onChange={e => setDraftForm(f => ({ ...f, processType: e.target.value }))} sx={fieldSx} />
+              <LookupAutocomplete label="Process" helperText="Select or type to add new" sx={fieldSx}
+                options={processTypeOptions}
+                value={draftForm.processType}
+                onAdd={addProcessType}
+                onValueChange={val => setDraftForm(f => ({ ...f, processType: val }))} />
             </Grid>
             <Grid item xs={6}>
               <TextField size="small" label="Drawing Number" fullWidth value={draftForm.drawingNumber || ''}
@@ -1689,6 +1723,28 @@ export default function AddInventoryItem() {
         </DialogActions>
       </Dialog>
 
+      {guardDialog}
+
+      {/* ── Delete unreleased revision confirm dialog ── */}
+      <Dialog open={showDeleteRevisionConfirm} onClose={() => !revisionBusy && setShowDeleteRevisionConfirm(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+        <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Delete Revision {openRevision?.revisionCode}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            Revision <strong>{openRevision?.revisionCode}</strong> ({openRevision?.status?.replace('_', ' ')}) was never released.
+            Deleting it discards its engineering changes. The item stays at Rev. {currentRevision?.revisionCode || '-'}, and
+            the next revise will reuse the code {openRevision?.revisionCode}.
+          </Typography>
+          <Alert severity="warning" sx={{ mt: 1.5 }}>This cannot be undone.</Alert>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setShowDeleteRevisionConfirm(false)} disabled={revisionBusy} sx={{ textTransform: 'none', color: '#374151' }}>Cancel</Button>
+          <Button variant="contained" color="error" startIcon={<Delete />} onClick={confirmDeleteRevision} disabled={revisionBusy}
+            sx={{ textTransform: 'none' }}>
+            Delete Revision
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* ── Duplicate confirm dialog ── */}
       <Dialog open={showDuplicateConfirm} onClose={() => setShowDuplicateConfirm(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
         <DialogTitle sx={{ fontWeight: 600, color: '#0f2744' }}>Duplicate Product</DialogTitle>
@@ -1751,7 +1807,7 @@ export default function AddInventoryItem() {
 /* ═══════════════════════════════════════════════════════════════════════════
    DocsTab — inline file manager replacing the old upload box components
    ═══════════════════════════════════════════════════════════════════════════ */
-function DocsTab({ images, setImages, pdfFiles, setPdfFiles, canEdit = true }) {
+function DocsTab({ images, setImages, pdfFiles, setPdfFiles, canEdit = true, drawingAttachmentId = null, onToggleDrawing = null }) {
   const imgRef = useRef(null);
   const pdfRef = useRef(null);
   const [imgDrag, setImgDrag] = useState(false);
@@ -1906,10 +1962,25 @@ function DocsTab({ images, setImages, pdfFiles, setPdfFiles, canEdit = true }) {
                   {pdfFiles.map((f, i) => (
                     <ListItem key={i} disablePadding
                       sx={{ borderRadius: 1, mb: 0.5, px: 1, py: 0.5, bgcolor: '#fff', border: '1px solid #f0f0f0', '&:hover': { bgcolor: '#f9fafb' } }}
-                      secondaryAction={canEdit &&
-                        <IconButton edge="end" size="small" onClick={() => removePdf(i)}>
-                          <Delete sx={{ fontSize: 16, color: '#ef4444' }} />
-                        </IconButton>
+                      secondaryAction={
+                        <Stack direction="row" spacing={0.25} alignItems="center">
+                          {/* Only a saved file can be the drawing; a new one has no id until the item is saved. */}
+                          {f.id && (onToggleDrawing && canEdit ? (
+                            <Tooltip title={f.id === drawingAttachmentId ? 'This is the drawing — click to unmark' : 'Set as the drawing the drawing number opens'}>
+                              <IconButton size="small" onClick={() => onToggleDrawing(f.id)}>
+                                {f.id === drawingAttachmentId
+                                  ? <Star sx={{ fontSize: 17, color: '#f59e0b' }} />
+                                  : <StarBorder sx={{ fontSize: 17, color: '#9ca3af' }} />}
+                              </IconButton>
+                            </Tooltip>
+                          ) : f.id === drawingAttachmentId && (
+                            <Tooltip title="This is the drawing"><Star sx={{ fontSize: 17, color: '#f59e0b', mx: 0.5 }} /></Tooltip>
+                          ))}
+                          {canEdit &&
+                            <IconButton edge="end" size="small" onClick={() => removePdf(i)}>
+                              <Delete sx={{ fontSize: 16, color: '#ef4444' }} />
+                            </IconButton>}
+                        </Stack>
                       }
                     >
                       <ListItemIcon sx={{ minWidth: 30 }}>

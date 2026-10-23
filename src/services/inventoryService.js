@@ -46,6 +46,17 @@ export const releaseRevision = (revisionId, payload = {}) =>
 export const obsoleteRevision = (revisionId) =>
     apiService.post(`/inventory_item/revisions/${revisionId}/obsolete`, {});
 
+// Which attachment the item's drawing number opens (item list, BOM screens).
+export const setItemDrawingAttachment = (itemId, attachmentId) =>
+    apiService.put(`/inventory_item/${itemId}/drawing/${attachmentId}`, {});
+
+export const clearItemDrawingAttachment = (itemId) =>
+    apiService.delete(`/inventory_item/${itemId}/drawing`);
+
+// Only a DRAFT or PENDING_APPROVAL revision — one that was never released — can be deleted.
+export const deleteUnreleasedRevision = (revisionId) =>
+    apiService.delete(`/inventory_item/revisions/${revisionId}`);
+
 export const receiveStock = (payload) =>
     apiService.post('/inventory/add-instances', payload);
 
