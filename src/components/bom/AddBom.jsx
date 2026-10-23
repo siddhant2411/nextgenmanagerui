@@ -60,6 +60,7 @@ import {
     uploadBomAttachment,
 } from "../../services/bomService";
 import { getAllInventoryItems, searchInventoryItems } from "../../services/inventoryService";
+import useUnsavedChangesGuard from "../../commonTools/useUnsavedChangesGuard";
 
 const BORDER_COLOR = "#e5e7eb";
 const CRITICAL_SAVE_STATUSES = ["ACTIVE", "APPROVED"];
@@ -337,6 +338,18 @@ const buildDirtySignature = (values, operations) => {
         notes: operation?.notes ?? "",
         productionJobId: operation?.productionJob?.id ?? operation?.productionJobId ?? null,
         workCenterId: operation?.workCenter?.id ?? operation?.workCenterId ?? null,
+        // Every field the Routing tab edits, so any of them counts as an unsaved change.
+        laborRoleId: operation?.laborRole?.id ?? null,
+        numberOfOperators: operation?.numberOfOperators ?? null,
+        machineId: operation?.machineDetails?.id ?? null,
+        costType: operation?.costType ?? null,
+        fixedCostPerUnit: operation?.fixedCostPerUnit ?? null,
+        costQuantity: operation?.costQuantity ?? null,
+        costRate: operation?.costRate ?? null,
+        allowParallel: Boolean(operation?.allowParallel),
+        parallelPath: operation?.parallelPath ?? null,
+        instructions: operation?.instructions ?? null,
+        dependencies: (operation?.dependencies || []).map(d => d?.dependsOnRoutingOperationId ?? null),
     }));
 
     return JSON.stringify({ values: normalizedValues, operations: normalizedOperations });
@@ -367,6 +380,8 @@ const AddBom = () => {
     const [selectedTab, setSelectedTab] = useState(0);
     const [bomDetails, setBomDetails] = useState(null);
     const [operations, setOperations] = useState([]);
+    // The operation open in the Routing tab, kept here so it is still open after switching tabs.
+    const [routingSelectedKey, setRoutingSelectedKey] = useState(null);
     const [workCenters, setWorkCenters] = useState([]);
     const [laborRoles, setLaborRoles] = useState([]);
     const [machinesList, setMachinesList] = useState([]);
@@ -539,7 +554,8 @@ const AddBom = () => {
                     setIsDirty(false);
                     const revisionBomId = revision?.bom?.id;
                     if (revisionBomId) {
-                        navigate(`/bom/edit/${revisionBomId}`);
+                        // Saved: the dirty flag is cleared but not yet re-rendered, so say so.
+                        leaveWithoutPrompt(() => navigate(`/bom/edit/${revisionBomId}`));
                     }
                 } else if (bomId) {
                     await apiService.put(`/bom/${bomId}`, payload);
@@ -552,7 +568,7 @@ const AddBom = () => {
                     setIsDirty(false);
                     const createdBomId = created?.bom?.id;
                     if (createdBomId) {
-                        navigate(`/bom/edit/${createdBomId}`, { replace: true });
+                        leaveWithoutPrompt(() => navigate(`/bom/edit/${createdBomId}`, { replace: true }));
                     }
                 }
             } catch (errorResponse) {
@@ -1109,15 +1125,8 @@ const AddBom = () => {
         setIsDirty(signature !== baselineSignatureRef.current);
     }, [formik.values, operations]);
 
-    useEffect(() => {
-        const handleBeforeUnload = (event) => {
-            if (!isDirty) return;
-            event.preventDefault();
-            event.returnValue = "";
-        };
-        window.addEventListener("beforeunload", handleBeforeUnload);
-        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-    }, [isDirty]);
+    // Asks before leaving with unsaved changes: in-app navigation, browser Back, closing the tab.
+    const { guardDialog, leaveWithoutPrompt } = useUnsavedChangesGuard(isDirty);
 
     const currentStatusInfo = bomStatusOptions.find(s => s.key === formik.values.bomStatus);
 
@@ -1631,6 +1640,8 @@ const AddBom = () => {
                                     laborRoles={laborRoles}
                                     fetchMachines={fetchMachines}
                                     machines={machinesList}
+                                    selectedOperationKey={routingSelectedKey}
+                                    onSelectOperationKey={setRoutingSelectedKey}
                                     keepMounted
                                 />
                             )}
@@ -1779,6 +1790,8 @@ const AddBom = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            {guardDialog}
 
             <Dialog
                 open={duplicateDialogOpen}

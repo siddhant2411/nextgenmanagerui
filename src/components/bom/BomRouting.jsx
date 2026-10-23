@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
     Alert,
     Autocomplete,
@@ -82,14 +82,31 @@ export default function BomRouting({
     laborRoles,
     fetchMachines,
     machines,
+    selectedOperationKey: selectedKeyProp,
+    onSelectOperationKey,
 }) {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [workCenterSearchQuery, setWorkCenterSearchQuery] = useState('');
     const [laborRoleSearchQuery, setLaborRoleSearchQuery] = useState('');
-    const [selectedJob, setSelectedJob] = useState(null);
-    const [selectedWorkCenter, setSelectedWorkCenter] = useState(null);
-    const [selectedOperation, setSelectedOperation] = useState(null);
+    // Which operation is open in the editor. The page keeps it when it passes the key in, so the
+    // same operation is still open after switching tabs and back.
+    const [localSelectedKey, setLocalSelectedKey] = useState(null);
+    const selectedKey = onSelectOperationKey ? selectedKeyProp ?? null : localSelectedKey;
+    const setSelectedKey = onSelectOperationKey || setLocalSelectedKey;
+
+    // The editor works on the operation inside `operations` itself, not on a copy: every edit lands
+    // in the BOM's own list at once. A copy only reached the list on "Save Changes", so picking
+    // another operation or leaving the tab silently threw the edits away.
+    const opKey = (op) => op?.id ?? op?._tempId;
+    const selectedOperation = selectedKey == null ? null
+        : (operations || []).find(op => opKey(op) === selectedKey) ?? null;
+    const setSelectedOperation = (next) => {
+        if (!next) { setSelectedKey(null); return; }
+        const key = opKey(next);
+        setSelectedKey(key);
+        setOperations(ops => (ops || []).map(op => opKey(op) === key ? next : op));
+    };
     const [depsExpanded, setDepsExpanded] = useState(false);
     const [selfDepAlert, setSelfDepAlert] = useState(false);
 
@@ -156,13 +173,6 @@ export default function BomRouting({
     useEffect(() => { if (fetchLaborRoles) fetchLaborRoles(laborRoleSearchQuery); }, [laborRoleSearchQuery]);
     useEffect(() => { if (fetchMachines) fetchMachines(); }, []);
 
-    const handleSaveOperation = () => {
-        if (!selectedOperation) return;
-        setOperations(operations.map(op =>
-            (op.id || op._tempId) === (selectedOperation.id || selectedOperation._tempId) ? selectedOperation : op
-        ));
-    };
-
     const handleDeleteOperation = () => {
         if (!selectedOperation) return;
         setOperations(operations.filter(
@@ -171,27 +181,16 @@ export default function BomRouting({
         setSelectedOperation(null);
     };
 
+    // After the BOM is saved the list is reloaded from the server: a new operation's temporary key
+    // is gone and it has a real id. Find it again by sequence and name so it stays open.
+    const lastSelectedRef = useRef(null);
+    if (selectedOperation) lastSelectedRef.current = selectedOperation;
     useEffect(() => {
-        if (!selectedOperation?.id) {
-            setSelectedOperation({
-                ...selectedOperation,
-                workCenter: selectedJob?.workCenter ?? null
-            });
-            setSelectedWorkCenter(selectedJob?.workCenter ?? null);
-        }
-    }, [selectedJob]);
-
-    // When the operations list is refreshed from the server (after save), sync selectedOperation
-    // so it picks up the backend-assigned id for newly created operations.
-    useEffect(() => {
-        if (!selectedOperation || selectedOperation.id) return;
-        const match = (operations || []).find(op =>
-            (selectedOperation._tempId && op._tempId === selectedOperation._tempId) ||
-            (!op._tempId && op.sequenceNumber === selectedOperation.sequenceNumber && op.name === selectedOperation.name)
-        );
-        if (match?.id) {
-            setSelectedOperation(match);
-        }
+        if (selectedKey == null || selectedOperation) return;
+        const last = lastSelectedRef.current;
+        const match = last && (operations || []).find(op =>
+            op.sequenceNumber === last.sequenceNumber && op.name === last.name);
+        setSelectedKey(match ? opKey(match) : null);
     }, [operations]);
 
     // Fetch attachments when an existing (saved) operation is selected
@@ -342,7 +341,7 @@ export default function BomRouting({
                                                         },
                                                     }}
                                                     onClick={() => {
-                                                        setSelectedOperation(operation);
+                                                        setSelectedKey(opKey(operation));
                                                         setSelfDepAlert(false);
                                                         setDepsExpanded(false);
                                                     }}
@@ -437,7 +436,12 @@ export default function BomRouting({
                             <Autocomplete fullWidth size="small" options={jobs}
                                 value={selectedOperation.productionJob || null}
                                 getOptionLabel={(o) => o?.jobName ? `${o.jobName} (${o.jobCode || ''})` : ""}
-                                onChange={(e, v) => { setSelectedJob(v); setSelectedOperation({ ...selectedOperation, productionJob: v }); }}
+                                onChange={(e, v) => setSelectedOperation({
+                                    ...selectedOperation,
+                                    productionJob: v,
+                                    // A new operation takes the job's work centre; a saved one keeps the one it has.
+                                    ...(!selectedOperation.id ? { workCenter: v?.workCenter ?? null } : {}),
+                                })}
                                 renderInput={(params) => <TextField {...params} size="small" label="Production Job" sx={fieldSx} />}
                                 onInputChange={(e, v) => setSearchQuery(v)} loading={loading}
                                 sx={{ mb: 1.5 }}
@@ -446,7 +450,7 @@ export default function BomRouting({
                             <Autocomplete fullWidth size="small" options={workCenters}
                                 value={selectedOperation.workCenter || null}
                                 getOptionLabel={(o) => o?.centerCode ? `${o.centerName} (${o.centerCode})` : ""}
-                                onChange={(e, v) => { setSelectedWorkCenter(v); setSelectedOperation({ ...selectedOperation, workCenter: v }); }}
+                                onChange={(e, v) => setSelectedOperation({ ...selectedOperation, workCenter: v })}
                                 renderInput={(params) => <TextField {...params} size="small" label="Work Center" sx={fieldSx} />}
                                 onInputChange={(e, v) => setWorkCenterSearchQuery(v)} loading={loading}
                                 sx={{ mb: 1.5 }}
@@ -912,17 +916,10 @@ export default function BomRouting({
                             )}
 
                             {/* Action Buttons */}
+                            <Typography sx={{ fontSize: '0.72rem', color: '#6b7280', mt: 1 }}>
+                                Changes are kept as you edit, across operations and tabs. Save the BOM to store them.
+                            </Typography>
                             <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                                <Button variant="contained" fullWidth size="small"
-                                    sx={{
-                                        textTransform: 'none', fontWeight: 600, borderRadius: 1.5,
-                                        bgcolor: '#1565c0', '&:hover': { bgcolor: '#0d47a1' },
-                                        boxShadow: '0 2px 8px rgba(21,101,192,0.25)'
-                                    }}
-                                    onClick={handleSaveOperation}>
-                                    Save Changes
-                                </Button>
-
                                 <Button variant="outlined" color="error" fullWidth size="small"
                                     sx={{ textTransform: 'none', fontWeight: 500, borderRadius: 1.5 }}
                                     onClick={handleDeleteOperation}>
