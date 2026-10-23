@@ -460,7 +460,7 @@ const MakeBuyAnalysis = ({ initialItemId }) => {
         try {
             const payload = {
                 page: 0, size: 20, sortBy: 'inventoryItemId', sortDir: 'asc',
-                filters: query ? [{ field: 'name', operator: 'like', value: query }] : [],
+                filters: query ? [{ field: 'name', operator: 'contains', value: query }] : [],
             };
             const res = await filterInventoryItems(payload);
             setItems(res.content || []);
@@ -476,7 +476,7 @@ const MakeBuyAnalysis = ({ initialItemId }) => {
         try {
             const payload = {
                 page: 0, size: 1, sortBy: 'inventoryItemId', sortDir: 'asc',
-                filters: [{ field: 'inventoryItemId', operator: 'eq', value: id }],
+                filters: [{ field: 'inventoryItemId', operator: '=', value: String(id) }],
             };
             const res = await filterInventoryItems(payload);
             if (res.content?.length > 0) {

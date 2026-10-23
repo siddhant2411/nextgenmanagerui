@@ -192,7 +192,7 @@ export default function MachineAssetList({ onSuccess, onError }) {
                     </Box>
                     {canManage && (
                         <Button variant="contained" startIcon={<Add />}
-                            onClick={() => navigate("/production/machine-assets/add")}
+                            onClick={() => navigate("/manufacturing/machine-assets/add")}
                             sx={{
                                 borderRadius: 1.5, fontWeight: 600, textTransform: 'none', px: 2.5,
                                 boxShadow: '0 2px 8px rgba(21,101,192,0.25)',
@@ -270,7 +270,7 @@ export default function MachineAssetList({ onSuccess, onError }) {
                                             '&:hover': { bgcolor: ROW_HOVER },
                                             '& td': { fontSize: '0.8125rem', py: 0.75, borderBottom: `1px solid ${BORDER_COLOR}` },
                                         }}
-                                        onClick={() => navigate(`/production/machine-assets/${machine.id}`)}
+                                        onClick={() => navigate(`/manufacturing/machine-assets/${machine.id}`)}
                                     >
                                         <TableCell sx={{ color: '#6b7280', fontWeight: 500 }}>{index + 1 + page * size}</TableCell>
                                         <TableCell sx={{ fontWeight: 600, color: '#1565c0' }}>{machine.machineCode || '-'}</TableCell>
@@ -280,7 +280,7 @@ export default function MachineAssetList({ onSuccess, onError }) {
                                         <TableCell sx={{ textAlign: 'right', fontWeight: 500 }}>{formatCurrency(machine.costPerHour)}</TableCell>
                                         <TableCell sx={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                                             <Tooltip title="View Details">
-                                                <IconButton size="small" onClick={() => navigate(`/production/machine-assets/${machine.id}`)}
+                                                <IconButton size="small" onClick={() => navigate(`/manufacturing/machine-assets/${machine.id}`)}
                                                     sx={{ color: '#1565c0' }}>
                                                     <Visibility sx={{ fontSize: 18 }} />
                                                 </IconButton>
@@ -288,7 +288,7 @@ export default function MachineAssetList({ onSuccess, onError }) {
                                             {canManage && (
                                                 <>
                                                     <Tooltip title="Edit">
-                                                        <IconButton size="small" onClick={() => navigate(`/production/machine-assets/edit/${machine.id}`)}
+                                                        <IconButton size="small" onClick={() => navigate(`/manufacturing/machine-assets/edit/${machine.id}`)}
                                                             sx={{ color: '#1565c0' }}>
                                                             <Edit sx={{ fontSize: 18 }} />
                                                         </IconButton>

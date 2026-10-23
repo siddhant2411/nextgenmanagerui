@@ -70,6 +70,13 @@ import OEEDashboardPage from "./pages/OEEDashboardPage";
 import DowntimeReasonPage from "./pages/DowntimeReasonPage";
 import PurchasePage from "./pages/PurchasePage";
 
+// Machine Assets moved from Production to Shop Setup; old links and bookmarks still land on the same page.
+function MachineAssetsRedirect() {
+    const location = useLocation();
+    const to = location.pathname.replace("/production/machine-assets", "/manufacturing/machine-assets");
+    return <Navigate to={to + location.search} replace />;
+}
+
 function AppShell() {
     const isSmallScreen = useMediaQuery("(max-width:900px)");
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -433,7 +440,7 @@ function AppShell() {
                         }
                     />
                     <Route
-                        path="/production/machine-assets/*"
+                        path="/manufacturing/machine-assets/*"
                         element={
                             <RoleProtectedRoute
                                 allowedRoles={PRODUCTION_ACCESS_ROLES}
@@ -443,6 +450,7 @@ function AppShell() {
                             </RoleProtectedRoute>
                         }
                     />
+                    <Route path="/production/machine-assets/*" element={<MachineAssetsRedirect />} />
                     <Route
                         path="/production/labor-role/*"
                         element={

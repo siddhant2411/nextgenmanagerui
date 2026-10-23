@@ -130,15 +130,15 @@ const Sidebar = ({
                         { text: "Job Work Challan", path: "/production/job-work-challan" },
                         { text: "Make or Buy", path: "/production/make-or-buy" },
                         ...(canAccessPlanning ? [{ text: "Planning Desk", path: "/production/planning-desk" }] : []),
-                        { text: "Machine Assets", path: "/production/machine-assets" },
-                        { text: "OEE Dashboard", path: "/production/oee-dashboard" },
+                        // { text: "OEE Dashboard", path: "/production/oee-dashboard" },
                     ],
                 },
                 {
-                    text: "Manufacturing",
+                    text: "Shop Setup",
                     icon: <PrecisionManufacturing />,
                     children: [
                         { text: "Work Center", path: "/manufacturing/work-center" },
+                        { text: "Machine Assets", path: "/manufacturing/machine-assets" },
                         // { text: "Routing", path: "/manufacturing/routing" },
                         { text: "Downtime Reasons", path: "/manufacturing/downtime-reasons" },
                         { text: "Production Job", path: "/production/production-job" },
@@ -213,15 +213,16 @@ const Sidebar = ({
                 },
             ]
             : []),
-        ...(canAccessItemCode
-            ? [
-                {
-                    text: "Configuration",
-                    icon: <Settings />,
-                    children: [{ text: "Item Code", path: "/config/item-code-mapping" }],
-                },
-            ]
-            : []),
+        // Hidden for now; the page is still reachable by its URL.
+        // ...(canAccessItemCode
+        //     ? [
+        //         {
+        //             text: "Configuration",
+        //             icon: <Settings />,
+        //             children: [{ text: "Item Code", path: "/config/item-code-mapping" }],
+        //         },
+        //     ]
+        //     : []),
         ...(canManageUsers
             ? [
                 {

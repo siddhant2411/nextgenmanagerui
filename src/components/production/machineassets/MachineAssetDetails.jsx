@@ -100,7 +100,7 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
             setIsDeleting(true);
             await deleteMachineDetails(machine.id);
             if (onSuccess) onSuccess("Machine deleted successfully.");
-            navigate("/production/machine-assets");
+            navigate("/manufacturing/machine-assets");
         } catch (error) {
             if (onError) onError(resolveMachineErrorMessage(error, "Failed to delete machine."));
         } finally {
@@ -132,7 +132,7 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
                 <Box display="flex" justifyContent="space-between" alignItems="center"
                     flexDirection={{ xs: 'column', sm: 'row' }} gap={1.5} mb={2.5}>
                     <Box display="flex" alignItems="center" gap={1}>
-                        <IconButton onClick={() => navigate('/production/machine-assets')} size="small" sx={{ color: '#1565c0' }}>
+                        <IconButton onClick={() => navigate('/manufacturing/machine-assets')} size="small" sx={{ color: '#1565c0' }}>
                             <ArrowBack fontSize="small" />
                         </IconButton>
                         <Box>
@@ -155,7 +155,7 @@ export default function MachineAssetDetails({ onSuccess, onError }) {
                         {canManage && (
                             <>
                                 <Button size="small" variant="outlined" startIcon={<Edit />}
-                                    onClick={() => navigate(`/production/machine-assets/edit/${machine?.id}`)}
+                                    onClick={() => navigate(`/manufacturing/machine-assets/edit/${machine?.id}`)}
                                     sx={{ textTransform: 'none', fontWeight: 500, borderColor: BORDER_COLOR, color: '#374151' }}>
                                     Edit
                                 </Button>
