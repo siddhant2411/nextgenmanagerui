@@ -71,6 +71,15 @@ const APPROVAL_STYLE = {
 
 const parseNum = (v) => parseFloat(v) || 0;
 
+/** The terms a customer is usually sold on, from their contact record. */
+const termsOfCustomer = (contact) => ({ paymentTerms: contact?.defaultPaymentTerms || '' });
+
+/** The terms the customer was quoted; the quotation's price basis is what the order prints as incoterms. */
+const termsOfQuotation = (q, fallback = {}) => ({
+    paymentTerms: q?.paymentTerms || fallback.paymentTerms || '',
+    incoterms: q?.pricesTerms || fallback.incoterms || '',
+});
+
 const AddUpdateSalesOrder = ({ onSave }) => {
     const navigate   = useNavigate();
     const location   = useLocation();
@@ -123,6 +132,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             placeOfSupplyStateCode: '',
             poNumber: '',
             poDate: '',
+            paymentTerms: '',
+            incoterms: '',
+            reference: '',
             billToAddress: '',
             deliveryAddress: '',
             shipToName: '',
@@ -133,6 +145,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             // Code of the warehouse the order is dispatched from; '' is the default warehouse.
             dispatchWarehouseCode: '',
             deliveryDate: '',
+            packagingInstructions: '',
             remarks: '',
             discountPercentage: 0,
             freightAndForwardingCharges: 0,
@@ -178,6 +191,13 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             }
         },
     });
+
+    // Picking a customer or a quotation fills the terms only where nothing has been typed yet.
+    const applyTerms = (terms) => {
+        Object.entries(terms).forEach(([k, val]) => {
+            if (val && !formik.values[k]) formik.setFieldValue(k, val);
+        });
+    };
 
     // ── Live tax calculation ──────────────────────────────────────────────────
     useEffect(() => {
@@ -274,6 +294,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             placeOfSupplyStateCode: data.placeOfSupplyStateCode ?? '',
             poNumber:    data.poNumber    ?? '',
             poDate:      data.poDate      ?? '',
+            paymentTerms: data.paymentTerms ?? '',
+            incoterms:    data.incoterms    ?? '',
+            reference:    data.reference    ?? '',
             billToAddress:          data.billToAddress ?? '',
             deliveryAddress:        data.deliveryAddress ?? '',
             shipToName:             data.shipToName ?? '',
@@ -283,6 +306,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             transportMode:          data.transportMode ?? '',
             dispatchWarehouseCode:  data.dispatchWarehouseCode ?? '',
             deliveryDate:           data.deliveryDate ?? '',
+            packagingInstructions:  data.packagingInstructions ?? '',
             remarks:     data.remarks ?? '',
             discountPercentage:     data.discountPercentage ?? 0,
             freightAndForwardingCharges: data.freightAndForwardingCharges ?? 0,
@@ -330,6 +354,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                 apiService.get(`/quotation/${location.state.prefillQuotationId}`)
                     .then(q => {
                         formik.setFieldValue('quotation', q);
+                        applyTerms(termsOfQuotation(q, termsOfCustomer(q.enquiry?.contact)));
                         if (q.enquiry?.contact) {
                             formik.setFieldValue('contact', q.enquiry.contact);
                             Object.entries(partyDefaultsFor(q.enquiry.contact)).forEach(([k, val]) => formik.setFieldValue(k, val));
@@ -374,6 +399,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         transportMode:       v.transportMode,
         dispatchWarehouseCode: v.dispatchWarehouseCode || '',
         deliveryDate:        v.deliveryDate || null,
+        packagingInstructions: v.packagingInstructions,
+        reference:           v.reference,
         remarks:             v.remarks,
         discountPercentage:  parseFloat(v.discountPercentage) || 0,
         taxPercentage:       0,
@@ -628,6 +655,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 formik.setFieldValue('contact', v);
                                                 // A new customer brings their own billing address and starts shipping to it
                                                 Object.entries(partyDefaultsFor(v)).forEach(([k, val]) => formik.setFieldValue(k, val));
+                                                applyTerms(termsOfCustomer(v));
                                             }}
                                             disabled={readOnly}
                                             renderInput={(p) => <TextField {...p} label="Select Customer *" error={Boolean(formik.errors.contact)} helperText={formik.errors.contact} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />}
@@ -639,6 +667,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                             onInputChange={(_, v) => handleSearch('quotation', v)}
                                             onChange={async (_, v) => {
                                                 formik.setFieldValue('quotation', v);
+                                                applyTerms(termsOfQuotation(v, termsOfCustomer(formik.values.contact)));
                                                 if (v?.quotationProducts) {
                                                     formik.setFieldValue('items', v.quotationProducts.map(p => ({
                                                         inventoryItem: p.inventoryItem, qty: p.qty,
@@ -655,6 +684,10 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                     <Grid item xs={12} md={3}><TextField fullWidth label="Client PO#" name="poNumber" value={formik.values.poNumber} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth type="date" label="PO Date" name="poDate" value={formik.values.poDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth label="Currency" name="currency" value={formik.values.currency} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    {/* Printed in the terms block of the order acknowledgement, proforma and invoice. */}
+                                    <Grid item xs={12} md={6}><TextField fullWidth label="Payment Terms" name="paymentTerms" value={formik.values.paymentTerms} onChange={formik.handleChange} disabled={readOnly} placeholder="e.g. 30% advance, balance before dispatch" inputProps={{ maxLength: 200 }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth label="Incoterms / Price Basis" name="incoterms" value={formik.values.incoterms} onChange={formik.handleChange} disabled={readOnly} placeholder="e.g. Ex-works Rajkot" inputProps={{ maxLength: 200 }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><TextField fullWidth label="Reference" name="reference" value={formik.values.reference} onChange={formik.handleChange} disabled={readOnly} inputProps={{ maxLength: 200 }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                 </Grid>
 
                                 <Divider sx={{ my: 5, borderStyle: 'dashed' }} />
@@ -744,7 +777,9 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                             <Grid container spacing={2}>
                                                 <Grid item xs={6}><TextField fullWidth label="Dispatch Through" name="dispatchThrough" value={formik.values.dispatchThrough} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                                 <Grid item xs={6}><TextField fullWidth label="Transport Mode" name="transportMode" value={formik.values.transportMode} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                                <Grid item xs={6}><TextField fullWidth type="date" label="Delivery Date" name="deliveryDate" value={formik.values.deliveryDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                             </Grid>
+                                            <TextField fullWidth multiline rows={2} label="Packaging Instructions" name="packagingInstructions" value={formik.values.packagingInstructions} onChange={formik.handleChange} disabled={readOnly} inputProps={{ maxLength: 200 }} helperText="Printed on the order acknowledgement." sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }} />
                                             {/* Anything this order is short of is made or bought for this warehouse, and it is picked from here. */}
                                             <WarehouseSelect fullWidth label="Dispatch From"
                                                 value={formik.values.dispatchWarehouseCode}
