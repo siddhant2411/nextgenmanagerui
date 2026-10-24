@@ -2,64 +2,47 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, List, ListItemButton,
   ListItemText, Typography, Box, Chip, TextField, Stack, Divider, IconButton,
-  Tabs, Tab, Paper, Tooltip
+  Tabs, Tab, Paper, Tooltip, Alert
 } from '@mui/material';
 import { ContentCopy, Send, Edit, Preview, Close } from '@mui/icons-material';
 import apiService from '../../services/apiService';
 import { getSendFrom } from '../../utils/emailCompose';
+import { enquiryValues, fillTemplate, loadOwnCompany, mergeFieldsFor, missingNote, templatesFor } from '../../utils/messageTemplates';
 import { EmailSendButtons, SendFromField } from '../common/EmailSend';
 
-const MERGE_FIELDS = [
-  { key: '{{contactPerson}}', label: 'Contact Person' },
-  { key: '{{companyName}}', label: 'Company Name' },
-  { key: '{{enqNo}}', label: 'Enquiry No' },
-  { key: '{{opportunityName}}', label: 'Opportunity Name' },
-  { key: '{{phone}}', label: 'Phone' },
-  { key: '{{email}}', label: 'Email' },
-  { key: '{{city}}', label: 'City' },
-  { key: '{{state}}', label: 'State' },
-];
+const MERGE_FIELDS = mergeFieldsFor('enquiry');
 
 const CHANNEL_COLORS = {
   WHATSAPP: { color: '#25d366', bg: '#dcfce7', label: 'WhatsApp' },
   EMAIL: { color: '#2563eb', bg: '#dbeafe', label: 'Email' },
 };
 
-/**
- * Replaces merge field placeholders with actual enquiry data.
- */
-const mergeTemplate = (body, enquiry) => {
-  if (!body || !enquiry) return body || '';
-  return body
-    .replace(/\{\{contactPerson\}\}/g, enquiry.contactPersonName || enquiry.companyName || 'Sir/Madam')
-    .replace(/\{\{companyName\}\}/g, enquiry.companyName || 'Our Company')
-    .replace(/\{\{enqNo\}\}/g, enquiry.enqNo || '')
-    .replace(/\{\{opportunityName\}\}/g, enquiry.opportunityName || 'your requirement')
-    .replace(/\{\{phone\}\}/g, enquiry.phone || enquiry.contactPersonPhone || '')
-    .replace(/\{\{email\}\}/g, enquiry.email || enquiry.contactPersonEmail || '')
-    .replace(/\{\{city\}\}/g, enquiry.city || '')
-    .replace(/\{\{state\}\}/g, enquiry.state || '');
-};
-
 const TemplatePicker = ({ open, onClose, channel, enquiry, onSend }) => {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [previewText, setPreviewText] = useState('');
   const [editedText, setEditedText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [toEmail, setToEmail] = useState('');
   const [fromEmail, setFromEmail] = useState(getSendFrom);
   const isEmail = channel === 'EMAIL';
+
+  // What the placeholders are filled with: the enquiry and your own company.
+  const [values, setValues] = useState(() => enquiryValues(enquiry, null));
+  const fill = (text) => fillTemplate(text, values).text;
   const [activeTab, setActiveTab] = useState(0); // 0 = pick, 1 = preview
 
   useEffect(() => {
     if (open) {
       fetchTemplates();
       setSelectedTemplate(null);
-      setPreviewText('');
       setEditedText('');
       setIsEditing(false);
       setToEmail(enquiry?.email || enquiry?.contactPersonEmail || '');
+      setValues(enquiryValues(enquiry, null));
+      Promise.all([
+        loadOwnCompany(),
+        enquiry?.id ? apiService.get(`/enquiry/${enquiry.id}`).catch(() => null) : null,
+      ]).then(([company, full]) => setValues(enquiryValues(full ? { ...enquiry, ...full } : enquiry, company)));
       setActiveTab(0);
     }
   }, [open, channel]);
@@ -67,7 +50,8 @@ const TemplatePicker = ({ open, onClose, channel, enquiry, onSend }) => {
   const fetchTemplates = async () => {
     try {
       const data = await apiService.get(`/message-template/channel/${channel}`);
-      setTemplates(data || []);
+      // Purchase-order templates have nothing to fill them from an enquiry.
+      setTemplates(templatesFor('enquiry', data));
     } catch (err) {
       console.error('Failed to fetch templates', err);
     }
@@ -75,24 +59,33 @@ const TemplatePicker = ({ open, onClose, channel, enquiry, onSend }) => {
 
   const handleSelect = (template) => {
     setSelectedTemplate(template);
-    const merged = mergeTemplate(template.body, enquiry);
-    setPreviewText(merged);
+    const merged = fill(template.body);
     setEditedText(merged);
     setActiveTab(1);
     setIsEditing(false);
   };
 
   const handleSend = (via) => {
-    const finalText = isEditing ? editedText : previewText;
+    // Filled again, so a field inserted while editing goes out filled too.
+    const finalText = fill(editedText);
     const subject = selectedTemplate?.subject
-      ? mergeTemplate(selectedTemplate.subject, enquiry)
+      ? fill(selectedTemplate.subject)
       : `Regarding Enquiry: ${enquiry?.enqNo || ''}`;
     onSend(finalText, subject, { via, to: toEmail.trim(), from: fromEmail });
     onClose();
   };
 
+  useEffect(() => {
+    if (selectedTemplate) {
+      setEditedText((t) => fill(t));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values]);
+
+  const missing = selectedTemplate ? fillTemplate(editedText, values).missing : [];
+
   const handleCopy = () => {
-    const text = isEditing ? editedText : previewText;
+    const text = editedText;
     navigator.clipboard.writeText(text);
   };
 
@@ -204,6 +197,10 @@ const TemplatePicker = ({ open, onClose, channel, enquiry, onSend }) => {
 
               <Divider />
 
+              {missing.length > 0 && (
+                <Alert severity="warning" sx={{ mx: 3, mt: 2, borderRadius: 2, py: 0 }}>{missingNote(missing)}</Alert>
+              )}
+
               {isEmail && (
                 <Box sx={{ px: 3, pt: 2 }}>
                   <TextField fullWidth size="small" label="To" type="email"
@@ -236,7 +233,7 @@ const TemplatePicker = ({ open, onClose, channel, enquiry, onSend }) => {
                       fontFamily: channel === 'WHATSAPP' ? '"Segoe UI", sans-serif' : 'inherit'
                     }}
                   >
-                    {previewText}
+                    {fill(editedText)}
                   </Paper>
                 )}
               </Box>

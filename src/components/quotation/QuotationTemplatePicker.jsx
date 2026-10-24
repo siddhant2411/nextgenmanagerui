@@ -2,69 +2,76 @@ import React, { useState, useEffect } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, List, ListItemButton,
   ListItemText, Typography, Box, Chip, TextField, Stack, Divider, IconButton,
-  Paper, Tooltip
+  Paper, Tooltip, Alert
 } from '@mui/material';
 import { ContentCopy, Send, Edit, Preview, Close } from '@mui/icons-material';
 import apiService from '../../services/apiService';
-import { getSendFrom } from '../../utils/emailCompose';
+import { getSendFrom, safeFileName, sendEmail } from '../../utils/emailCompose';
 import { EMAIL_SEND_HINT, EmailSendButtons, SendFromField } from '../common/EmailSend';
+import { fillTemplate, loadOwnCompany, mergeFieldsFor, missingNote, quotationValues, templatesFor } from '../../utils/messageTemplates';
 
-const MERGE_FIELDS = [
-  { key: '{{contactPerson}}', label: 'Contact Person' },
-  { key: '{{companyName}}', label: 'Company Name' },
-  { key: '{{qtnNo}}', label: 'Quotation No' },
-  { key: '{{qtnDate}}', label: 'Quotation Date' },
-  { key: '{{totalAmount}}', label: 'Total Amount' },
-  { key: '{{phone}}', label: 'Phone' },
-  { key: '{{email}}', label: 'Email' },
-];
+/*
+ * Sends what the picker composed: WhatsApp opens a chat with the text, email goes out with the
+ * quotation PDF attached. Shared by the quotation list and the quotation page.
+ */
+export const sendComposedQuotation = (channel, qtn, text, subject, mail) => {
+  if (channel === 'WHATSAPP') {
+    const phone = qtn?.phone || '';
+    if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+  } else {
+    const fetchPdf = async () => (await apiService.fetchBlob(`/quotation/pdf/${qtn.id}`)).blob;
+    sendEmail(mail.via, { to: mail.to, subject, body: text, from: mail.from }, fetchPdf, `Quotation-${safeFileName(qtn.qtnNo || qtn.id)}.pdf`)
+      .catch(() => alert('The email was opened, but the PDF could not be prepared. Download it and attach it manually.'));
+  }
+};
+
+export const WhatsAppIcon = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+);
+
+const MERGE_FIELDS = mergeFieldsFor('quotation');
 
 const CHANNEL_COLORS = {
   WHATSAPP: { color: '#25d366', bg: '#dcfce7', label: 'WhatsApp' },
   EMAIL: { color: '#2563eb', bg: '#dbeafe', label: 'Email' },
 };
 
-/**
- * Replaces merge field placeholders with actual quotation data.
- */
-const mergeTemplate = (body, quotation) => {
-  if (!body || !quotation) return body || '';
-  return body
-    .replace(/\{\{contactPerson\}\}/g, quotation.contactPerson || quotation.companyName || 'Sir/Madam')
-    .replace(/\{\{companyName\}\}/g, quotation.companyName || 'Our Company')
-    .replace(/\{\{qtnNo\}\}/g, quotation.qtnNo || '')
-    .replace(/\{\{qtnDate\}\}/g, quotation.qtnDate || '')
-    .replace(/\{\{totalAmount\}\}/g, `${quotation.currency || 'INR'} ${quotation.totalAmount?.toLocaleString('en-IN') || '0'}`)
-    .replace(/\{\{phone\}\}/g, quotation.phone || '')
-    .replace(/\{\{email\}\}/g, quotation.email || '');
-};
-
 const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) => {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [previewText, setPreviewText] = useState('');
   const [editedText, setEditedText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [toEmail, setToEmail] = useState('');
   const [fromEmail, setFromEmail] = useState(getSendFrom);
   const isEmail = channel === 'EMAIL';
 
+  // What the placeholders are filled with: the full quotation (its enquiry, customer and contact
+  // person) and your own company. The row a list passes in is used until those have loaded.
+  const [values, setValues] = useState(() => quotationValues(quotation, null));
+  const fill = (text) => fillTemplate(text, values).text;
+
   useEffect(() => {
     if (open) {
       fetchTemplates();
       setSelectedTemplate(null);
-      setPreviewText('');
       setEditedText('');
       setIsEditing(false);
       setToEmail(quotation?.email || '');
+      setValues(quotationValues(quotation, null));
+      Promise.all([
+        loadOwnCompany(),
+        quotation?.id ? apiService.get(`/quotation/${quotation.id}`).catch(() => null) : null,
+      ]).then(([company, full]) => setValues(quotationValues(full || quotation, company)));
     }
   }, [open, channel]);
 
   const fetchTemplates = async () => {
     try {
       const data = await apiService.get(`/message-template/channel/${channel}`);
-      // Filter for quotation related templates if possible, or just show all
-      setTemplates(data || []);
+      // Purchase-order templates have nothing to fill them from a quotation.
+      setTemplates(templatesFor('quotation', data));
     } catch (err) {
       console.error('Failed to fetch templates', err);
     }
@@ -72,23 +79,32 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
 
   const handleSelect = (template) => {
     setSelectedTemplate(template);
-    const merged = mergeTemplate(template.body, quotation);
-    setPreviewText(merged);
+    const merged = fill(template.body);
     setEditedText(merged);
     setIsEditing(false);
   };
 
   const handleSend = (via) => {
-    const finalText = isEditing ? editedText : previewText;
+    // Filled again, so a field inserted while editing goes out filled too.
+    const finalText = fill(editedText);
     const subject = selectedTemplate?.subject
-      ? mergeTemplate(selectedTemplate.subject, quotation)
-      : `Quotation: ${quotation?.qtnNo || ''} - ${quotation?.companyName || ''}`;
+      ? fill(selectedTemplate.subject)
+      : `Quotation: ${values.qtnNo || quotation?.qtnNo || ''} - ${values.customerName || ''}`;
     onSend(finalText, subject, { via, to: toEmail.trim(), from: fromEmail });
     onClose();
   };
 
+  useEffect(() => {
+    if (selectedTemplate) {
+      setEditedText((t) => fill(t));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values]);
+
+  const missing = selectedTemplate ? fillTemplate(editedText, values).missing : [];
+
   const handleCopy = () => {
-    const text = isEditing ? editedText : previewText;
+    const text = editedText;
     navigator.clipboard.writeText(text);
   };
 
@@ -192,6 +208,10 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
 
               <Divider />
 
+              {missing.length > 0 && (
+                <Alert severity="warning" sx={{ mx: 3, mt: 2, borderRadius: 2, py: 0 }}>{missingNote(missing)}</Alert>
+              )}
+
               {isEmail && (
                 <Box sx={{ px: 3, pt: 2 }}>
                   <TextField fullWidth size="small" label="To" type="email"
@@ -224,7 +244,7 @@ const QuotationTemplatePicker = ({ open, onClose, channel, quotation, onSend }) 
                       lineHeight: 1.8, color: '#1e293b',
                     }}
                   >
-                    {previewText}
+                    {fill(editedText)}
                   </Paper>
                 )}
               </Box>

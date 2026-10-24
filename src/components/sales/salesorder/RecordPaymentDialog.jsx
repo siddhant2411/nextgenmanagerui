@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Add, DeleteOutline, Payments } from '@mui/icons-material';
 import { recordPayment, deletePayment } from '../../../services/salesOrderService';
+import { currencySign, formatMoney } from '../../common/currency';
 
 const PAYMENT_MODES = [
     { value: 'CASH',   label: 'Cash' },
@@ -25,10 +26,9 @@ const EMPTY_FORM = {
     notes: '',
 };
 
-const fmt = (v) => parseFloat(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 const RecordPaymentDialog = ({
-    open, onClose, orderId, orderNumber, totalPayable,
+    open, onClose, orderId, orderNumber, totalPayable, currency = 'INR',
     payments = [], onPaymentsChanged,
 }) => {
     const [form, setForm] = useState(EMPTY_FORM);
@@ -97,7 +97,7 @@ const RecordPaymentDialog = ({
                         <Stack key={label} alignItems="center" flex={1}
                             sx={{ p: 1.5, borderRadius: 3, bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
                             <Typography sx={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>{label}</Typography>
-                            <Typography sx={{ fontWeight: 900, fontSize: '1rem', color }}>₹{fmt(value)}</Typography>
+                            <Typography sx={{ fontWeight: 900, fontSize: '1rem', color }}>{formatMoney(value, currency)}</Typography>
                         </Stack>
                     ))}
                 </Stack>
@@ -113,7 +113,7 @@ const RecordPaymentDialog = ({
                             value={form.paymentDate} onChange={handleChange}
                             InputLabelProps={{ shrink: true }}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }} />
-                        <TextField fullWidth label="Amount (₹) *" type="number" name="amount"
+                        <TextField fullWidth label={`Amount (${currencySign(currency)}) *`} type="number" name="amount"
                             value={form.amount} onChange={handleChange}
                             inputProps={{ min: 0.01, step: 0.01 }}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2.5 } }} />
@@ -163,7 +163,7 @@ const RecordPaymentDialog = ({
                                                 sx={{ fontSize: '0.65rem', fontWeight: 700, height: 18, borderRadius: 1 }} />
                                         </TableCell>
                                         <TableCell sx={{ color: '#64748b' }}>{p.referenceNumber || '—'}</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 700 }}>₹{fmt(p.amount)}</TableCell>
+                                        <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(p.amount, currency)}</TableCell>
                                         <TableCell align="right">
                                             <IconButton size="small" disabled={deleting === p.id}
                                                 onClick={() => handleDelete(p.id)}

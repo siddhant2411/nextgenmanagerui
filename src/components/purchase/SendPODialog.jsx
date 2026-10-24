@@ -14,40 +14,9 @@ import { downloadPOPdf, markEmailSent } from '../../services/purchaseOrderServic
 import { contactEmails, getSendFrom, safeFileName, sendEmail } from '../../utils/emailCompose';
 import { EMAIL_SEND_HINT, EmailSendButtons, SendFromField } from '../common/EmailSend';
 import { T } from '../../theme/moduleTokens';
+import { fillTemplate, loadOwnCompany, mergeFieldsFor, missingNote, purchaseOrderValues, templatesFor } from '../../utils/messageTemplates';
 
-const MERGE_FIELDS = [
-    { key: '{{contactPerson}}',     label: 'Contact Person' },
-    { key: '{{vendorName}}',        label: 'Vendor Name' },
-    { key: '{{poNumber}}',          label: 'PO Number' },
-    { key: '{{quotationNumber}}',   label: 'Quotation No.' },
-    { key: '{{quotationDate}}',     label: 'Quotation Date' },
-    { key: '{{orderDate}}',         label: 'Order Date' },
-    { key: '{{expectedDeliveryDate}}', label: 'Delivery Date' },
-    { key: '{{currency}}',          label: 'Currency' },
-    { key: '{{grandTotal}}',        label: 'Grand Total' },
-    { key: '{{companyName}}',       label: 'Your Company' },
-];
-
-const fmt = (dateStr) => {
-    if (!dateStr) return '—';
-    try { return new Date(dateStr).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
-    catch { return dateStr; }
-};
-
-const mergePO = (text, po) => {
-    if (!text || !po) return text || '';
-    return text
-        .replace(/\{\{contactPerson\}\}/g,        po.vendorContactPerson || po.vendorName || 'Sir/Madam')
-        .replace(/\{\{vendorName\}\}/g,            po.vendorName || '')
-        .replace(/\{\{poNumber\}\}/g,              po.purchaseOrderNumber || '')
-        .replace(/\{\{quotationNumber\}\}/g,       po.quotationNumber || '—')
-        .replace(/\{\{quotationDate\}\}/g,         fmt(po.quotationDate))
-        .replace(/\{\{orderDate\}\}/g,             fmt(po.orderDate))
-        .replace(/\{\{expectedDeliveryDate\}\}/g,  fmt(po.expectedDeliveryDate))
-        .replace(/\{\{currency\}\}/g,              po.currency || 'INR')
-        .replace(/\{\{grandTotal\}\}/g,            po.grandTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00')
-        .replace(/\{\{companyName\}\}/g,           po.companyName || '');
-};
+const MERGE_FIELDS = mergeFieldsFor('purchaseOrder');
 
 /**
  * Dialog for composing and sending a PO via Email or WhatsApp.
@@ -62,7 +31,6 @@ const mergePO = (text, po) => {
 export default function SendPODialog({ open, onClose, po, channel, onSent }) {
     const [templates, setTemplates] = useState([]);
     const [selected, setSelected]   = useState(null);
-    const [preview, setPreview]     = useState('');
     const [edited, setEdited]       = useState('');
     const [subject, setSubject]     = useState('');
     const [toEmail, setToEmail]     = useState('');
@@ -75,11 +43,20 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
     const channelColor = isEmail ? '#2563eb' : '#25d366';
     const channelBg    = isEmail ? '#dbeafe'  : '#dcfce7';
 
+    // What the placeholders are filled with: the order, the vendor's contact person and your own company.
+    const [values, setValues] = useState(() => purchaseOrderValues(po, null, null));
+    const fill = (text) => fillTemplate(text, values).text;
+
     useEffect(() => {
         if (!open) return;
-        setSelected(null); setPreview(''); setEdited('');
+        setSelected(null); setEdited('');
         setSubject(''); setIsEditing(false); setError(null);
         setToEmail(po?.vendorEmail || '');
+        setValues(purchaseOrderValues(po, null, null));
+        Promise.all([
+            loadOwnCompany(),
+            po?.vendorId ? apiService.get(`/contact/${po.vendorId}`).catch(() => null) : null,
+        ]).then(([company, vendor]) => setValues(purchaseOrderValues(po, company, vendor)));
         // A PO without a vendor email on it falls back to what the vendor's contact has saved.
         if (channel === 'EMAIL' && !po?.vendorEmail && po?.vendorId) {
             apiService.get(`/contact/${po.vendorId}`)
@@ -89,14 +66,15 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
 
         apiService.get(`/message-template/channel/${channel}`)
             .then(data => {
-                const poTemplates = (data || []).filter(t => t.category === 'PURCHASE_ORDER');
+                const poTemplates = templatesFor('purchaseOrder', data);
                 setTemplates(poTemplates);
                 const def = poTemplates.find(t => t.isDefault) ?? poTemplates[0];
                 if (def) {
-                    const merged = mergePO(def.body, po);
-                    const mergedSubject = mergePO(def.subject, po) || `Purchase Order ${po?.purchaseOrderNumber}`;
+                    // Filled with what is known now; filled again below once the company and vendor arrive.
+                    const known = purchaseOrderValues(po, null, null);
+                    const merged = fillTemplate(def.body, known).text;
+                    const mergedSubject = fillTemplate(def.subject, known).text || `Purchase Order ${po?.purchaseOrderNumber}`;
                     setSelected(def);
-                    setPreview(merged);
                     setEdited(merged);
                     setSubject(mergedSubject);
                 }
@@ -105,19 +83,27 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, channel]);
 
-    const handleSelect = (tmpl, currentPo) => {
-        const src = currentPo || po;
-        const merged = mergePO(tmpl.body, src);
-        const mergedSubject = mergePO(tmpl.subject, src) || `Purchase Order ${src?.purchaseOrderNumber}`;
+    const handleSelect = (tmpl) => {
+        const merged = fill(tmpl.body);
+        const mergedSubject = fill(tmpl.subject) || `Purchase Order ${po?.purchaseOrderNumber}`;
         setSelected(tmpl);
-        setPreview(merged);
         setEdited(merged);
         setSubject(mergedSubject);
         setIsEditing(false);
     };
 
-    const currentText    = isEditing ? edited : preview;
-    const currentSubject = subject;
+    useEffect(() => {
+        if (selected) {
+            setEdited((t) => fill(t));
+            setSubject((t) => fill(t));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [values]);
+
+    // Filled again, so a field inserted while editing goes out filled too.
+    const currentText    = fill(edited);
+    const currentSubject = fill(subject);
+    const missing = selected ? fillTemplate(`${edited} ${subject}`, values).missing : [];
 
     const handleSend = async (via) => {
         if (!po?.id) return;
@@ -229,6 +215,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                 {/* Right: Compose area */}
                 <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     {error && <Alert severity="error" sx={{ m: 2, mb: 0 }}>{error}</Alert>}
+                    {missing.length > 0 && <Alert severity="warning" sx={{ m: 2, mb: 0, py: 0 }}>{missingNote(missing)}</Alert>}
 
                     {selected ? (
                         <>
@@ -283,7 +270,7 @@ export default function SendPODialog({ open, onClose, po, channel, onSent }) {
                                         whiteSpace: 'pre-wrap', fontSize: '0.85rem',
                                         lineHeight: 1.8, color: '#1e293b',
                                     }}>
-                                        {preview}
+                                        {currentText}
                                     </Box>
                                 )}
                             </Box>

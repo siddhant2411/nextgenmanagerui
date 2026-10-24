@@ -8,7 +8,7 @@ import { T } from '../../../theme/moduleTokens';
 import { stateLabel, useGstStates } from '../../../services/gstStates';
 
 
-const fmtAmt = (n) => `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { formatMoney } from '../../common/currency';
 
 const SummaryRow = ({ label, value, bold = false, color = '#1e293b' }) => (
     <TableRow>
@@ -32,6 +32,8 @@ const GST_TREATMENT_LABEL = {
 
 export default function POTaxSummaryTab({ formik }) {
     const v = formik.values;
+    // Amounts are in the order's own currency.
+    const fmtAmt = (n) => formatMoney(n, v.currency);
     const states = useGstStates();
     const isIntra = v.gstTreatment === 'INTRA_STATE';
     const isInter = v.gstTreatment === 'INTER_STATE';

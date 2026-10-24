@@ -14,6 +14,7 @@ import { listWarehouses } from '../../../services/warehouseService';
 import { contactLabel } from '../../../utils/contactLabel';
 import { T } from '../../../theme/moduleTokens';
 import GstStateSelect from '../../common/GstStateSelect';
+import CurrencySelect from '../../common/CurrencySelect';
 
 const PO_TYPES = ['STANDARD', 'BLANKET', 'SUBCONTRACT', 'SERVICE', 'IMPORT'];
 
@@ -154,9 +155,9 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                 </TextField>
                             </Grid>
                             <Grid item xs={12} sm={4}>
-                                <TextField fullWidth size="small" label="Currency"
+                                <CurrencySelect size="small"
                                     value={formik.values.currency ?? 'INR'}
-                                    onChange={e => set('currency', e.target.value)}
+                                    onChange={code => set('currency', code)}
                                     disabled={readOnly}
                                     InputProps={{ sx: { borderRadius: 1.5 } }} />
                             </Grid>
@@ -212,6 +213,8 @@ export default function POBasicTab({ formik, isEdit, readOnly }) {
                                         if (v) {
                                             if (v.defaultPaymentTerms && !formik.values.paymentTerms) set('paymentTerms', v.defaultPaymentTerms);
                                             if (v.creditDays && !formik.values.creditDays) set('creditDays', v.creditDays);
+                                            // A vendor billed in another currency; a PO still on the rupee default follows them.
+                                            if (v.currency && (formik.values.currency ?? 'INR') === 'INR') set('currency', v.currency);
                                         }
                                     }}
                                     disabled={readOnly}

@@ -6,6 +6,8 @@ import {
 import { Close } from '@mui/icons-material';
 import apiService from '../../services/apiService';
 import { contactLabel } from '../../utils/contactLabel';
+import CurrencySelect from '../common/CurrencySelect';
+import { currencySign } from '../common/currency';
 import dayjs from 'dayjs';
 
 const DRAWER_WIDTH = 480;
@@ -85,6 +87,8 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
       vendorId: val?.id || '',
       // gstType UNREGISTERED means no GST registration; all other types are registered
       gstRegistered: val ? val.gstType !== 'UNREGISTERED' : true,
+      // A price still on the rupee default follows the vendor's own currency.
+      currency: val?.currency && prev.currency === 'INR' ? val.currency : prev.currency,
     }));
   };
 
@@ -189,12 +193,17 @@ export default function AddEditVendorPriceDrawer({ open, onClose, itemId, editin
           </Grid>
 
           <Grid item xs={12} sm={6}>
-            <TextField 
-              fullWidth label="Price per Unit *" 
+            <TextField
+              fullWidth label="Price per Unit *"
               name="pricePerUnit" value={formData.pricePerUnit} onChange={handleChange}
               type="number" size="small"
-              InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+              InputProps={{ startAdornment: <InputAdornment position="start">{currencySign(formData.currency)}</InputAdornment> }}
             />
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <CurrencySelect size="small" value={formData.currency}
+              onChange={(code) => setFormData(prev => ({ ...prev, currency: code }))} />
           </Grid>
 
           <Grid item xs={12} sm={6}>

@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthContext";
 import { ADMIN_ROLES } from "../auth/roles";
 import DocumentBrandingCard from "../components/company/DocumentBrandingCard";
 import { StateNameField } from "../components/common/GstStateSelect";
+import CurrencySelect from "../components/common/CurrencySelect";
 
 const MONTHS = [
     { value: 1, label: "January" },
@@ -463,13 +464,10 @@ export default function CompanyDetailsPage() {
                         </Typography>
                         <Grid container spacing={2} sx={{ mb: 4 }}>
                             <Grid item xs={12} sm={3}>
-                                <TextField
-                                    label="Currency"
+                                <CurrencySelect
                                     value={form.currency}
-                                    onChange={handleChange("currency")}
-                                    fullWidth
+                                    onChange={(code) => handleChange("currency")({ target: { value: code } })}
                                     size="small"
-                                    inputProps={{ maxLength: 3 }}
                                     disabled={!canEdit}
                                 />
                             </Grid>
