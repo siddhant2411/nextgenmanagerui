@@ -544,6 +544,7 @@ export default function BomRouting({
                                         fixedCostPerUnit: (ct === 'FIXED_RATE' || ct === 'SUB_CONTRACTED') ? selectedOperation.fixedCostPerUnit : null,
                                         costQuantity: ct === 'RATE_TIMES_QTY' ? selectedOperation.costQuantity : null,
                                         costRate: ct === 'RATE_TIMES_QTY' ? selectedOperation.costRate : null,
+                                        applyOverhead: ct === 'RATE_TIMES_QTY' ? Boolean(selectedOperation.applyOverhead) : false,
                                     });
                                 }}
                             >
@@ -596,6 +597,17 @@ export default function BomRouting({
                                             </>
                                         )}
                                     </Typography>
+                                    <Tooltip arrow title="Used only when the BOM's Overhead % is blank. A piece rate is treated as all-in unless this is ticked.">
+                                        <FormControlLabel sx={{ mt: -0.5, mb: 1 }}
+                                            control={
+                                                <Checkbox size="small" checked={Boolean(selectedOperation.applyOverhead)}
+                                                    onChange={(e) => setSelectedOperation({ ...selectedOperation, applyOverhead: e.target.checked })}
+                                                    sx={{ '&.Mui-checked': { color: '#1565c0' } }}
+                                                />
+                                            }
+                                            label={<Typography sx={{ fontSize: '0.8rem' }}>Add work center overhead to this piece rate</Typography>}
+                                        />
+                                    </Tooltip>
                                 </>
                             )}
 

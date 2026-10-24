@@ -39,7 +39,8 @@ const COST_FORMULA_TEXT = `CALCULATED: Machine Rate × Time + Labor Rate × Oper
 FIXED_RATE: Fixed Cost Per Unit
 SUB_CONTRACTED: Sub-contract Rate Per Unit
 RATE_TIMES_QTY: Piece Rate (₹/each) × Quantity
-Overhead: BOM Overhead % × (Material + Operations + Additional − Subcontract)`;
+Overhead, BOM Overhead % set (0 included): BOM % × (Material + Operations + Additional − Subcontract); work center overhead is not used
+Overhead, BOM Overhead % blank: each Calculated operation adds its work center's overhead % (piece-rate only when ticked), included in Operation Cost`;
 
 export default function BomCostBreakdown({ data, loading }) {
     if (loading) {
@@ -65,11 +66,19 @@ export default function BomCostBreakdown({ data, loading }) {
                 <SummaryCard label="Material Cost" value={data.totalMaterialCost} color="#2e7d32" />
                 <SummaryCard label="Operation Cost" value={data.totalOperationCost} color="#1565c0" />
                 <SummaryCard label="Additional Cost" value={data.totalAdditionalCost} color="#ef6c00" />
-                <SummaryCard
-                    label={`Overhead${Number(data.overheadPercentage) ? ` (${data.overheadPercentage}%)` : ""}`}
-                    value={data.overheadCost}
-                    color="#7c3aed"
-                />
+                {data.overheadMode === "WORK_CENTER" ? (
+                    <SummaryCard
+                        label="Work center overhead (in operations)"
+                        value={data.workCenterOverheadCost}
+                        color="#7c3aed"
+                    />
+                ) : (
+                    <SummaryCard
+                        label={`Overhead${data.overheadPercentage != null ? ` (BOM ${data.overheadPercentage}%)` : ""}`}
+                        value={data.overheadCost}
+                        color="#7c3aed"
+                    />
+                )}
                 <SummaryCard label="Total Cost" value={data.totalCost} color="#c62828" />
             </Box>
 
