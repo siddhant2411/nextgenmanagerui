@@ -346,6 +346,7 @@ const buildDirtySignature = (values, operations) => {
         fixedCostPerUnit: operation?.fixedCostPerUnit ?? null,
         costQuantity: operation?.costQuantity ?? null,
         costRate: operation?.costRate ?? null,
+        applyOverhead: Boolean(operation?.applyOverhead),
         allowParallel: Boolean(operation?.allowParallel),
         parallelPath: operation?.parallelPath ?? null,
         instructions: operation?.instructions ?? null,
@@ -1405,7 +1406,7 @@ const AddBom = () => {
                                                 InputLabelProps={{ shrink: true }}
                                                 InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
                                                 {...formik.getFieldProps("overheadPercentage")}
-                                                helperText="Blanket manufacturing overhead on total cost (excl. subcontract)"
+                                                helperText="Blanket overhead on total cost (excl. subcontract). Leave blank to use each work center's overhead %; 0 means no overhead."
                                                 sx={fieldSx}
                                             />
                                         </Grid>

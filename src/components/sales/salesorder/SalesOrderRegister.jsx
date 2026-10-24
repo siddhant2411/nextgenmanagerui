@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../auth/AuthContext";
 import { SALES_MANAGE_ROLES } from "../../../auth/roles";
 import { useViewState } from "../../../commonTools/useViewState";
+import { formatMoney } from "../../common/currency";
 
 /* Route namespace for preserved page state — see commonTools/useViewState. */
 const VIEW_STATE_NS = "/sales/sales-order/register";
@@ -34,7 +35,7 @@ const allColumns = [
   { field: 'customerName', headerName: 'Customer', width: 180, align: 'left' },
   { field: 'poNumber', headerName: 'PO Number', width: 150, align: 'left' },
   { field: 'quotationRef', headerName: 'Quotation', width: 150, align: 'left' },
-  { field: 'netAmount', headerName: 'Net Amount', width: 130, align: 'right', valueFormatter: p => formatAmount(p) },
+  { field: 'netAmount', headerName: 'Net Amount', width: 130, align: 'right', valueFormatter: (p, row) => (p == null ? "" : formatMoney(p, row?.currency)) },
   { field: 'status', headerName: 'Status', width: 120, align: 'center' },
   { field: 'deliveryDate', headerName: 'Delivery Date', width: 120, align: 'center', valueFormatter: p => formatDate(p) },
   { field: 'dispatchThrough', headerName: 'Dispatch', width: 150, align: 'left' },
@@ -51,12 +52,6 @@ function formatDateTime(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr);
   return `${d.toLocaleDateString('en-GB')} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
-}
-
-function formatAmount(num) {
-  if (num == null) return "";
-  // You can set currency or localization as per your ERP
-  return Number(num).toLocaleString("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 });
 }
 
 
@@ -242,7 +237,7 @@ const SalesOrderRegister = () => {
                         }}
                       >
                         {col.valueFormatter
-                          ? col.valueFormatter(row[col.field])
+                          ? col.valueFormatter(row[col.field], row)
                           : row[col.field]}
                       </TableCell>
                     ))}

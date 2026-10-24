@@ -7,6 +7,7 @@ import {
 import { Add, Delete, Inventory, ShoppingCart, NoteAlt } from '@mui/icons-material';
 import apiService from '../../../services/apiService';
 import { T } from '../../../theme/moduleTokens';
+import { currencySign, formatMoney } from '../../common/currency';
 
 
 const BLANK_LINE = {
@@ -111,7 +112,7 @@ export default function POLineItemsTab({ formik, readOnly }) {
                                 <TableCell sx={headerCellStyle} style={{ width: 110 }} align="right">Unit Price</TableCell>
                                 <TableCell sx={headerCellStyle} style={{ width: 70 }} align="right">Disc%</TableCell>
                                 <TableCell sx={headerCellStyle} style={{ width: 80 }} align="right">GST%</TableCell>
-                                <TableCell sx={headerCellStyle} style={{ width: 120 }} align="right">Amount (₹)</TableCell>
+                                <TableCell sx={headerCellStyle} style={{ width: 120 }} align="right">Amount ({currencySign(formik.values.currency)})</TableCell>
                                 <TableCell sx={headerCellStyle} style={{ width: 130 }}>Required By</TableCell>
                                 {!readOnly && <TableCell sx={headerCellStyle} style={{ width: 50 }} align="center">Action</TableCell>}
                             </TableRow>
@@ -192,7 +193,7 @@ export default function POLineItemsTab({ formik, readOnly }) {
                                             )}
                                         </TableCell>
                                         <TableCell sx={{ ...cellStyle, fontWeight: 800, color: '#0f172a' }} align="right">
-                                            ₹{num2(taxable)}
+                                            {formatMoney(taxable, formik.values.currency)}
                                         </TableCell>
                                         <TableCell sx={cellStyle}>
                                             {readOnly ? (line.requiredByDate ?? '—') : (
@@ -223,16 +224,16 @@ export default function POLineItemsTab({ formik, readOnly }) {
                         <Stack spacing={1} sx={{ minWidth: 200 }}>
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography sx={{ fontSize: '0.85rem', color: '#64748b' }}>Item Taxable Value</Typography>
-                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>₹{num2(totals.taxable)}</Typography>
+                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatMoney(totals.taxable, formik.values.currency)}</Typography>
                             </Stack>
                             <Stack direction="row" justifyContent="space-between">
                                 <Typography sx={{ fontSize: '0.85rem', color: '#64748b' }}>Estimated Tax</Typography>
-                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>₹{num2(totals.igst)}</Typography>
+                                <Typography sx={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatMoney(totals.igst, formik.values.currency)}</Typography>
                             </Stack>
                             <Divider sx={{ my: 1 }} />
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
                                 <Typography sx={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>Subtotal</Typography>
-                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: T.accent }}>₹{num2(totals.total)}</Typography>
+                                <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: T.accent }}>{formatMoney(totals.total, formik.values.currency)}</Typography>
                             </Stack>
                         </Stack>
                     </Box>

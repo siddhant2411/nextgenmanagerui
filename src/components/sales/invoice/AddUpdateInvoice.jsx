@@ -12,6 +12,7 @@ import {
     cancelTaxInvoice, getSalesOrder, getNextInvoiceNumber, downloadTaxInvoicePdf,
 } from '../../../services/salesOrderService';
 import RaiseCreditNoteDialog from './RaiseCreditNoteDialog';
+import { formatMoney } from '../../common/currency';
 
 const fmtDate = (d) => {
     if (!d) return '—';
@@ -19,9 +20,8 @@ const fmtDate = (d) => {
     catch { return d; }
 };
 
-const fmtAmt = (n) => n != null
-    ? '₹ ' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '—';
+// An amount in the document's own currency: an invoice is in its order's currency.
+const fmtAmt = (n, currency) => n != null ? formatMoney(n, currency) : '—';
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -228,7 +228,7 @@ export default function AddUpdateInvoice() {
                                         </Box>
                                         <Box sx={{ textAlign: 'right' }}>
                                             <Typography variant="caption" sx={{ color: T.textSec, fontWeight: 800 }}>PAYABLE AMOUNT</Typography>
-                                            <Typography variant="h6" sx={{ fontWeight: 900, color: T.primary }}>{fmtAmt(so.totalPayableAmount)}</Typography>
+                                            <Typography variant="h6" sx={{ fontWeight: 900, color: T.primary }}>{fmtAmt(so.totalPayableAmount, so.currency)}</Typography>
                                         </Box>
                                     </Box>
                                 </Grid>
@@ -353,8 +353,8 @@ export default function AddUpdateInvoice() {
                                                         )}
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ fontWeight: 800, fontSize: '1rem', borderBottom: `1px solid ${T.border}` }}>{item.qty}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 800, fontSize: '1rem', borderBottom: `1px solid ${T.border}` }}>{fmtAmt(item.pricePerUnit)}</TableCell>
-                                                    <TableCell align="right" sx={{ fontWeight: 950, fontSize: '1rem', borderBottom: `1px solid ${T.border}`, pr: 0 }}>{fmtAmt((item.qty ?? 0) * (item.pricePerUnit ?? 0))}</TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 800, fontSize: '1rem', borderBottom: `1px solid ${T.border}` }}>{fmtAmt(item.pricePerUnit, invoice.currency)}</TableCell>
+                                                    <TableCell align="right" sx={{ fontWeight: 950, fontSize: '1rem', borderBottom: `1px solid ${T.border}`, pr: 0 }}>{fmtAmt((item.qty ?? 0) * (item.pricePerUnit ?? 0), invoice.currency)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -376,30 +376,30 @@ export default function AddUpdateInvoice() {
                                             <Stack spacing={2.5}>
                                                 <Stack direction="row" justifyContent="space-between">
                                                     <Typography sx={{ color: T.textSec, fontWeight: 800, fontSize: '0.9rem' }}>Taxable Value</Typography>
-                                                    <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.taxableValue)}</Typography>
+                                                    <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.taxableValue, invoice.currency)}</Typography>
                                                 </Stack>
                                                 {invoice.cgstAmount > 0 && (
                                                     <Stack direction="row" justifyContent="space-between">
                                                         <Typography sx={{ color: T.textSec, fontWeight: 800, fontSize: '0.9rem' }}>CGST Total</Typography>
-                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.cgstAmount)}</Typography>
+                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.cgstAmount, invoice.currency)}</Typography>
                                                     </Stack>
                                                 )}
                                                 {invoice.sgstAmount > 0 && (
                                                     <Stack direction="row" justifyContent="space-between">
                                                         <Typography sx={{ color: T.textSec, fontWeight: 800, fontSize: '0.9rem' }}>SGST Total</Typography>
-                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.sgstAmount)}</Typography>
+                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.sgstAmount, invoice.currency)}</Typography>
                                                     </Stack>
                                                 )}
                                                 {invoice.igstAmount > 0 && (
                                                     <Stack direction="row" justifyContent="space-between">
                                                         <Typography sx={{ color: T.textSec, fontWeight: 800, fontSize: '0.9rem' }}>IGST Total</Typography>
-                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.igstAmount)}</Typography>
+                                                        <Typography sx={{ fontWeight: 900, fontSize: '0.95rem' }}>{fmtAmt(invoice.igstAmount, invoice.currency)}</Typography>
                                                     </Stack>
                                                 )}
                                                 <Divider sx={{ borderBottomWidth: 2, borderColor: T.text }} />
                                                 <Stack direction="row" justifyContent="space-between" sx={{ pt: 1 }}>
                                                     <Typography sx={{ fontWeight: 950, fontSize: '1.4rem', color: T.text }}>TOTAL</Typography>
-                                                    <Typography sx={{ fontWeight: 950, fontSize: '1.6rem', color: T.primary }}>{fmtAmt(invoice.totalPayableAmount)}</Typography>
+                                                    <Typography sx={{ fontWeight: 950, fontSize: '1.6rem', color: T.primary }}>{fmtAmt(invoice.totalPayableAmount, invoice.currency)}</Typography>
                                                 </Stack>
                                             </Stack>
                                         </Grid>
@@ -417,11 +417,11 @@ export default function AddUpdateInvoice() {
                                     <Stack spacing={3} sx={{ mb: 4 }}>
                                         <Box sx={{ p: 2.5, borderRadius: 4, bgcolor: `${T.success}08`, border: `1px solid ${T.success}20` }}>
                                             <Typography variant="caption" sx={{ color: T.success, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total Paid</Typography>
-                                            <Typography variant="h5" sx={{ fontWeight: 950, color: T.success, mt: 0.5 }}>{fmtAmt(invoice.paidAmount)}</Typography>
+                                            <Typography variant="h5" sx={{ fontWeight: 950, color: T.success, mt: 0.5 }}>{fmtAmt(invoice.paidAmount, invoice.currency)}</Typography>
                                         </Box>
                                         <Box sx={{ p: 2.5, borderRadius: 4, bgcolor: `${T.error}08`, border: `1px solid ${T.error}20` }}>
                                             <Typography variant="caption" sx={{ color: T.error, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Balance Due</Typography>
-                                            <Typography variant="h5" sx={{ fontWeight: 950, color: T.error, mt: 0.5 }}>{fmtAmt((invoice.totalPayableAmount ?? 0) - (invoice.paidAmount ?? 0))}</Typography>
+                                            <Typography variant="h5" sx={{ fontWeight: 950, color: T.error, mt: 0.5 }}>{fmtAmt((invoice.totalPayableAmount ?? 0) - (invoice.paidAmount ?? 0), invoice.currency)}</Typography>
                                         </Box>
                                     </Stack>
 

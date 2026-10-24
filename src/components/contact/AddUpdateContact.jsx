@@ -25,6 +25,7 @@ import { AccountBalanceOutlined, AddCircleOutline, Close, SaveOutlined } from '@
 import apiService, { resolveApiErrorMessage } from '../../services/apiService';
 import { getContactLedgers, ensureContactLedger } from '../../services/accounting/accountingCoaService';
 import GstStateSelect, { StateNameField } from '../common/GstStateSelect';
+import CurrencySelect from '../common/CurrencySelect';
 import { stateCodeFromGstin, useGstStates } from '../../services/gstStates';
 
 /* ── Design tokens ── */
@@ -377,10 +378,9 @@ const AddUpdateContact = ({ onSave }) => {
                                         sx={fieldSx} />
                                 </Grid>
                                 <Grid item xs={6} sm={3}>
-                                    <TextField fullWidth size="small" label="Currency"
-                                        name="currency" value={values.currency}
-                                        onChange={e => formik.setFieldValue('currency', e.target.value.toUpperCase().slice(0, 3))}
-                                        inputProps={{ maxLength: 3 }} sx={fieldSx} />
+                                    {/* New quotations, orders and purchase orders for this party start in this currency. */}
+                                    <CurrencySelect size="small" value={values.currency}
+                                        onChange={code => formik.setFieldValue('currency', code)} sx={fieldSx} />
                                 </Grid>
                                 <Grid item xs={6} sm={3}>
                                     <TextField fullWidth size="small" label="Credit Days" type="number"

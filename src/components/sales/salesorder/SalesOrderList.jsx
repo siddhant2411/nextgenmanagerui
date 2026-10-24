@@ -12,6 +12,7 @@ import FilterBar from '../../ui/filterbar/FilterBar';
 import { deleteSalesOrder, downloadSOPdf } from '../../../services/salesOrderService';
 import { useAuth } from '../../../auth/AuthContext';
 import { SALES_MANAGE_ROLES } from '../../../auth/roles';
+import { formatMoney } from '../../common/currency';
 
 const STATUS_CONFIG = {
   DRAFT:                { label: 'Draft',             color: '#64748b', bg: '#f8fafc' },
@@ -178,7 +179,7 @@ const SalesOrderList = ({
 
                     <TableCell>
                       <Typography sx={{ fontWeight: 600, color: '#0f172a', fontSize: '0.875rem' }}>
-                        {row.currency || 'INR'} {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {formatMoney(total, row.currency)}
                       </Typography>
                     </TableCell>
 

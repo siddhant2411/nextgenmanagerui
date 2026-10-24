@@ -20,6 +20,7 @@ import {
 import POBasicTab from './tabs/POBasicTab';
 import POLineItemsTab from './tabs/POLineItemsTab';
 import POTaxSummaryTab from './tabs/POTaxSummaryTab';
+import { formatMoney } from '../common/currency';
 import POReceiveTab from './tabs/POReceiveTab';
 import DocumentChecklist from '../common/DocumentChecklist';
 import SendPODialog from './SendPODialog';
@@ -523,23 +524,23 @@ export default function AddUpdatePurchaseOrder() {
                                 <Stack spacing={2}>
                                     <Stack direction="row" justifyContent="space-between">
                                         <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Subtotal</Typography>
-                                        <Typography sx={{ fontWeight: 600 }}>₹{formik.values.subtotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                        <Typography sx={{ fontWeight: 600 }}>{formatMoney(formik.values.subtotal, formik.values.currency)}</Typography>
                                     </Stack>
                                     <Stack direction="row" justifyContent="space-between">
                                         <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Total Tax</Typography>
-                                        <Typography sx={{ fontWeight: 600 }}>₹{(formik.values.cgstAmount + formik.values.sgstAmount + formik.values.igstAmount)?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                        <Typography sx={{ fontWeight: 600 }}>{formatMoney(formik.values.cgstAmount + formik.values.sgstAmount + formik.values.igstAmount, formik.values.currency)}</Typography>
                                     </Stack>
                                     {formik.values.roundOff !== 0 && (
                                         <Stack direction="row" justifyContent="space-between">
                                             <Typography sx={{ color: T.ink2, fontSize: '0.85rem' }}>Round Off</Typography>
-                                            <Typography sx={{ fontWeight: 600 }}>₹{formik.values.roundOff?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                            <Typography sx={{ fontWeight: 600 }}>{formatMoney(formik.values.roundOff, formik.values.currency)}</Typography>
                                         </Stack>
                                     )}
                                     <Divider sx={{ my: 1 }} />
                                     <Stack direction="row" justifyContent="space-between" alignItems="center">
                                         <Typography sx={{ fontWeight: 700, color: '#0f172a' }}>Grand Total</Typography>
                                         <Typography variant="h6" sx={{ fontWeight: 800, color: T.accent }}>
-                                            ₹{formik.values.grandTotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                            {formatMoney(formik.values.grandTotal, formik.values.currency)}
                                         </Typography>
                                     </Stack>
                                 </Stack>

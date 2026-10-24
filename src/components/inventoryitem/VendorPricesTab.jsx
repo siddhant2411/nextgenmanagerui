@@ -7,6 +7,7 @@ import { ShoppingCart, Handyman, Edit, Delete, Star, StarOutline, CheckCircle, C
 import apiService from '../../services/apiService';
 import AddEditVendorPriceDrawer from './AddEditVendorPriceDrawer';
 import dayjs from 'dayjs';
+import { formatMoney } from '../common/currency';
 
 const BORDER_COLOR = '#e5e7eb';
 const HEADER_BG = '#0f2744';
@@ -78,7 +79,8 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
     setDrawerOpen(true);
   };
 
-  const formatInr = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(val || 0);
+  // Each price is shown in the currency the vendor quoted it in.
+  const formatPrice = (row) => formatMoney(row.pricePerUnit, row.currency);
   
   const renderTable = (prices, typeTitle, typeIcon, emptyMessage, addLabel, typeConst) => (
     <Paper variant="outlined" sx={{ mb: 4, borderRadius: 2, borderColor: BORDER_COLOR, overflow: 'hidden' }}>
@@ -146,7 +148,7 @@ export default function VendorPricesTab({ itemId, setSnackbar, purchased = true,
                         {row.gstRegistered ? <CheckCircle sx={{ color: '#10b981', fontSize: 16 }} /> : <Cancel sx={{ color: '#ef4444', fontSize: 16 }} />}
                       </Tooltip>
                     </TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 600 }}>{formatInr(row.pricePerUnit)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600 }}>{formatPrice(row)}</TableCell>
                     <TableCell>{row.leadTimeDays ? `${row.leadTimeDays} days` : '-'}</TableCell>
                     <TableCell>
                       <Box display="flex" alignItems="center" gap={1}>

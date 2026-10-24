@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { Visibility, Cancel } from '@mui/icons-material';
 import { cancelTaxInvoice } from '../../../services/salesOrderService';
+import { formatMoney } from '../../common/currency';
 import FilterBar from '../../ui/filterbar/FilterBar';
 
 const BORDER = '#e2e8f0';
@@ -76,10 +77,6 @@ export default function InvoiceList({
         catch { return d; }
     };
 
-    const fmtAmount = (n) => n != null
-        ? Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-        : '—';
-
     return (
         <Box>
             <Box sx={{ p: 2, borderBottom: `1px solid ${BORDER}` }}>
@@ -136,8 +133,8 @@ export default function InvoiceList({
                                         <TableCell sx={{ fontSize: '0.78rem', color: inv.dueDate && new Date(inv.dueDate) < new Date() && inv.status !== 'PAID' ? '#dc2626' : 'inherit' }}>
                                             {fmtDate(inv.dueDate)}
                                         </TableCell>
-                                        <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600 }}>₹ {fmtAmount(inv.totalPayableAmount)}</TableCell>
-                                        <TableCell sx={{ fontSize: '0.78rem' }}>₹ {fmtAmount(inv.paidAmount)}</TableCell>
+                                        <TableCell sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{formatMoney(inv.totalPayableAmount, inv.currency)}</TableCell>
+                                        <TableCell sx={{ fontSize: '0.78rem' }}>{formatMoney(inv.paidAmount, inv.currency)}</TableCell>
                                         <TableCell>
                                             <Chip label={inv.status} size="small"
                                                 sx={{ fontSize: '0.65rem', fontWeight: 700, height: 20, bgcolor: st.bg, color: st.color }} />

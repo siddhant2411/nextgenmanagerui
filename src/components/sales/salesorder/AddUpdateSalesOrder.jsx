@@ -34,9 +34,11 @@ import SendSalesOrderDialog from './SendSalesOrderDialog';
 import RecordPaymentDialog from './RecordPaymentDialog';
 
 import { serverFiltered, renderItemOption } from '../../common/itemPicker';
-import PriceFloorHint, { floorOf, isBelowFloor } from '../../common/PriceFloorHint';
+import PriceFloorHint, { floorOf, isBelowFloor, fromRupees } from '../../common/PriceFloorHint';
 import { useAuth } from '../../../auth/AuthContext';
 import { SALES_MANAGE_ROLES } from '../../../auth/roles';
+import CurrencySelect, { ExchangeRateField } from '../../common/CurrencySelect';
+import { currencySign, formatMoney, isRupee, latestRate } from '../../common/currency';
 /* ── Premium Design Tokens ── */
 const T = {
     primary: '#2563eb',
@@ -127,6 +129,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             quotation: null,
             items: [],
             currency: 'INR',
+            exchangeRate: 1,
             taxType: 'CGST_SGST',
             placeOfSupply: '',
             placeOfSupplyStateCode: '',
@@ -199,6 +202,18 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         });
     };
 
+    // Picking a currency brings the rate last entered for it, unless a rate is given (a quotation's own).
+    const changeCurrency = async (code, rate) => {
+        formik.setFieldValue('currency', code);
+        const r = isRupee(code) ? 1 : (parseFloat(rate) > 0 ? rate : await latestRate(code));
+        formik.setFieldValue('exchangeRate', r ?? '');
+    };
+
+    // An order still on the rupee default follows the customer's or the quotation's currency.
+    const applyCurrency = (code, rate) => {
+        if (code && !isRupee(code) && isRupee(formik.values.currency)) changeCurrency(code, rate);
+    };
+
     // ── Live tax calculation ──────────────────────────────────────────────────
     useEffect(() => {
         const items   = formik.values.items || [];
@@ -239,7 +254,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
 
         const taxable  = preFreightTaxable + freight;
         const before   = taxable + cgst + sgst + igst;
-        const rounded  = Math.round(before);
+        // Rounded to the rupee for a rupee order, to the cent in any other currency, as the server does.
+        const rounded  = isRupee(formik.values.currency) ? Math.round(before) : Math.round(before * 100) / 100;
         const roundOff = rounded - before;
 
         if (
@@ -259,7 +275,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
             formik.setFieldValue('totalPayableAmount',  rounded,  false);
             formik.setFieldValue('roundOffAmount',      roundOff, false);
         }
-    }, [formik.values.items, formik.values.taxType, formik.values.discountPercentage, formik.values.freightAndForwardingCharges]);
+    }, [formik.values.items, formik.values.taxType, formik.values.discountPercentage, formik.values.freightAndForwardingCharges, formik.values.currency]);
 
     // ── Load order ────────────────────────────────────────────────────────────
     const applyServerData = (data) => {
@@ -289,6 +305,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                 minimumSellingPrice: i.minimumSellingPrice ?? null,
             })),
             currency:    data.currency    ?? 'INR',
+            exchangeRate: data.exchangeRate ?? 1,
             taxType:     data.taxType     ?? 'CGST_SGST',
             placeOfSupply:          data.placeOfSupply ?? '',
             placeOfSupplyStateCode: data.placeOfSupplyStateCode ?? '',
@@ -355,6 +372,8 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                     .then(q => {
                         formik.setFieldValue('quotation', q);
                         applyTerms(termsOfQuotation(q, termsOfCustomer(q.enquiry?.contact)));
+                        if (q.currency && !isRupee(q.currency)) applyCurrency(q.currency, q.exchangeRate);
+                        else applyCurrency(q.enquiry?.contact?.currency);
                         if (q.enquiry?.contact) {
                             formik.setFieldValue('contact', q.enquiry.contact);
                             Object.entries(partyDefaultsFor(q.enquiry.contact)).forEach(([k, val]) => formik.setFieldValue(k, val));
@@ -383,6 +402,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
         quotationId:  v.quotation?.id ?? null,
         orderDate:    v.orderDate,
         currency:     v.currency,
+        exchangeRate: v.exchangeRate === '' ? null : v.exchangeRate,
         taxType:      v.taxType,
         placeOfSupply:          v.placeOfSupply,
         placeOfSupplyStateCode: v.placeOfSupplyStateCode,
@@ -492,7 +512,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
     // Lines priced under the item's minimum selling price once the order discount is taken off.
     // The order is not blocked for it; the approver is told before they approve.
     const belowFloorCount = formik.values.items.filter(i =>
-        isBelowFloor(i.minimumSellingPrice ?? floorOf(i.inventoryItem), i.pricePerUnit, 0, formik.values.discountPercentage)
+        isBelowFloor(i.minimumSellingPrice ?? floorOf(i.inventoryItem, formik.values.exchangeRate), i.pricePerUnit, 0, formik.values.discountPercentage)
     ).length;
     const belowFloorText = `${belowFloorCount} line${belowFloorCount > 1 ? 's are' : ' is'} priced below the minimum selling price`;
 
@@ -656,6 +676,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 // A new customer brings their own billing address and starts shipping to it
                                                 Object.entries(partyDefaultsFor(v)).forEach(([k, val]) => formik.setFieldValue(k, val));
                                                 applyTerms(termsOfCustomer(v));
+                                                applyCurrency(v?.currency);
                                             }}
                                             disabled={readOnly}
                                             renderInput={(p) => <TextField {...p} label="Select Customer *" error={Boolean(formik.errors.contact)} helperText={formik.errors.contact} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />}
@@ -668,6 +689,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                             onChange={async (_, v) => {
                                                 formik.setFieldValue('quotation', v);
                                                 applyTerms(termsOfQuotation(v, termsOfCustomer(formik.values.contact)));
+                                                applyCurrency(v?.currency, v?.exchangeRate);
                                                 if (v?.quotationProducts) {
                                                     formik.setFieldValue('items', v.quotationProducts.map(p => ({
                                                         inventoryItem: p.inventoryItem, qty: p.qty,
@@ -683,7 +705,10 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                     <Grid item xs={12} md={3}><TextField fullWidth type="date" label="Order Date" name="orderDate" value={formik.values.orderDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth label="Client PO#" name="poNumber" value={formik.values.poNumber} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth type="date" label="PO Date" name="poDate" value={formik.values.poDate} onChange={formik.handleChange} InputLabelProps={{ shrink: true }} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
-                                    <Grid item xs={12} md={3}><TextField fullWidth label="Currency" name="currency" value={formik.values.currency} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    <Grid item xs={12} md={3}><CurrencySelect value={formik.values.currency} onChange={code => changeCurrency(code)} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    {!isRupee(formik.values.currency) && (
+                                        <Grid item xs={12} md={3}><ExchangeRateField currency={formik.values.currency} value={formik.values.exchangeRate} onChange={v => formik.setFieldValue('exchangeRate', v)} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
+                                    )}
                                     {/* Printed in the terms block of the order acknowledgement, proforma and invoice. */}
                                     <Grid item xs={12} md={6}><TextField fullWidth label="Payment Terms" name="paymentTerms" value={formik.values.paymentTerms} onChange={formik.handleChange} disabled={readOnly} placeholder="e.g. 30% advance, balance before dispatch" inputProps={{ maxLength: 200 }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
                                     <Grid item xs={12} md={3}><TextField fullWidth label="Incoterms / Price Basis" name="incoterms" value={formik.values.incoterms} onChange={formik.handleChange} disabled={readOnly} placeholder="e.g. Ex-works Rajkot" inputProps={{ maxLength: 200 }} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} /></Grid>
@@ -734,7 +759,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                                 u[idx] = { 
                                                                     ...u[idx], 
                                                                     inventoryItem: v, 
-                                                                    pricePerUnit: v?.productFinanceSettings?.sellingPrice || 0, 
+                                                                    pricePerUnit: fromRupees(v?.productFinanceSettings?.sellingPrice || 0, formik.values.exchangeRate) || 0, 
                                                                     gstRatePct: v?.productFinanceSettings?.gstRate || 18,
                                                                     hsnCode: v?.hsnCode || '',
                                                                     minimumSellingPrice: null
@@ -748,12 +773,12 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                     <TableCell><TextField variant="standard" value={item.hsnCode} disabled={readOnly} sx={{ width: 70 }} /></TableCell>
                                                     <TableCell><TextField variant="standard" type="number" value={item.qty} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].qty = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'center', fontWeight: 700 } }} sx={{ width: 60 }} /></TableCell>
                                                     <TableCell><TextField variant="standard" type="number" value={item.pricePerUnit} disabled={readOnly} onChange={(e) => { const u = [...formik.values.items]; u[idx].pricePerUnit = e.target.value; formik.setFieldValue('items', u); }} inputProps={{ style: { textAlign: 'right', fontWeight: 700 } }} sx={{ width: 80 }} />
-                                                        <PriceFloorHint item={item.inventoryItem} floor={item.minimumSellingPrice} price={item.pricePerUnit}
+                                                        <PriceFloorHint item={item.inventoryItem} floor={item.minimumSellingPrice} price={item.pricePerUnit} currency={formik.values.currency} rate={formik.values.exchangeRate}
                                                             documentDiscountPct={formik.values.discountPercentage} align="left" />
                                                     </TableCell>
                                                     <TableCell><TextField variant="standard" type="number" value={item.gstRatePct} disabled={readOnly} sx={{ width: 50 }} inputProps={{ style: { textAlign: 'center' } }} /></TableCell>
                                                     <TableCell align="right" sx={{ fontWeight: 900, color: T.text }}>
-                                                        ₹{(parseNum(item.qty) * parseNum(item.pricePerUnit)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                                        {formatMoney(parseNum(item.qty) * parseNum(item.pricePerUnit), formik.values.currency)}
                                                     </TableCell>
                                                     <TableCell align="right">
                                                         {!readOnly && (
@@ -803,7 +828,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                 onChange={(code) => { formik.setFieldValue('placeOfSupplyStateCode', code); formik.setFieldValue('placeOfSupply', ''); }}
                                                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                             <TextField fullWidth label="Global Discount %" name="discountPercentage" type="number" value={formik.values.discountPercentage} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
-                                            <TextField fullWidth label="Freight Charges (₹)" name="freightAndForwardingCharges" type="number" value={formik.values.freightAndForwardingCharges} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
+                                            <TextField fullWidth label={`Freight Charges (${currencySign(formik.values.currency)})`} name="freightAndForwardingCharges" type="number" value={formik.values.freightAndForwardingCharges} onChange={formik.handleChange} disabled={readOnly} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }} />
                                         </Stack>
                                     </Grid>
                                 </Grid>
@@ -819,7 +844,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                             <Paper elevation={0} sx={{ borderRadius: 5, border: `1px solid ${T.border}`, overflow: 'hidden', bgcolor: 'white', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
                                 <Box sx={{ p: 4, bgcolor: T.text, color: 'white' }}>
                                     <Typography sx={{ fontWeight: 900, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.6, mb: 1 }}>Grand Total</Typography>
-                                    <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>₹{parseNum(formik.values.totalPayableAmount).toLocaleString('en-IN')}</Typography>
+                                    <Typography variant="h3" sx={{ fontWeight: 900, letterSpacing: '-0.03em' }}>{formatMoney(formik.values.totalPayableAmount, formik.values.currency, { decimals: isRupee(formik.values.currency) ? 0 : 2 })}</Typography>
                                 </Box>
                                 <Box sx={{ p: 4 }}>
                                     <Stack spacing={2.5}>
@@ -854,7 +879,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                         })().map(([label, val]) => (
                                             <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                 <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>{label}</Typography>
-                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>{parseNum(val) < 0 ? '−' : ''}₹{Math.abs(parseNum(val)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Typography>
+                                                <Typography variant="body2" sx={{ fontWeight: 900, color: T.text }}>{formatMoney(val, formik.values.currency)}</Typography>
                                             </Box>
                                         ))}
                                         <Divider sx={{ my: 1 }} />
@@ -938,16 +963,16 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                             <Stack spacing={1}>
                                                 <Stack direction="row" justifyContent="space-between">
                                                     <Typography variant="body2" sx={{ color: T.textSec, fontWeight: 500 }}>Order Value</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 900 }}>₹{parseNum(formik.values.totalPayableAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900 }}>{formatMoney(formik.values.totalPayableAmount, formik.values.currency)}</Typography>
                                                 </Stack>
                                                 <Stack direction="row" justifyContent="space-between">
                                                     <Typography variant="body2" sx={{ color: '#059669', fontWeight: 500 }}>Received</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#059669' }}>₹{totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 900, color: '#059669' }}>{formatMoney(totalPaid, formik.values.currency)}</Typography>
                                                 </Stack>
                                                 <Divider />
                                                 <Stack direction="row" justifyContent="space-between">
                                                     <Typography sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#059669', fontSize: '0.85rem' }}>Balance Due</Typography>
-                                                    <Typography sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#059669' }}>₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                    <Typography sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#059669' }}>{formatMoney(balance, formik.values.currency)}</Typography>
                                                 </Stack>
                                                 {payments.length > 0 && (
                                                     <Stack spacing={0.5} sx={{ mt: 1 }}>
@@ -958,7 +983,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                                                                     <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: T.text }}>{p.paymentDate}</Typography>
                                                                     <Typography sx={{ fontSize: '0.65rem', color: T.textSec }}>{p.paymentMode}{p.referenceNumber ? ` · ${p.referenceNumber}` : ''}</Typography>
                                                                 </Box>
-                                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: '#059669' }}>₹{parseFloat(p.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Typography>
+                                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 900, color: '#059669' }}>{formatMoney(p.amount, formik.values.currency)}</Typography>
                                                             </Stack>
                                                         ))}
                                                         {payments.length > 3 && (
@@ -1045,7 +1070,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                             <Receipt sx={{ fontSize: 16, color: T.primary }} />
                             <Box>
                                 <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>{inv.invoiceNumber}</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{inv.invoiceDate} · ₹{parseFloat(inv.totalAmount || 0).toLocaleString()}</Typography>
+                                <Typography sx={{ fontSize: '0.7rem', color: T.textSec }}>{inv.invoiceDate} · {formatMoney(inv.totalAmount, formik.values.currency)}</Typography>
                             </Box>
                         </Stack>
                     </MenuItem>
@@ -1104,6 +1129,7 @@ const AddUpdateSalesOrder = ({ onSave }) => {
                     orderId={orderId}
                     orderNumber={formik.values.orderNumber}
                     totalPayable={formik.values.totalPayableAmount}
+                    currency={formik.values.currency}
                     payments={payments}
                     onPaymentsChanged={() => getPaymentsForOrder(orderId).then(setPayments).catch(() => {})}
                 />
