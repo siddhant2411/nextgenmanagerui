@@ -68,7 +68,7 @@ export default function WorkOrderBasicDetails({ formik, setError, workOrderId })
     try {
       if (formik.values.sourceType === 'SALES_ORDER') {
         const response = await apiService.get('/sales-orders', {
-          search: searchValue,
+          orderNumber: searchValue,
           size: 8,
           sortBy: 'orderNumber',
           sortDir: 'asc',

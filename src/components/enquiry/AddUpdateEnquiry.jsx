@@ -14,10 +14,13 @@ import { inventoryItemSearch, searchContacts } from '../../services/commonAPI';
 import { contactLabel, filterContactOptions } from '../../utils/contactLabel';
 import { useParams, useNavigate } from 'react-router-dom';
 import { serverFiltered, renderItemOption } from '../common/itemPicker';
+import QuickCreateItemDialog from '../common/QuickCreateItemDialog';
+import { useAuth } from '../../auth/AuthContext';
+import { INVENTORY_ACCESS_ROLES } from '../../auth/roles';
 import {
   Save, ArrowBack, Add, Delete, History, Info, SwapHoriz, OpenInNew, Receipt,
   LocalFireDepartment, Thermostat, AcUnit, Call, Email, MeetingRoom, Description,
-  DeleteOutline, Business, LinkOutlined, PersonAdd, CheckCircle
+  DeleteOutline, Business, LinkOutlined, PersonAdd, CheckCircle, PostAdd
 } from '@mui/icons-material';
 
 /* ── Premium Design Tokens ── */
@@ -67,7 +70,12 @@ const AddUpdateEnquiry = ({ onSave }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [linkedQuotations, setLinkedQuotations] = useState([]);
+  // index: the line the new item goes on, or null to add it as a new line.
+  const [newItemDialog, setNewItemDialog] = useState({ open: false, index: null, name: '' });
   const debounceTimeout = useRef(null);
+  const { hasAnyRole } = useAuth();
+  // Same roles the item-create endpoint accepts; everyone else keeps typing a free-text name.
+  const canCreateItem = hasAnyRole(INVENTORY_ACCESS_ROLES);
 
   useEffect(() => {
     if (enquiryId) {
@@ -182,6 +190,21 @@ const AddUpdateEnquiry = ({ onSave }) => {
     ]);
   };
   
+  const handleItemCreated = (item) => {
+    const { index } = newItemDialog;
+    setProductList(list => [item, ...list]);
+    if (index === null) {
+      formik.setFieldValue('enquiredProducts', [
+        ...formik.values.enquiredProducts,
+        { inventoryItem: item, productNameRequired: item.name, qty: 1, specialInstruction: '', pricePerUnit: 0 }
+      ]);
+    } else {
+      formik.setFieldValue(`enquiredProducts[${index}].inventoryItem`, item);
+      formik.setFieldValue(`enquiredProducts[${index}].productNameRequired`, item.name);
+    }
+    setNewItemDialog({ open: false, index: null, name: '' });
+  };
+
   const removeProduct = (index) => {
     const updated = [...formik.values.enquiredProducts];
     updated.splice(index, 1);
@@ -465,7 +488,12 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                         </Grid>
 
                                         <Grid item xs={12}>
-                                            <Box display="flex" justifyContent="flex-end" mb={1.5}>
+                                            <Box display="flex" justifyContent="flex-end" gap={1} mb={1.5}>
+                                                {canCreateItem && (
+                                                    <Button startIcon={<PostAdd />} variant="text" size="small" onClick={() => setNewItemDialog({ open: true, index: null, name: '' })} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 800 }}>
+                                                        Create New Item
+                                                    </Button>
+                                                )}
                                                 <Button startIcon={<Add />} variant="outlined" size="small" onClick={addProduct} sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 800 }}>
                                                     Add Item
                                                 </Button>
@@ -484,8 +512,10 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                         {formik.values.enquiredProducts.map((item, index) => (
                                                             <TableRow key={index} sx={{ '&:hover': { bgcolor: `${T.primary}04` } }}>
                                                                 <TableCell sx={{ py: 1.5, minWidth: 220 }}>
+                                                                  <Box display="flex" alignItems="center" gap={0.5}>
                                                                     <Autocomplete
                                                                         freeSolo
+                                                                        sx={{ flex: 1 }}
                                                                         options={productList}
                                                                         filterOptions={serverFiltered}
                                                                         renderOption={renderItemOption}
@@ -503,6 +533,14 @@ const AddUpdateEnquiry = ({ onSave }) => {
                                                                         }}
                                                                         renderInput={(params) => <TextField {...params} variant="standard" placeholder="Search product..." sx={{ '& input': { fontWeight: 700 } }} />}
                                                                     />
+                                                                    {canCreateItem && !item.inventoryItem && (
+                                                                        <Tooltip title={item.productNameRequired ? `Create "${item.productNameRequired}" as a new item` : 'Create a new item'}>
+                                                                            <IconButton size="small" color="primary" onClick={() => setNewItemDialog({ open: true, index, name: item.productNameRequired || '' })}>
+                                                                                <PostAdd fontSize="small" />
+                                                                            </IconButton>
+                                                                        </Tooltip>
+                                                                    )}
+                                                                  </Box>
                                                                 </TableCell>
                                                                 <TableCell align="center">
                                                                     <TextField name={`enquiredProducts[${index}].qty`} type="number" size="small" value={item.qty} onChange={formik.handleChange} sx={{ width: 72, '& input': { textAlign: 'center', fontWeight: 800 } }} />
@@ -802,6 +840,13 @@ const AddUpdateEnquiry = ({ onSave }) => {
             </Grid>
         </Container>
       </form>
+
+      <QuickCreateItemDialog
+        open={newItemDialog.open}
+        initialName={newItemDialog.name}
+        onClose={() => setNewItemDialog({ open: false, index: null, name: '' })}
+        onCreated={handleItemCreated}
+      />
 
       {/* ── Link Contact Before Convert Dialog ── */}
       <Dialog
