@@ -305,8 +305,9 @@ export default function AddUpdatePurchaseRequisition() {
             const res = isEdit
                 ? await updatePurchaseRequisition(id, payload)
                 : await createPurchaseRequisition(payload);
+            // An update replaces every line with a new row, so the ids held here are stale until reloaded.
             if (!isEdit) navigate(`/purchase/requisitions/${res.id}`, { replace: true });
-            else { setPr(res); }
+            else await reload();
         } catch (e) {
             setError(e?.response?.data?.message ?? 'Save failed');
         } finally {
